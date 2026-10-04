@@ -1,0 +1,145 @@
+name: user-kit
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-userkit}
+      POSTGRES_USER: ${DATABASE_USERNAME:-userkit}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-userkit}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-userkit} -d ${DATABASE_NAME:-userkit}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  object-storage:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:-rustfsadmin}
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - object-storage-data:/data
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION:-26.4}
+    command: start-dev --import-realm
+    environment:
+      # Administration console of the local instance, dev-only credentials.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_DB: dev-file
+      # Keycloak serves the realm under /auth, nginx forwards that prefix, so the
+      # issuer stays on the origin of the application:
+      # https://${SERVER_NAME:-user-kit.local}/auth/realms/user-kit
+      KC_HTTP_RELATIVE_PATH: ${KEYCLOAK_RELATIVE_PATH:-/auth}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-https://user-kit.local/auth}
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_LOG_LEVEL: ${KEYCLOAK_LOG_LEVEL:-info}
+      KC_METRICS_ENABLED: "false"
+      # nginx terminates TLS in front of the container, Keycloak has to trust the
+      # forwarded protocol and client address
+      KC_PROXY_HEADERS: xforwarded
+    volumes:
+      - ./keycloak/realm:/opt/keycloak/data/import:ro
+    ports:
+      - "${KEYCLOAK_PORT:-8180}:8080"
+    healthcheck:
+      # The management port serves the health endpoints below the same relative
+      # path as the main server, so KC_HTTP_RELATIVE_PATH has to be part of it.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET ${KEYCLOAK_RELATIVE_PATH:-/auth}/health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          timeout 2 cat <&3 | grep -q '"status": "UP"'
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${DATABASE_NAME:-userkit}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-userkit}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-userkit}
+      OIDC_ENABLED: ${OIDC_ENABLED:-true}
+      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI:-https://user-kit.local/auth/realms/user-kit}
+      # Keys are fetched from the container network, the issuer above stays the
+      # external URL, so the backend validates iss without trusting the dev CA.
+      OIDC_JWK_SET_URI: ${OIDC_JWK_SET_URI:-http://keycloak:8080/auth/realms/user-kit/protocol/openid-connect/certs}
+      OIDC_AUDIENCES: ${OIDC_AUDIENCES:-user-kit-api}
+      OIDC_ROLES_CLAIM: ${OIDC_ROLES_CLAIM:-roles}
+      DEV_AUTH_ENABLED: ${DEV_AUTH_ENABLED:-true}
+      DEV_AUTH_SECRET: ${DEV_AUTH_SECRET:-dev-only-secret-change-me-0123456789abcdef}
+      S3_ENDPOINT: http://object-storage:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-user-kit}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-rustfsadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-rustfsadmin}
+      S3_PATH_STYLE: "true"
+      S3_CREATE_BUCKET: ${S3_CREATE_BUCKET:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      object-storage:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_AUTH_MODE: ${VITE_AUTH_MODE:-oidc}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_UI5_THEME: ${VITE_UI5_THEME:-sap_horizon}
+        VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-ru}
+        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-https://user-kit.local/auth/realms/user-kit}
+        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-user-kit-web}
+        VITE_OIDC_REDIRECT_URI: ${VITE_OIDC_REDIRECT_URI:-https://user-kit.local/}
+        VITE_OIDC_POST_LOGOUT_REDIRECT_URI: ${VITE_OIDC_POST_LOGOUT_REDIRECT_URI:-https://user-kit.local/}
+        VITE_OIDC_SCOPE: ${VITE_OIDC_SCOPE:-openid profile email}
+        VITE_OIDC_ROLES_CLAIM: ${VITE_OIDC_ROLES_CLAIM:-}
+        VITE_DEV_ROLE: ${VITE_DEV_ROLE:-admin}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  edge:
+    image: nginx:1.27-alpine
+    depends_on:
+      - frontend
+      - backend
+      - keycloak
+    environment:
+      SERVER_NAME: ${SERVER_NAME:-user-kit.local}
+      UPSTREAM_FRONTEND: frontend:80
+      UPSTREAM_BACKEND: backend:8080
+      UPSTREAM_KEYCLOAK: keycloak:8080
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-26m}
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  object-storage-data:

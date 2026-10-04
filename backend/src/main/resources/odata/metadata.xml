@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="user-kit">
+            <EntityType Name="User" Abstract="false">
+                <Key>
+                    <PropertyRef Name="id"/>
+                </Key>
+                <Property Name="id" Type="Edm.Guid" Nullable="false"/>
+                <Property Name="subject" Type="Edm.String" Nullable="false"/>
+                <Property Name="username" Type="Edm.String" Nullable="false"/>
+                <Property Name="email" Type="Edm.String" Nullable="true"/>
+                <Property Name="displayName" Type="Edm.String" Nullable="false"/>
+                <Property Name="roles" Type="Collection(Edm.String)" Nullable="false"/>
+                <Property Name="enabled" Type="Edm.Boolean" Nullable="false"/>
+                <Property Name="createdAt" Type="Edm.DateTimeOffset" Nullable="false"/>
+                <Property Name="updatedAt" Type="Edm.DateTimeOffset" Nullable="false"/>
+                <Property Name="etag" Type="Edm.String" Nullable="true"/>
+            </EntityType>
+            <EntityType Name="File" Abstract="false">
+                <Key>
+                    <PropertyRef Name="id"/>
+                </Key>
+                <Property Name="id" Type="Edm.Guid" Nullable="false"/>
+                <Property Name="name" Type="Edm.String" Nullable="false" MaxLength="512"/>
+                <Property Name="description" Type="Edm.String" Nullable="true" MaxLength="2000"/>
+                <Property Name="contentType" Type="Edm.String" Nullable="false"/>
+                <Property Name="sizeBytes" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="ownerId" Type="Edm.Guid" Nullable="false"/>
+                <Property Name="ownerEmail" Type="Edm.String" Nullable="true"/>
+                <Property Name="createdAt" Type="Edm.DateTimeOffset" Nullable="false"/>
+                <Property Name="updatedAt" Type="Edm.DateTimeOffset" Nullable="false"/>
+                <Property Name="etag" Type="Edm.String" Nullable="true"/>
+                <NavigationProperty Name="content" Type="Edm.Stream"/>
+            </EntityType>
+            <EntityContainer Name="Container" Path="/odata">
+                <EntitySet Name="Users" EntityType="user-kit.User">
+                    <Annotation Term="OData.Community.Drafts.V1.Capabilities.V1.Title" String="Users"/>
+                </EntitySet>
+                <EntitySet Name="Files" EntityType="user-kit.File" MediaType="application/octet-stream">
+                    <Annotation Term="OData.Community.Drafts.V1.Capabilities.V1.Title" String="Files"/>
+                </EntitySet>
+            </EntityContainer>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

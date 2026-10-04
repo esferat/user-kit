@@ -1,0 +1,30 @@
+# Secrets and local configuration
+.env
+.env.local
+*.pem
+
+# TLS material: never commit private keys or certificates
+nginx/certs/*
+!nginx/certs/.gitkeep
+
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/coverage
+frontend/.vite
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Backend
+backend/target
+
+# Tooling
+.idea
+.vscode
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
