@@ -122,6 +122,8 @@ describe('createUsersPage', () => {
       }),
     );
     await vi.waitFor(() => expect(userApi.list).toHaveBeenCalledTimes(2));
+    // The reload behind the change must not swallow the message of its result.
+    expect(messages(page)[0]?.design).toBe('Positive');
   });
 
   it('reports a rejected role change and still reloads the list', async () => {
@@ -137,5 +139,6 @@ describe('createUsersPage', () => {
     await vi.waitFor(() => expect(messages(page)[0]?.text).toBe('412 precondition failed'));
     expect(messages(page)[0].design).toBe('Negative');
     await vi.waitFor(() => expect(userApi.list).toHaveBeenCalledTimes(2));
+    expect(messages(page)[0]?.design).toBe('Negative');
   });
 });

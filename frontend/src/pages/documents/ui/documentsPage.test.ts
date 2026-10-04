@@ -60,6 +60,11 @@ function clickAction(page: HTMLElement, row: Element, index: number): void {
   );
 }
 
+/** The toolbar renders the refresh button first and the upload button second. */
+function toolbarButtons(page: HTMLElement): Element[] {
+  return [...page.querySelectorAll('ui5-toolbar ui5-button')];
+}
+
 function searchInput(page: HTMLElement): Element & { value: string } {
   return page.querySelector('ui5-input') as Element & { value: string };
 }
@@ -165,6 +170,8 @@ describe('createDocumentsPage', () => {
       }),
     );
     await vi.waitFor(() => expect(fileApi.list).toHaveBeenCalledTimes(2));
+    // The reload behind the delete must not swallow the message of its result.
+    expect(messages(page)[0]?.design).toBe('Positive');
   });
 
   it('reports a failed download and delete', async () => {
@@ -203,7 +210,7 @@ describe('createDocumentsPage', () => {
     document.body.appendChild(page);
     await vi.waitFor(() => expect(rows(page)).toHaveLength(1));
 
-    const upload = [...page.querySelectorAll('ui5-button')][0];
+    const upload = toolbarButtons(page)[1];
     const dialog = page.querySelector('ui5-dialog') as HTMLElement & { open: boolean };
     upload.dispatchEvent(new CustomEvent('click'));
     expect(dialog.open).toBe(true);
@@ -223,6 +230,7 @@ describe('createDocumentsPage', () => {
       }),
     );
     await vi.waitFor(() => expect(fileApi.list).toHaveBeenCalledTimes(2));
+    expect(messages(page)[0]?.design).toBe('Positive');
   });
 
   it('reports a failed upload and keeps the dialog open', async () => {
@@ -233,8 +241,7 @@ describe('createDocumentsPage', () => {
     document.body.appendChild(page);
     await vi.waitFor(() => expect(rows(page)).toHaveLength(1));
 
-    const upload = [...page.querySelectorAll('ui5-button')][0];
-    upload.dispatchEvent(new CustomEvent('click'));
+    toolbarButtons(page)[1].dispatchEvent(new CustomEvent('click'));
     const file = new File(['hello from the smoke test'], 'upload.txt', { type: 'text/plain' });
     const uploader = page.querySelector('ui5-file-uploader') as Element & { files?: FileList | null };
     Object.defineProperty(uploader, 'files', { configurable: true, value: [file] });
@@ -251,9 +258,10 @@ describe('createDocumentsPage', () => {
     document.body.appendChild(page);
     await vi.waitFor(() => expect(rows(page)).toHaveLength(1));
 
-    const buttons = [...page.querySelectorAll('ui5-toolbar ui5-button')];
-    buttons.at(-1)?.dispatchEvent(new CustomEvent('click'));
+    toolbarButtons(page)[0].dispatchEvent(new CustomEvent('click'));
 
     await vi.waitFor(() => expect(fileApi.list).toHaveBeenCalledTimes(2));
+    // A refresh is a new interaction and drops the messages of the previous one.
+    expect(messages(page)).toEqual([]);
   });
 });

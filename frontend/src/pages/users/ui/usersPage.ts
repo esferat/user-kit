@@ -63,7 +63,6 @@ export function createUsersPage(options: UsersPageOptions): HTMLElement {
     try {
       const response = await userApi.list({ orderBy: [{ property: 'email' }], top: 100, count: true });
       table.setUsers(response.value);
-      messageHost.replaceChildren();
     } catch (error) {
       showMessage(messageHost, messageOfError(error, t('common.unknownError')), 'Error');
     } finally {
@@ -72,6 +71,7 @@ export function createUsersPage(options: UsersPageOptions): HTMLElement {
   }
 
   refreshButton.addEventListener('click', () => {
+    messageHost.replaceChildren();
     void load();
   });
 

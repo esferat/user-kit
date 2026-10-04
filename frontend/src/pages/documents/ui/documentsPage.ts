@@ -70,6 +70,7 @@ export function createDocumentsPage(options: DocumentsPageOptions): HTMLElement 
   searchInput.accessibleName = t('documents.search');
   searchInput.showClearIcon = true;
   searchInput.addEventListener('input', () => {
+    clearMessages();
     void load();
   });
 
@@ -86,6 +87,7 @@ export function createDocumentsPage(options: DocumentsPageOptions): HTMLElement 
     const { selectedOption } = detailOf<{ selectedOption: Option }>(event);
     if (selectedOption?.value !== undefined) {
       sortSelect.value = selectedOption.value;
+      clearMessages();
       void load();
     }
   });
@@ -102,6 +104,11 @@ export function createDocumentsPage(options: DocumentsPageOptions): HTMLElement 
     showMessage(messageHost, text, design);
   };
 
+  /**
+   * Drops the messages of the previous interaction. It is deliberately not part of
+   * `load()`: an upload or a delete reloads the table right after it, and that
+   * reload must not swallow the message that reported its result.
+   */
   const clearMessages = (): void => {
     messageHost.replaceChildren();
   };
@@ -127,7 +134,6 @@ export function createDocumentsPage(options: DocumentsPageOptions): HTMLElement 
       });
 
       table.setFiles(response.value);
-      clearMessages();
     } catch (error) {
       notify(messageOfError(error, t('common.unknownError')), 'Error');
     } finally {
@@ -180,6 +186,7 @@ export function createDocumentsPage(options: DocumentsPageOptions): HTMLElement 
     dialog.open();
   });
   refreshButton.addEventListener('click', () => {
+    clearMessages();
     void load();
   });
 
