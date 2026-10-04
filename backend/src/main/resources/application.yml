@@ -72,12 +72,12 @@ app:
       issuer: user-kit-dev
       secret: ${DEV_AUTH_SECRET:dev-only-secret-change-me-0123456789abcdef}
       token-ttl: 12h
-    cors:
-      # Comma separated list of browser origins, empty keeps the API same origin only
-      allowed-origins: ${CORS_ALLOWED_ORIGINS:}
-      allowed-headers: ${CORS_ALLOWED_HEADERS:}
-      exposed-headers: ${CORS_EXPOSED_HEADERS:}
-      max-age: ${CORS_MAX_AGE:30m}
+  cors:
+    # Comma separated list of browser origins, empty keeps the API same origin only
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+    allowed-headers: ${CORS_ALLOWED_HEADERS:}
+    exposed-headers: ${CORS_EXPOSED_HEADERS:}
+    max-age: ${CORS_MAX_AGE:30m}
   storage:
     endpoint: ${S3_ENDPOINT:http://localhost:9000}
     region: ${S3_REGION:us-east-1}

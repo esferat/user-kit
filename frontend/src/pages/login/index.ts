@@ -1,2 +1,2 @@
-export { renderLoginPage } from './ui/loginPage';
-export type { LoginPageOptions } from './ui/loginPage';
+export { LoginPage } from './ui/LoginPage';
+export type { LoginPageProps } from './ui/LoginPage';

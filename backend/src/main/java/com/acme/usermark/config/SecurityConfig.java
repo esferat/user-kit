@@ -62,7 +62,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Cross origin access stays disabled while {@code app.security.cors.allowed-origins}
+     * Cross origin access stays disabled while {@code app.cors.allowed-origins}
      * is empty, which is the case for the nginx deployment where frontend and API
      * share one origin.
      */

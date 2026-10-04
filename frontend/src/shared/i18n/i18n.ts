@@ -26,6 +26,12 @@ export interface Translator {
   t(key: string, params?: TranslationParams): string;
   getLocale(): Locale;
   setLocale(locale: Locale): void;
+  /**
+   * Registers a listener that is called after every locale change. `subscribe`
+   * exists so that the React layer can follow the locale through
+   * `useSyncExternalStore` instead of an own event mechanism.
+   */
+  subscribe(listener: () => void): () => void;
 }
 
 export function isLocale(value: unknown): value is Locale {
@@ -77,6 +83,7 @@ export function createI18n(
   initialLocale: Locale = DEFAULT_LOCALE,
 ): Translator {
   let locale = isLocale(initialLocale) ? initialLocale : DEFAULT_LOCALE;
+  const listeners = new Set<() => void>();
 
   const t = (key: string, params?: TranslationParams): string => {
     const value = messages[locale][key] ?? messages[DEFAULT_LOCALE][key];
@@ -93,7 +100,18 @@ export function createI18n(
       return locale;
     },
     setLocale(next: Locale): void {
-      locale = isLocale(next) ? next : DEFAULT_LOCALE;
+      const resolved = isLocale(next) ? next : DEFAULT_LOCALE;
+      if (resolved === locale) {
+        return;
+      }
+      locale = resolved;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

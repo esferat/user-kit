@@ -40,7 +40,7 @@ This document describes how the components fit together, which decisions were ta
 | UI | `frontend/src/app`, `.../pages`, `.../widgets` | Composition root, shell, pages and tables, no business rules |
 | Domain | `frontend/src/features`, `.../entities` | Use cases, user and file operations, role extraction |
 | Transport | `frontend/src/shared/api` | Typed HTTP client, OData query building, error mapping |
-| Shared | `frontend/src/shared/{config,i18n,lib,ui}` | Environment configuration, translations, DOM, formatting, router |
+| Shared | `frontend/src/shared/{config,i18n,lib,ui}` | Environment configuration, translations, React hooks, formatting, router |
 | API | `backend/.../file`, `.../odata`, `.../user` | Endpoints, authorization checks, DTO mapping |
 | Domain services | `backend/.../file/FileService`, `.../user/UserAdminService` | Use cases, transactions, validation |
 | Persistence | `backend/.../repository`, `db/migration` | JPA entities, Flyway DDL |
@@ -48,14 +48,16 @@ This document describes how the components fit together, which decisions were ta
 
 ## Decisions
 
-### UI5 Web Components instead of XML views
+### React on UI5 Web Components instead of XML views
 
 The official SAPUI5 toolchain is [UI5 CLI](https://ui5.github.io/cli/v4) based: it compiles
 `*.view.xml` into JavaScript and resolves them through a module loader. That build cannot be
 reproduced with a plain Vite pipeline. The application therefore renders the same Fiori
-components (`ShellBar`, `Table`, `Dialog`, `FileUploader`, `MessageStrip`) from
-`@ui5/webcomponents`, which keeps the visual result close to a SAPUI5 application while
-remaining a standard TypeScript project. See [`frontend.md`](frontend.md).
+components (`ShellBar`, `Table`, `Dialog`, `FileUploader`, `MessageStrip`) through the React
+wrappers of `@ui5/webcomponents-react`, which keeps the visual result close to a SAPUI5
+application while remaining a standard TypeScript project. The imperative UI5 web components
+stay the foundation; React only owns the state, the composition and the lifecycle. See
+[`frontend.md`](frontend.md).
 
 ### DTOs at the service boundary
 

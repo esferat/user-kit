@@ -1,2 +1,2 @@
-export { createRoleSelect, roleSelectCell } from './ui/roleSelect';
-export type { RoleSelectOptions } from './ui/roleSelect';
+export { RoleSelect } from './ui/RoleSelect';
+export type { RoleSelectProps } from './ui/RoleSelect';

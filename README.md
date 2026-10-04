@@ -2,7 +2,7 @@
 
 Reference implementation of a small but production-shaped web application:
 
-- **Frontend** – Vite + TypeScript + UI5 Web Components (`sap_horizon` theme).
+- **Frontend** – Vite + React 19 + TypeScript + UI5 Web Components (`sap_horizon` theme).
 - **Backend** – Spring Boot 3.5 / Java 21 REST + OData V4 (subset) service.
 - **Database** – PostgreSQL 17 with Flyway migrations.
 - **Object storage** – any S3 compatible storage; the compose file ships RustFS.
@@ -174,8 +174,9 @@ and English, with the language switch in the shell bar. Both are explained in
 [docs/frontend.md](docs/frontend.md).
 
 The Vite dev server proxies `/api` and `/odata` to `http://localhost:8080` (see `vite.config.ts`),
-so the browser stays on one origin and no CORS configuration is needed. Point the proxy at a
-different host, or set `CORS_ALLOWED_ORIGINS`, if the backend does not run on the same machine.
+so the browser only talks to one origin. The proxy keeps the `Origin` header of
+`http://localhost:5173`, and the `dev` profile of the backend allows that origin by default
+through `app.cors.allowed-origins`. Set `CORS_ALLOWED_ORIGINS` when the proxy points somewhere else.
 
 ### Backend
 
@@ -287,11 +288,11 @@ Details and examples are in [`docs/api.md`](docs/api.md) and [`docs/odata.md`](d
 ## Tests
 
 ```bash
-# backend: 73 unit tests (compiled and executed by Maven inside a container)
+# backend: 76 unit tests (compiled and executed by Maven inside a container)
 docker run --rm -v userkit-m2:/root/.m2 -v "$PWD/backend:/workspace" -w /workspace \
   maven:3.9-eclipse-temurin-21 mvn -B -ntp test
 
-# frontend: 158 unit tests plus lint, formatting and the production build
+# frontend: 286 unit tests plus lint, formatting and the production build
 cd frontend && npm run check && npm run build
 ```
 
@@ -308,14 +309,14 @@ user-kit/
 │       ├── odata/          parser, query engine, mappings, controllers
 │       ├── security/       role extraction from JWT claims
 │       └── user/           account entity, profile, administration
-├── frontend/               Vite + TypeScript + UI5 Web Components
+├── frontend/               Vite + React 19 + TypeScript + UI5 Web Components
 │   └── src/                Feature Sliced Design
-│       ├── app/            composition root, page registry, startup error
+│       ├── app/            composition root, services, error boundary
 │       ├── pages/          documents, login, users
 │       ├── widgets/        app shell, documents and users table
 │       ├── features/       auth, upload, download, role, theme and locale switch
 │       ├── entities/       user and file domain with their API calls
-│       └── shared/         http and OData, configuration, i18n, dom, format, router
+│       └── shared/         http and OData, configuration, i18n, hooks, format, router, UI
 ├── nginx/                  edge template and certificates directory
 ├── keycloak/realm/         realm import of the local identity provider
 ├── scripts/                development helper scripts
@@ -332,14 +333,14 @@ user-kit/
 | [`docs/api.md`](docs/api.md) | REST endpoints, error format, concurrency |
 | [`docs/odata.md`](docs/odata.md) | Supported OData subset, parser rules, limitations |
 | [`docs/auth.md`](docs/auth.md) | Keycloak setup, role model, dev issuer, authorization matrix |
-| [`docs/frontend.md`](docs/frontend.md) | UI5 Web Components integration, FSD structure, localization, routing, linting |
+| [`docs/frontend.md`](docs/frontend.md) | React and UI5 Web Components integration, FSD structure, localization, routing, linting |
 | [`docs/deployment.md`](docs/deployment.md) | TLS, Compose reference, production checklist |
 
 ## Limitations
 
 - The OData implementation covers a documented subset; `$expand`, `$search`, `$apply`, `$batch` and
   change sets are rejected with HTTP 400. Filtering and sorting happen in memory after the JPA query.
-- The UI uses UI5 Web Components instead of XML views. The official SAPUI5 toolchain is
+- The UI is React 19 on UI5 Web Components instead of XML views. The official SAPUI5 toolchain is
   [UI5 CLI](https://ui5.github.io/cli/v4) based and cannot be reproduced with a plain Vite build.
 - The generated TLS certificate is self-signed. Production deployments must supply a certificate
   from a trusted CA; see [`docs/deployment.md`](docs/deployment.md).

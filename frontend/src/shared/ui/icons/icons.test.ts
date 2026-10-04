@@ -1,5 +1,4 @@
 import { getIconData, getIconDataSync } from '@ui5/webcomponents-base/dist/asset-registries/Icons.js';
-import '@ui5/webcomponents-icons/dist/AllIcons.js';
 import { describe, expect, it } from 'vitest';
 
 import { ICONS } from './icons';

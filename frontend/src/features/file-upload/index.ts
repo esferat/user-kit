@@ -1,2 +1,2 @@
-export { createUploadDialog } from './ui/uploadDialog';
-export type { UploadDialog, UploadSubmit } from './ui/uploadDialog';
+export { UploadDialog } from './ui/UploadDialog';
+export type { UploadDialogProps, UploadSubmit } from './ui/UploadDialog';

@@ -1,2 +1,2 @@
-export { createUsersTable } from './ui/usersTable';
-export type { UsersTable, UsersTableOptions } from './ui/usersTable';
+export { UsersTable } from './ui/UsersTable';
+export type { UsersTableProps } from './ui/UsersTable';

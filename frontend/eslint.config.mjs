@@ -1,6 +1,8 @@
 import js from '@eslint/js';
 import importX, { createNodeResolver } from 'eslint-plugin-import-x';
 import prettierRecommended from 'eslint-plugin-prettier/recommended';
+import react from 'eslint-plugin-react';
+import reactHooks from 'eslint-plugin-react-hooks';
 import sonarjs from 'eslint-plugin-sonarjs';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -8,10 +10,10 @@ import tseslint from 'typescript-eslint';
 /**
  * Flat configuration of the User Kit frontend.
  *
- * On top of the usual TypeScript rules it enforces the Feature Sliced Design
- * boundaries of `src/`: a slice may only import from the layers below it, and
- * every cross slice import has to go through the public API of the target slice
- * (`@/shared/api`, never `@/shared/api/http`).
+ * On top of the usual TypeScript and React rules it enforces the Feature Sliced
+ * Design boundaries of `src/`: a slice may only import from the layers below it,
+ * and every cross slice import has to go through the public API of the target
+ * slice (`@/shared/api`, never `@/shared/api/http`).
  */
 const LAYERS = ['app', 'pages', 'widgets', 'features', 'entities', 'shared'];
 
@@ -39,6 +41,12 @@ const FSD_BOUNDARIES = LAYERS.map((layer) => ({
   files: [`src/${layer}/**/*.{ts,tsx}`],
   rules: boundariesOf(layer),
 }));
+
+/** `jsx-runtime` replaces the `prop-types` rules of `recommended`. */
+const REACT_RULES = {
+  ...react.configs.flat.recommended.rules,
+  ...react.configs.flat['jsx-runtime'].rules,
+};
 
 export default tseslint.config(
   {
@@ -100,6 +108,36 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-condition': 'off',
     },
   },
+  {
+    name: 'user-kit/react',
+    files: ['src/**/*.{ts,tsx}'],
+    plugins: { react },
+    languageOptions: {
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    settings: { react: { version: 'detect' } },
+    rules: {
+      ...REACT_RULES,
+      // A component is allowed to live next to its test and its hooks.
+      'react/jsx-key': 'error',
+      'react/no-array-index-key': 'error',
+      // A component returns JSX, which the return type would only repeat.
+      '@typescript-eslint/explicit-function-return-type': 'off',
+    },
+  },
+  {
+    name: 'user-kit/react-hooks',
+    files: ['src/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      ...reactHooks.configs['recommended-latest'].rules,
+      // The rules of the React compiler preset report the deliberate escape hatches
+      // of the UI5 wrappers (`ref.current`, manual stores) as errors.
+      'react-hooks/refs': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
   ...FSD_BOUNDARIES,
   {
     name: 'user-kit/translations',
@@ -110,11 +148,13 @@ export default tseslint.config(
   },
   {
     name: 'user-kit/tests',
-    files: ['**/*.test.ts'],
+    files: ['**/*.test.{ts,tsx}'],
     rules: {
       // Tests talk to localhost style URLs over http on purpose.
       'sonarjs/no-clear-text-protocols': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
+      // Helper components of a test do not need a display name.
+      'react/display-name': 'off',
     },
   },
   prettierRecommended,

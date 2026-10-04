@@ -1,2 +1,2 @@
-export { createUsersPage } from './ui/usersPage';
-export type { UsersPageOptions } from './ui/usersPage';
+export { UsersPage } from './ui/UsersPage';
+export type { UsersPageProps } from './ui/UsersPage';

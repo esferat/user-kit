@@ -1,1 +1,1 @@
-export { createLocaleSwitchItem } from './ui/localeSwitchItem';
+export { LocaleSwitchButton } from './ui/LocaleSwitchButton';
