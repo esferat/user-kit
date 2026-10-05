@@ -1,23 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import { CookieAuthProvider } from '../cookie/cookieAuthProvider';
+
 import { createAuthProvider } from './createAuthProvider';
 
 import { readConfig } from '@/shared/config';
 
 describe('createAuthProvider', () => {
-  it('uses the OIDC provider by default', () => {
-    const provider = createAuthProvider(
-      readConfig({ VITE_OIDC_AUTHORITY: 'https://idp', VITE_OIDC_REDIRECT_URI: 'https://app/' }),
-    );
-
-    expect(provider.kind).toBe('oidc');
+  it('builds the cookie provider without any identity provider settings', () => {
+    expect(createAuthProvider(readConfig({}))).toBeInstanceOf(CookieAuthProvider);
   });
 
-  it('uses the dev provider in dev mode', () => {
-    expect(createAuthProvider(readConfig({ VITE_AUTH_MODE: 'dev' })).kind).toBe('dev');
-  });
-
-  it('refuses to start in oidc mode without a complete configuration', () => {
-    expect(() => createAuthProvider(readConfig({}))).toThrow();
+  it('takes the dev role from the configuration', () => {
+    expect(createAuthProvider(readConfig({ VITE_DEV_ROLE: 'admin' }))).toBeInstanceOf(CookieAuthProvider);
   });
 });

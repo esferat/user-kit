@@ -5,20 +5,24 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
-public record AppProperties(Security security, Storage storage, Files files, OData odata, Cors cors) {
+public record AppProperties(Security security, Storage storage, Files files, OData odata, Cors cors, DemoData demoData) {
 
     public AppProperties {
-        security = security == null ? new Security(null, null) : security;
+        security = security == null ? new Security(null, null, null) : security;
         storage = storage == null ? new Storage(null, null, null, null, null, false, false) : storage;
         files = files == null ? new Files(0) : files;
         odata = odata == null ? new OData(0, 0) : odata;
         cors = cors == null ? new Cors(null, null, null, null) : cors;
+        demoData = demoData == null ? new DemoData(false) : demoData;
     }
 
-    public record Security(Oidc oidc, Dev dev) {
+    public record Security(Oidc oidc, Dev dev, OAuth oauth) {
         public Security {
             oidc = oidc == null ? new Oidc(false, "", "", List.of(), "roles") : oidc;
             dev = dev == null ? new Dev(false, "user-kit-dev", "", Duration.ofHours(1)) : dev;
+            oauth = oauth == null
+                    ? new OAuth(false, "", "", "", "", "", "", Duration.ofMinutes(10), Duration.ofHours(12), Duration.ofSeconds(90), true, "")
+                    : oauth;
         }
     }
 
@@ -50,6 +54,55 @@ public record AppProperties(Security security, Storage storage, Files files, ODa
         }
     }
 
+    /**
+     * Backend for frontend: the backend itself is the OAuth client and performs
+     * the authorization code exchange, so the browser only receives httpOnly
+     * cookies and the refresh token stays in the database.
+     */
+    public record OAuth(
+            boolean enabled,
+            String clientId,
+            String clientSecret,
+            String issuerUri,
+            String redirectUri,
+            String postLogoutRedirectUri,
+            String scopes,
+            Duration loginStateTtl,
+            Duration sessionTtl,
+            Duration refreshWindow,
+            boolean cookieSecure,
+            String cookieDomain) {
+
+        public OAuth {
+            clientId = clientId == null ? "" : clientId;
+            clientSecret = clientSecret == null ? "" : clientSecret;
+            issuerUri = issuerUri == null ? "" : issuerUri;
+            redirectUri = redirectUri == null || redirectUri.isBlank() ? "https://user-kit.local/api/v1/auth/callback" : redirectUri;
+            postLogoutRedirectUri =
+                    postLogoutRedirectUri == null || postLogoutRedirectUri.isBlank() ? "https://user-kit.local/" : postLogoutRedirectUri;
+            scopes = scopes == null || scopes.isBlank() ? "openid profile email" : scopes;
+            loginStateTtl = positive(loginStateTtl, Duration.ofMinutes(10));
+            sessionTtl = positive(sessionTtl, Duration.ofHours(12));
+            refreshWindow = positive(refreshWindow, Duration.ofSeconds(90));
+            cookieDomain = cookieDomain == null ? "" : cookieDomain;
+        }
+
+        public boolean usable() {
+            return enabled && !clientId.isBlank() && !clientSecret.isBlank();
+        }
+
+        public List<String> scopeList() {
+            return java.util.Arrays.stream(scopes.split("[\\s,]+"))
+                    .map(String::trim)
+                    .filter(entry -> !entry.isEmpty())
+                    .toList();
+        }
+
+        private static Duration positive(Duration value, Duration fallback) {
+            return value == null || value.isNegative() || value.isZero() ? fallback : value;
+        }
+    }
+
     public record Storage(
             String endpoint,
             String region,
@@ -74,6 +127,13 @@ public record AppProperties(Security security, Storage storage, Files files, ODa
                 maxSizeBytes = 25L * 1024 * 1024;
             }
         }
+    }
+
+    /**
+     * Sample documents for an empty store. Only read with the dev profile, so a
+     * production deployment never receives demo data even when the flag is set.
+     */
+    public record DemoData(boolean enabled) {
     }
 
     public record OData(int defaultPageSize, int maxPageSize) {
@@ -107,7 +167,9 @@ public record AppProperties(Security security, Storage storage, Files files, ODa
 
         public List<String> headers() {
             List<String> values = split(allowedHeaders);
-            return values.isEmpty() ? List.of("Authorization", "Content-Type", "If-Match", "Accept") : values;
+            return values.isEmpty()
+                    ? List.of("Authorization", "Content-Type", "If-Match", "Accept", "X-XSRF-TOKEN")
+                    : values;
         }
 
         public List<String> exposed() {

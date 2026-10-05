@@ -17,13 +17,27 @@ services:
     restart: unless-stopped
 
   object-storage:
-    image: rustfs/rustfs:latest
+    # Silo is a community maintained fork of the MinIO server with the same S3
+    # API, storage format and MINIO_* configuration contract.
+    image: ${SILO_IMAGE:-pgsty/silo}:${SILO_VERSION:-latest}
+    command: server /data --console-address ":9001"
     environment:
-      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-rustfsadmin}
-      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:-rustfsadmin}
-      RUSTFS_CONSOLE_ENABLE: "true"
+      # The backend uses the same credentials through the S3 API, Silo reads the
+      # MINIO_* names on purpose
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-siloadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-siloadmin}
     volumes:
       - object-storage-data:/data
+    ports:
+      # Web console of the storage for local inspection, the S3 API stays internal
+      - "${SILO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      # Silo keeps the reserved /minio/* routes of the MinIO server
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
 
   keycloak:
@@ -80,15 +94,32 @@ services:
       OIDC_JWK_SET_URI: ${OIDC_JWK_SET_URI:-http://keycloak:8080/auth/realms/user-kit/protocol/openid-connect/certs}
       OIDC_AUDIENCES: ${OIDC_AUDIENCES:-user-kit-api}
       OIDC_ROLES_CLAIM: ${OIDC_ROLES_CLAIM:-roles}
+      # Cookie based login: the backend is the OAuth client of the realm, the
+      # browser only receives httpOnly cookies.
+      OIDC_CLIENT_ENABLED: ${OIDC_CLIENT_ENABLED:-true}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-user-kit-bff}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-user-kit-bff-dev-secret-change-me}
+      OIDC_CLIENT_ISSUER_URI: ${OIDC_CLIENT_ISSUER_URI:-http://keycloak:8080/auth/realms/user-kit}
+      OIDC_CLIENT_REDIRECT_URI: ${OIDC_CLIENT_REDIRECT_URI:-https://user-kit.local/api/v1/auth/callback}
+      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI:-https://user-kit.local/}
+      OIDC_CLIENT_SCOPES: ${OIDC_CLIENT_SCOPES:-openid profile email}
+      OIDC_LOGIN_STATE_TTL: ${OIDC_LOGIN_STATE_TTL:-10m}
+      OIDC_SESSION_TTL: ${OIDC_SESSION_TTL:-12h}
+      OIDC_REFRESH_WINDOW: ${OIDC_REFRESH_WINDOW:-90s}
+      # The local stack is served over HTTPS and over plain HTTP on localhost, so
+      # the cookies are not marked Secure here; set it to true in production.
+      OIDC_COOKIE_SECURE: ${OIDC_COOKIE_SECURE:-false}
       DEV_AUTH_ENABLED: ${DEV_AUTH_ENABLED:-true}
       DEV_AUTH_SECRET: ${DEV_AUTH_SECRET:-dev-only-secret-change-me-0123456789abcdef}
       S3_ENDPOINT: http://object-storage:9000
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-user-kit}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-rustfsadmin}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-rustfsadmin}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-siloadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-siloadmin}
       S3_PATH_STYLE: "true"
       S3_CREATE_BUCKET: ${S3_CREATE_BUCKET:-true}
+      # Demo documents for an empty store, dev profile only
+      DEMO_DATA_ENABLED: ${DEMO_DATA_ENABLED:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,16 +135,9 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_AUTH_MODE: ${VITE_AUTH_MODE:-oidc}
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
         VITE_UI5_THEME: ${VITE_UI5_THEME:-sap_horizon}
         VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-ru}
-        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-https://user-kit.local/auth/realms/user-kit}
-        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-user-kit-web}
-        VITE_OIDC_REDIRECT_URI: ${VITE_OIDC_REDIRECT_URI:-https://user-kit.local/}
-        VITE_OIDC_POST_LOGOUT_REDIRECT_URI: ${VITE_OIDC_POST_LOGOUT_REDIRECT_URI:-https://user-kit.local/}
-        VITE_OIDC_SCOPE: ${VITE_OIDC_SCOPE:-openid profile email}
-        VITE_OIDC_ROLES_CLAIM: ${VITE_OIDC_ROLES_CLAIM:-}
         VITE_DEV_ROLE: ${VITE_DEV_ROLE:-admin}
     depends_on:
       - backend

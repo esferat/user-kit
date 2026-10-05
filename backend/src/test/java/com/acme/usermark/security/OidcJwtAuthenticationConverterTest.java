@@ -14,7 +14,8 @@ class OidcJwtAuthenticationConverterTest {
 
     private static final AppProperties PROPERTIES = new AppProperties(
             new AppProperties.Security(
-                    new AppProperties.Oidc(true, "https://idp.example.com", "", List.of("user-kit-api"), "roles"), null),
+                    new AppProperties.Oidc(true, "https://idp.example.com", "", List.of("user-kit-api"), "roles"), null, null),
+            null,
             null,
             null,
             null,

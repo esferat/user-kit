@@ -3,19 +3,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFileApi } from './fileApi';
 import { FILE_QUERYABLE_PROPERTIES } from './fileQueries';
 
-import { ApiError, ODataClient } from '@/shared/api';
+import { ODataClient } from '@/shared/api';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
-function api(options: { token?: string | null; baseUrl?: string } = {}) {
-  const getAccessToken = async (): Promise<string | null> => (options.token === undefined ? 'token-1' : options.token);
+function api(options: { baseUrl?: string } = {}) {
   const baseUrl = options.baseUrl ?? '';
   return createFileApi({
     baseUrl,
-    getAccessToken,
-    odata: new ODataClient({ baseUrl, getAccessToken, queryableProperties: { Files: FILE_QUERYABLE_PROPERTIES } }),
+    odata: new ODataClient({ baseUrl, queryableProperties: { Files: FILE_QUERYABLE_PROPERTIES } }),
   });
 }
 
@@ -80,11 +78,14 @@ describe('createFileApi', () => {
     expect((init.headers as Record<string, string>)['If-Match']).toBe('W/"1"');
   });
 
-  it('fails without an access token', async () => {
-    const fetchMock = vi.fn();
+  it('sends no Authorization header, the cookie of the browser authenticates', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('binary', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(api({ token: null }).downloadContent('f-1')).rejects.toBeInstanceOf(ApiError);
-    expect(fetchMock).not.toHaveBeenCalled();
+    await api().downloadContent('f-1');
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    expect(init.credentials).toBe('include');
   });
 });

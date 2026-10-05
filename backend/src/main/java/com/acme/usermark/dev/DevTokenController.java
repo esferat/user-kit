@@ -46,7 +46,16 @@ public class DevTokenController {
     @Operation(summary = "Issues a short lived local access token")
     public TokenResponse token(
             @RequestParam(defaultValue = "user") String role, @RequestParam(required = false) String subject) {
-        String normalized = role.trim().toLowerCase();
+        return issue(role, subject);
+    }
+
+    /**
+     * Builds the token itself, so the cookie based login of the dev profile can
+     * put it into an httpOnly cookie instead of handing it to the browser as a
+     * response body.
+     */
+    public TokenResponse issue(String role, String subject) {
+        String normalized = role == null || role.isBlank() ? "user" : role.trim().toLowerCase();
         if (!normalized.equals("user") && !normalized.equals("admin")) {
             throw ApiException.badRequest("unknown_role", "Role must be user or admin");
         }

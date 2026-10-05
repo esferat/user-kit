@@ -10,7 +10,8 @@ import org.springframework.web.cors.CorsConfiguration;
 class SecurityConfigCorsTest {
 
     private CorsConfiguration configurationFor(AppProperties.Cors cors) {
-        return (CorsConfiguration) new SecurityConfig(new AppProperties(null, null, null, null, cors))
+        AppProperties properties = new AppProperties(null, null, null, null, cors, null);
+        return (CorsConfiguration) new SecurityConfig(properties, null, null)
                 .corsConfigurationSource()
                 .getCorsConfiguration(new MockHttpServletRequest("OPTIONS", "/api/v1/files"));
     }
@@ -21,7 +22,7 @@ class SecurityConfigCorsTest {
         CorsConfiguration configuration = configurationFor(null);
 
         assertThat(configuration.getAllowedOrigins()).isEmpty();
-        assertThat(configuration.getAllowedHeaders()).contains("Authorization", "If-Match");
+        assertThat(configuration.getAllowedHeaders()).contains("Authorization", "If-Match", "X-XSRF-TOKEN");
         assertThat(configuration.getExposedHeaders()).contains("ETag");
         assertThat(configuration.getAllowedMethods()).containsExactly("GET", "POST", "PATCH", "DELETE", "OPTIONS");
     }

@@ -1,20 +1,27 @@
-import type { AuthenticatedUser } from '@/entities/user';
+import type { AuthenticatedUser, Role } from '@/entities/user';
 
-export type AuthProviderKind = 'oidc' | 'dev';
+/** Login methods the backend can offer. */
+export type AuthMode = 'oidc' | 'dev' | 'none';
+
+export interface LoginOptions {
+  /** Hash route to return to after the identity provider sent the browser back. */
+  returnUrl?: string;
+  /** Role of the local dev login, ignored when a provider is configured. */
+  role?: Role;
+}
 
 /**
  * Authentication facade used by the application shell.
  *
- * `oidc` talks to an identity provider (Keycloak in docker compose) using
- * Authorization Code + PKCE. `dev` uses the token endpoint of the backend
- * (`/api/v1/dev/token`) which is only enabled with the `dev` Spring profile.
+ * There is exactly one implementation: the backend owns the OAuth client, the
+ * browser holds nothing but an httpOnly cookie and asks the backend who it is.
  */
 export interface AuthProvider {
-  readonly kind: AuthProviderKind;
+  /** Which login the backend offers, so the login screen can adapt. */
+  mode(): Promise<AuthMode>;
   restore(): Promise<AuthenticatedUser | null>;
-  login(returnUrl?: string): Promise<void>;
+  login(options?: LoginOptions): Promise<void>;
   logout(): Promise<void>;
-  getAccessToken(): Promise<string | null>;
   onAuthenticated(listener: (user: AuthenticatedUser | null) => void): () => void;
 }
 

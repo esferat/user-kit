@@ -1,5 +1,5 @@
 export { ApiError, readErrorBody, request, requestJson } from './http';
-export type { ApiErrorBody, HttpMethod, RequestOptions, TokenProvider } from './http';
+export type { ApiErrorBody, HttpMethod, RequestOptions } from './http';
 export { ODataClient } from './odata/odataClient';
 export type { ODataClientOptions, ODataEntity, ODataListResponse } from './odata/odataClient';
 export {

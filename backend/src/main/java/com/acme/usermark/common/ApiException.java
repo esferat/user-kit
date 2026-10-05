@@ -45,6 +45,10 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "payload_too_large", message);
     }
 
+    public static ApiException badGateway(String message) {
+        return new ApiException(HttpStatus.BAD_GATEWAY, "identity_provider_error", message);
+    }
+
     public static ApiException unsupportedODataOption(String option) {
         return new ApiException(
                 HttpStatus.BAD_REQUEST,

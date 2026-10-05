@@ -12,7 +12,6 @@
 | `@ui5/webcomponents`, `@ui5/webcomponents-fiori` | 2.27 | Fiori 3 web components |
 | `@ui5/webcomponents-react` | 2.27 | React wrappers of those components |
 | `@ui5/webcomponents-base`, `@ui5/webcomponents-icons` | 2.27 | `setTheme()`, icon collections |
-| `oidc-client-ts` | 3.x | OIDC Authorization Code + PKCE |
 | `eslint`, `typescript-eslint`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, `eslint-plugin-import-x`, `eslint-plugin-sonarjs` | 9.x / 8.x / 7.x / 7.x / 4.x / 3.x | linting, hooks rules, import rules, SonarJS rules |
 | `prettier`, `eslint-plugin-prettier` | 3.x / 5.x | formatting, enforced through ESLint |
 
@@ -59,7 +58,7 @@ frontend/src/
 │   ├── documents-table/
 │   └── users-table/
 ├── features/                  user facing capability, can be switched on and off
-│   ├── auth/                  OIDC and dev providers, session state
+│   ├── auth/                  cookie provider, session state
 │   ├── file-download/
 │   ├── file-upload/
 │   ├── locale-switch/
@@ -70,7 +69,7 @@ frontend/src/
 │   └── user/
 └── shared/                    infrastructure reused by everything above
     ├── api/                   http wrapper, OData client and query builder
-    ├── config/                typed access to VITE_* variables with validation
+    ├── config/                typed access to the VITE_* variables
     ├── i18n/                  translator, dictionaries, React bindings
     ├── lib/                   async tasks, formatting, messages, hash router
     └── ui/                    icon names, message strip
@@ -210,7 +209,8 @@ what their endpoint needs on top: `multipart/form-data` for an upload, a blob fo
 `If-Match` header for a delete. Every call shares the fetch wrapper (`src/shared/api/http.ts`), which
 
 - prefixes `baseUrl` (empty means same origin),
-- adds `Authorization: Bearer …` when a token exists,
+- sends the cookies of the session with `credentials: 'include'`, never an `Authorization` header,
+- repeats `XSRF-TOKEN` as `X-XSRF-TOKEN` on `POST`, `PATCH` and `DELETE`,
 - sets `Accept: application/json` and `Content-Type` for bodies,
 - maps error responses to `ApiError` with `status`, `code` and `message`,
 - aborts after a configurable timeout.
@@ -251,28 +251,35 @@ return <Title>{t('documents.title')}</Title>;
 - `useTranslate()` subscribes to the locale, so switching the language in the shell bar re-renders
   every component that translated something — the route stays mounted and keeps its state.
 
-## Authentication modes
+## Authentication
 
-| `VITE_AUTH_MODE` | Behaviour |
+There is exactly one provider, `CookieAuthProvider`. The backend is the OAuth client, so the frontend
+never sees a client secret, an access token or a refresh token:
+
+| Backend `GET /api/v1/auth/config` | Behaviour of the login screen |
 | --- | --- |
-| `oidc` | Redirect to Keycloak, PKCE, session in `sessionStorage`, renew on expiry |
-| `dev` | `GET /api/v1/dev/token?role=…` once at start, token in memory |
+| `oidc` | Button navigates to `/api/v1/auth/login`, the provider shows its form, the callback sets the cookies |
+| `dev` | Button calls `POST /api/v1/auth/dev-login` with `VITE_DEV_ROLE`, the token goes into a cookie |
+| `none` | The screen shows a configuration error instead of a login button |
 
-`assertConfigured()` fails fast with a readable message when `VITE_AUTH_MODE=oidc` is selected
-without `VITE_OIDC_AUTHORITY` and `VITE_OIDC_REDIRECT_URI`, instead of failing later during login.
-The failure then reaches `ErrorBoundary`, which renders `StartupError`.
+There is no build time mode, so a bundle cannot get out of sync with the provider configuration. The
+first call of the login screen already tells which button to show, and the answer is cached for the
+session.
+
+Every request in `shared/api/http.ts` uses `credentials: 'include'` and adds `X-XSRF-TOKEN` for
+`POST`, `PATCH` and `DELETE`, read from the `XSRF-TOKEN` cookie. No request ever sets an
+`Authorization` header, and no token is written to `localStorage`, `sessionStorage` or the DOM. Silent
+renew is not a frontend concern: `SessionTokenFilter` on the backend refreshes before the access token
+expires, so a rejected refresh only shows up as a `401` on `/api/v1/me`.
 
 `AuthSessionProvider` turns the provider into React state: it restores the session once, follows
 every later change the provider reports — that is how the logout of the profile menu brings the login
 screen back — and exposes `user`, `status` (`restoring`, `anonymous`, `authenticated`) and the reason
 of a failed restore.
 
-`StrictMode` runs every effect twice in development, and a second `restore()` of an OIDC redirect
-callback would consume the same `code` and `state` twice. The restore therefore starts once per
-provider instance, and its result is applied through a mounted flag, because the second effect run
-reuses the same component instance. A logout that fails — for example because the end session
-endpoint is unreachable — is logged instead of rejected, because the provider has already dropped the
-local session at that point.
+`StrictMode` runs every effect twice in development, so the restore starts once per provider instance
+and its result is applied through a mounted flag. A failed logout is logged instead of rejected,
+because the provider has already dropped the local session at that point.
 
 ## Build time configuration
 
@@ -285,20 +292,19 @@ frontend:
   build:
     context: ./frontend
     args:
-      VITE_AUTH_MODE: ${VITE_AUTH_MODE:-oidc}
-      VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-}
+      VITE_UI5_THEME: ${VITE_UI5_THEME:-sap_horizon}
 ```
 
 Consequences worth keeping in mind:
 
 - A change to any `VITE_*` variable requires `docker compose up -d --build frontend`; a plain restart
   keeps the old bundle.
-- Both auth providers end up in the bundle, so the marker of an `oidc` build is the inlined
-  authority. `scripts/smoke.ps1` verifies that the deployed bundle carries the realm issuer, and
-  `-ExpectAuthMode dev|oidc` asserts a specific mode.
-- If the application cannot even render, for example because the image was built in `oidc` mode
-  without OIDC settings, `ErrorBoundary` catches the failure of the first render and `StartupError`
-  explains it instead of leaving an empty page; the same reason is still logged to the console.
+- Identity provider settings are **not** build arguments, so a provider change only needs a backend
+  restart. `scripts/smoke.ps1` verifies that the deployed bundle contains neither the realm issuer nor
+  an OIDC client library.
+- If the application cannot even render, `ErrorBoundary` catches the failure of the first render and
+  `StartupError` explains it instead of leaving an empty page; the same reason is still logged to the
+  console.
 
 ## Theme
 
@@ -429,9 +435,8 @@ internal state of a UI5 element beyond the properties the application sets.
 | `src/entities/user/model/roles.test.ts` | claim layouts, case handling, unknown roles |
 | `src/entities/user/api/userApi.test.ts` | `$select`, `$filter`, `$orderby`, paging |
 | `src/entities/file/api/fileApi.test.ts` | upload, download, delete |
-| `src/features/auth/model/createAuthProvider.test.ts` | provider selection per auth mode |
-| `src/features/auth/dev/devAuthProvider.test.ts` | dev token request and logout |
-| `src/features/auth/oidc/oidcAuthProvider.test.ts` | callback, silent renew, return url |
+| `src/features/auth/model/createAuthProvider.test.ts` | provider creation from the configuration |
+| `src/features/auth/cookie/cookieAuthProvider.test.ts` | mode detection, login navigation, dev login, logout redirect |
 | `src/features/auth/ui/AuthSession.test.tsx` | restore, logout, `StrictMode` double effect |
 | `src/features/file-download/model/downloadBlob.test.ts` | object URL and revocation |
 | `src/features/file-upload/ui/UploadDialog.test.tsx` | fields, disabled confirm button, reset |
@@ -441,7 +446,7 @@ internal state of a UI5 element beyond the properties the application sets.
 | `src/shared/api/http.test.ts` | headers, error mapping, timeout |
 | `src/shared/api/odata/query.test.ts` | option building, encoding, property allow list |
 | `src/shared/api/odata/odataClient.test.ts` | URLs, value wrapping, `$expand` |
-| `src/shared/config/config.test.ts` | environment parsing and validation |
+| `src/shared/config/config.test.ts` | environment parsing |
 | `src/shared/i18n/i18n.test.ts` | interpolation, plurals, fallback to `ru` and to the key |
 | `src/shared/lib/async/useAsyncTask.test.tsx` | loading, result, failure, discarded runs |
 | `src/shared/lib/format/format.test.ts` | byte size, dates, initials |

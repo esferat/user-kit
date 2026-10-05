@@ -17,13 +17,14 @@ import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-/** Thin wrapper around the S3 API so that RustFS, MinIO and AWS S3 behave identically. */
+/** Thin wrapper around the S3 API so that Silo, AWS S3, Ceph or Garage behave identically. */
 @Service
 public class FileStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
     private static final int BUCKET_ATTEMPTS = 10;
     private static final Duration BUCKET_RETRY_DELAY = Duration.ofSeconds(2);
+    private static final int BUCKET_ALREADY_EXISTS = 409;
 
     private final S3Client s3;
     private final AppProperties.Storage storage;
@@ -38,32 +39,50 @@ public class FileStorageService {
         if (!storage.createBucket()) {
             return;
         }
-        // The object storage is started in parallel, so a short retry loop avoids
-        // depending on container start order.
-        RuntimeException lastFailure = null;
+        // The object storage is started in parallel, so checking and creating the
+        // bucket both retry and the order of the containers does not matter.
         for (int attempt = 1; attempt <= BUCKET_ATTEMPTS; attempt++) {
-            try {
-                s3.headBucket(HeadBucketRequest.builder().bucket(storage.bucket()).build());
+            if (bucketExists()) {
                 return;
-            } catch (S3Exception exception) {
-                lastFailure = exception;
-                log.info("Bucket {} does not exist yet, creating it", storage.bucket());
-                break;
-            } catch (RuntimeException exception) {
-                lastFailure = exception;
-                log.warn("Bucket {} is not reachable yet (attempt {}/{}): {}", storage.bucket(), attempt, BUCKET_ATTEMPTS, message(exception));
-                sleep();
             }
+            if (createBucket()) {
+                return;
+            }
+            log.warn(
+                    "Bucket {} is not available yet (attempt {}/{}), retrying",
+                    storage.bucket(),
+                    attempt,
+                    BUCKET_ATTEMPTS);
+            sleep();
         }
+        log.warn("Bucket {} is still unavailable, uploads fail until the storage is reachable", storage.bucket());
+    }
 
+    private boolean bucketExists() {
+        try {
+            s3.headBucket(HeadBucketRequest.builder().bucket(storage.bucket()).build());
+            return true;
+        } catch (RuntimeException exception) {
+            log.debug("Bucket {} is not reachable yet: {}", storage.bucket(), message(exception));
+            return false;
+        }
+    }
+
+    private boolean createBucket() {
         try {
             s3.createBucket(CreateBucketRequest.builder().bucket(storage.bucket()).build());
             log.info("Bucket {} created", storage.bucket());
+            return true;
+        } catch (S3Exception exception) {
+            if (exception.statusCode() == BUCKET_ALREADY_EXISTS) {
+                log.info("Bucket {} exists already", storage.bucket());
+                return true;
+            }
+            log.warn("Bucket {} could not be created: {}", storage.bucket(), message(exception));
+            return false;
         } catch (RuntimeException exception) {
             log.warn("Bucket {} could not be created: {}", storage.bucket(), message(exception));
-            if (lastFailure != null) {
-                log.debug("The bucket check failed before with: {}", message(lastFailure));
-            }
+            return false;
         }
     }
 

@@ -20,6 +20,8 @@ of `{admin, user}` and `admin` is exclusive, so `["admin","user"]` is stored as 
 | `/healthz`, `/actuator/health`, `/actuator/info` | allowed | allowed | allowed |
 | `/v3/api-docs`, `/swagger-ui/**` | allowed | allowed | allowed |
 | `/api/v1/dev/**` | allowed when `DEV_AUTH_ENABLED=true` | allowed | allowed |
+| `/api/v1/auth/config`, `/api/v1/auth/login`, `/api/v1/auth/callback` | allowed | allowed | allowed |
+| `/api/v1/auth/dev-login`, `/api/v1/auth/logout` | allowed with a CSRF token | allowed | allowed |
 | `/api/v1/me` | 401 | own profile | own profile |
 | `/api/v1/files`, `/api/v1/files/{id}/content` | 401 | own files | all files |
 | `/api/v1/files/{id}` (DELETE) | 401 | own files | all files |
@@ -29,10 +31,63 @@ of `{admin, user}` and `admin` is exclusive, so `["admin","user"]` is stored as 
 Authorization is enforced on the server. The frontend only hides navigation entries for users
 without the `admin` role, which is a usability feature and never a security boundary.
 
-## OIDC with the identity provider
+## Browser login: backend for frontend
 
-The backend is a JWT resource server. When `OIDC_ENABLED=true` and `OIDC_ISSUER_URI` is set, tokens
-are validated as follows:
+The backend is both the OAuth client and the JWT resource server. The browser never performs an
+authorization code flow on its own, no identity provider library runs in the frontend bundle and no
+token is readable by JavaScript:
+
+1. `GET /api/v1/auth/config` tells the frontend which methods exist: `oidc`, `dev` or `none`.
+2. `GET /api/v1/auth/login` stores a hashed `state` and a PKCE `code_verifier` in `auth_login_state`
+   and answers `302` to the authorization endpoint of the provider. `?returnUrl=%23/documents` keeps
+   the router route after the round trip; only a local fragment is accepted, everything else falls
+   back to the default page.
+3. The provider sends the browser to `GET /api/v1/auth/callback`. The backend consumes the state,
+   exchanges the code with its client secret over HTTP basic and stores the refresh token in
+   `auth_session`, keyed by the SHA-256 hash of a random session id.
+4. The callback sets the session cookies and redirects to the application:
+
+   | Cookie | Contents | Lifetime |
+   | --- | --- | --- |
+   | `UK_SESSION` | session id, only its hash is stored | `OIDC_SESSION_TTL` |
+   | `UK_TOKEN` | current access token, read back by the backend on every request | until the token expires |
+   | `UK_DEV_TOKEN` | local dev token, dev profile only | `DEV_AUTH_TOKEN_TTL` |
+
+   All three are `HttpOnly`, `Path=/`, `SameSite=Lax`, and `Secure` when `OIDC_COOKIE_SECURE=true`.
+
+`SessionTokenFilter` authenticates the request from those cookies: when the access token expires within
+`OIDC_REFRESH_WINDOW`, the refresh token from the database buys a new one first, so a long session
+survives without an interactive login. A refresh that the provider rejects ends the session and clears
+the cookies.
+
+The filter deliberately does not hand the token to the bearer token filter. Spring Security exempts
+every request from CSRF as soon as the bearer token resolver finds a token, and a cookie the browser
+attaches on its own would hand that exemption to every request of the session. `CookieAwareBearerTokenResolver`
+therefore reads the `Authorization` header and the dev token cookie only.
+
+`POST /api/v1/auth/logout` deletes the session row, revokes the refresh token and returns the URL that
+ends the session of the provider, which is why the next login shows the credentials form again.
+
+### CSRF
+
+Cookies are sent by the browser automatically, therefore every unsafe method needs the CSRF token.
+`CookieCsrfTokenRepository` issues `XSRF-TOKEN` (readable by JavaScript, `HttpOnly` off) and the
+frontend echoes it as `X-XSRF-TOKEN` for `POST`, `PATCH` and `DELETE`. The token stays stable while the
+browser keeps it, because the authentication of a request does not replace it.
+
+A request with an `Authorization` header skips the check, because that header cannot be attached by
+another origin without a successful CORS preflight; this is what keeps `curl` and CLI clients usable.
+The same holds for the `UK_DEV_TOKEN` cookie of the dev profile: the local login issues a bearer token,
+so CSRF is not exercised there. Only the identity provider flow of a deployed environment relies on it.
+
+### Command line clients
+
+`Authorization: Bearer <token>` works and takes precedence over the cookie of a browser, so existing
+scripts and tests need no change.
+
+## Token validation
+
+When `OIDC_ENABLED=true` and `OIDC_ISSUER_URI` is set, tokens are validated as follows:
 
 1. The signature is verified with the JWKS of the issuer (fetched from
    `<issuer>/.well-known/openid-configuration`, cached by Spring Security, or from
@@ -72,7 +127,8 @@ every start of a fresh container:
 | --- | --- |
 | Realm | `user-kit`, served below `/auth` of the public host |
 | Issuer | `https://user-kit.local/auth/realms/user-kit` |
-| Client `user-kit-web` | public SPA, Authorization Code + PKCE (`S256`), redirect `https://user-kit.local/*` |
+| Client `user-kit-bff` | confidential, the backend performs Authorization Code + PKCE (`S256`), redirects `/api/v1/auth/callback` |
+| Client `user-kit-web` | legacy public client, no longer used by the frontend |
 | Client `user-kit-api` | audience of the access token, no interactive login |
 | Client scope `user-kit-api-audience` | adds `aud=user-kit-api` to the access token |
 | Client scopes `openid`, `profile`, `email`, `roles` | `sub`, name, email and `realm_access.roles` |
@@ -83,58 +139,42 @@ every start of a fresh container:
 tokens without a browser. Turn it off once the smoke test is not needed anymore; the browser flow
 uses PKCE and never sends a password.
 
-Any other provider works as well, for example a corporate IdP. The backend only needs a discovery
-document; the frontend only needs the values of `VITE_OIDC_*`. To use one:
+Any other provider works as well, for example a corporate IdP. Only the backend needs configuration
+now, the frontend asks `/api/v1/auth/config` what it can use. To use one:
 
 1. Create a realm or a tenant, for example `user-kit`.
-2. Create a public client for the frontend, for example `user-kit-web`:
-   - type: public / SPA,
+2. Create a confidential client, for example `user-kit-bff`:
+   - type: confidential, client authentication on,
    - standard flow enabled,
-   - redirect URI `https://<host>/`,
+   - valid redirect URI `https://<host>/api/v1/auth/callback`,
    - post logout redirect URI `https://<host>/`,
-   - web origin `https://<host>`.
-3. Create a client for the backend, for example `user-kit-api`, and put its client id into
+   - web origin `https://<host>` (the dev flow is not used for this client).
+3. Create a client for the audience, for example `user-kit-api`, and put its client id into
    `OIDC_AUDIENCES`. It is only used as the expected audience of incoming tokens.
 4. Create the roles `admin` and `user` and assign them to users. Either put the role names into a
    top level claim (Keycloak: protocol mapper "user attribute" or "hardcoded audience" style mappers
    into `roles`), into `realm_access.roles` of the realm, or use client roles that end up in
    `resource_access.<clientId>.roles`. All five layouts are supported.
-5. Configure the frontend and the backend:
+5. Configure the backend:
 
 ```bash
-# frontend/.env.local
-VITE_AUTH_MODE=oidc
-VITE_OIDC_AUTHORITY=https://idp.example.com/realms/user-kit
-VITE_OIDC_CLIENT_ID=user-kit-web
-VITE_OIDC_REDIRECT_URI=https://user-kit.local/
-VITE_OIDC_POST_LOGOUT_REDIRECT_URI=https://user-kit.local/
-VITE_OIDC_SCOPE=openid profile email
-
-# docker compose environment
 OIDC_ENABLED=true
 OIDC_ISSUER_URI=https://idp.example.com/realms/user-kit
 OIDC_AUDIENCES=user-kit-api
 OIDC_ROLES_CLAIM=roles
 DEV_AUTH_ENABLED=false
+
+OIDC_CLIENT_ENABLED=true
+OIDC_CLIENT_ID=user-kit-bff
+OIDC_CLIENT_SECRET=the-secret-of-that-client
+OIDC_CLIENT_REDIRECT_URI=https://user-kit.local/api/v1/auth/callback
+OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI=https://user-kit.local/
+OIDC_CLIENT_SCOPES=openid profile email
+OIDC_COOKIE_SECURE=true
 ```
 
-The frontend uses Authorization Code + PKCE through `oidc-client-ts` and stores the session in
-`sessionStorage`, so no server side session and no client secret exist. Redirect URIs must be
-registered exactly, including the trailing slash.
-
-### Split issuer and key location
-
-`OIDC_JWK_SET_URI` is optional and only needed when the issuer URL is not reachable from the
-backend. Docker compose uses it, because the public URL is `https://user-kit.local/...` with a self
-signed certificate while the container reaches Keycloak over plain HTTP:
-
-```bash
-OIDC_ISSUER_URI=https://user-kit.local/auth/realms/user-kit
-OIDC_JWK_SET_URI=http://keycloak:8080/auth/realms/user-kit/protocol/openid-connect/certs
-```
-
-`iss` is still validated against `OIDC_ISSUER_URI`, only the key lookup is redirected. Without the
-variable the backend fetches `<issuer>/.well-known/openid-configuration` itself.
+Redirect URIs must match exactly. The client secret lives only in the backend environment, so a
+user of the frontend bundle cannot impersonate the client.
 
 ### Hostname configuration of Keycloak
 
@@ -149,7 +189,30 @@ issuer that no client can reach:
 | `KEYCLOAK_HOSTNAME` | `https://user-kit.local/auth` | public base URL of Keycloak, **including** the prefix |
 
 When `SERVER_NAME` changes, set `KEYCLOAK_HOSTNAME` accordingly and keep
-`OIDC_ISSUER_URI=https://<host><prefix>/realms/user-kit` plus the matching `VITE_OIDC_AUTHORITY`.
+`OIDC_ISSUER_URI=https://<host><prefix>/realms/user-kit` plus the matching
+`OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI` and the registered redirect URIs of `user-kit-bff`.
+
+`keycloak/realm/user-kit-realm.json` registers several post logout URIs at once. Keycloak stores
+that client attribute as a single string and splits it on `##`, so a comma separated value is read
+as one unusable URI and the provider answers the logout with `Invalid redirect uri` instead of
+redirecting.
+
+### Split issuer for the backend
+
+`OIDC_JWK_SET_URI` and `OIDC_CLIENT_ISSUER_URI` are optional and only needed when the public URL is
+not reachable from the backend. Docker compose uses both, because the public URL is
+`https://user-kit.local/...` with a self signed certificate while the container reaches Keycloak over
+plain HTTP:
+
+```bash
+OIDC_ISSUER_URI=https://user-kit.local/auth/realms/user-kit
+OIDC_JWK_SET_URI=http://keycloak:8080/auth/realms/user-kit/protocol/openid-connect/certs
+OIDC_CLIENT_ISSUER_URI=http://keycloak:8080/auth/realms/user-kit
+```
+
+`iss` is still validated against `OIDC_ISSUER_URI` and discovery happens against
+`OIDC_CLIENT_ISSUER_URI`, so the tokens of the browser keep the public issuer while the backend does
+not have to trust its own certificate.
 
 ## Local development issuer
 
@@ -162,6 +225,12 @@ curl -sk "https://user-kit.local/api/v1/dev/token?role=admin"
 curl -sk "https://user-kit.local/api/v1/dev/token?role=user&subject=jane@example.com"
 ```
 
+The browser uses `POST /api/v1/auth/dev-login` instead: the response body carries the profile but no
+token, the token goes into `UK_DEV_TOKEN`. The endpoint exists only when `DEV_AUTH_ENABLED=true` and
+needs the CSRF token like every other unsafe method. Because the dev cookie is a bearer token, the
+requests that carry it are exempt from CSRF afterwards; the local login is a convenience, the identity
+provider flow of a deployed environment is the one that relies on the CSRF token.
+
 Details:
 
 - Tokens carry `sub`, `preferred_username`, `email`, `name` and `roles`, and live 12 hours.
@@ -170,11 +239,22 @@ Details:
 - The dev issuer is only registered when the `dev` profile is active. In any other profile the
   endpoints do not exist and `StartupValidator` logs a warning if the secret is still the default.
 - `DEV_AUTH_SECRET` must be at least 32 characters; change it for every shared environment.
+- `GET /api/v1/dev/token` stays available for scripts; the frontend never calls it.
 
 Never enable the dev issuer in a production deployment: `docker-compose.yml` sets
 `SPRING_PROFILES_ACTIVE=dev` for convenience, so override it and set `DEV_AUTH_ENABLED=false`
 before exposing the stack. While both issuers are active the resource server accepts a token as soon
 as one of them validates it, see `JwtDecoderConfiguration`.
+
+## Demo documents
+
+`DemoDataSeeder` belongs to the same `dev` profile: on an empty store it creates the local account
+`demo` (subject `local-demo-owner`) and uploads eight sample documents through `FileService`, so the
+seeder reuses the validation, checksum and storage key rules of a real upload. As soon as one document
+exists the seeder does nothing, which makes restarts idempotent, and `DEMO_DATA_ENABLED=false`
+switches it off. The documents are plain PDF, CSV, Markdown and text files that `SimplePdf` generates
+without a PDF library; a second demo user would therefore never need binary resources in the
+repository.
 
 ## Account lifecycle
 
@@ -192,26 +272,33 @@ first administrator. Afterwards roles can be maintained through `PATCH /odata/Us
 
 ## Frontend behaviour
 
-- `frontend/src/features/auth/oidc/oidcAuthProvider.ts` starts the login, handles the redirect and the logout, and
-  exposes the claims of the active session.
-- `frontend/src/features/auth/dev/devAuthProvider.ts` calls `/api/v1/dev/token` and keeps the token in memory.
+- `frontend/src/features/auth/cookie/cookieAuthProvider.ts` is the only provider: it reads
+  `/api/v1/auth/config`, navigates to `/api/v1/auth/login` and calls `/api/v1/auth/dev-login` when the
+  backend offers the local login.
+- `frontend/src/shared/api/http.ts` sends every request with `credentials: 'include'` and adds
+  `X-XSRF-TOKEN` for unsafe methods. It never attaches an `Authorization` header.
 - `frontend/src/entities/user/model/roles.ts` maps claims to the two roles, mirroring the backend, so both sides
   agree on what `admin` means.
-- Session expiry triggers a redirect to the identity provider; a failed silent renew falls back to an
-  interactive login.
-- Access tokens are never written to `localStorage`.
+- There is no silent renew in the frontend: the backend refreshes before the token expires. A rejected
+  refresh makes `/api/v1/me` answer `401`, which brings the login screen back.
+- No token, not even an access token, is written to `localStorage`, `sessionStorage` or the DOM.
 
 ## Hardening checklist
 
 - [ ] `SPRING_PROFILES_ACTIVE` is not `dev` in production.
 - [ ] `DEV_AUTH_ENABLED=false` and `DEV_AUTH_SECRET` is not the default value.
+- [ ] `OIDC_CLIENT_SECRET` is the production secret of the confidential client, not the value of the
+      shipped realm.
+- [ ] `OIDC_COOKIE_SECURE=true` whenever the application is served over HTTPS.
+- [ ] `OIDC_SESSION_TTL` is short enough that a stolen cookie expires on its own.
 - [ ] `OIDC_ISSUER_URI` uses `https://` and matches the token issuer exactly.
 - [ ] `OIDC_AUDIENCES` contains the client id of the backend, so tokens minted for other clients of
       the same realm are rejected.
 - [ ] `KC_HOSTNAME` of Keycloak matches the URL the browser uses, prefix included.
 - [ ] Keycloak runs on its own database instead of `dev-file`, and the realm import directory is
       not mounted in production.
-- [ ] Direct access grants of `user-kit-web` are disabled.
+- [ ] Direct access grants of `user-kit-web` and `user-kit-bff` are disabled.
+- [ ] The redirect URIs of `user-kit-bff` list only hosts the application really runs on.
 - [ ] `CORS_ALLOWED_ORIGINS` lists exactly the origins that need browser access, or stays empty for
       a same origin deployment.
 - [ ] `/v3/api-docs` and `/swagger-ui` are restricted at the edge if the contract must stay private.

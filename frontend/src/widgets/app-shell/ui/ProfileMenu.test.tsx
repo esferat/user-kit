@@ -19,8 +19,9 @@ function avatar(container: HTMLElement): HTMLElement & { initials: string; inter
   return container.querySelector('ui5-avatar') as HTMLElement & { initials: string; interactive: boolean };
 }
 
-function popover(container: HTMLElement): HTMLElement & { open: boolean } {
-  return container.querySelector('ui5-popover') as HTMLElement & { open: boolean };
+/** `ui5-menu` is the popover itself; a wrapping `ui5-popover` would hide the items. */
+function menu(container: HTMLElement): HTMLElement & { open: boolean } {
+  return container.querySelector('ui5-menu') as HTMLElement & { open: boolean };
 }
 
 function menuItems(container: HTMLElement): (HTMLElement & { text: string })[] {
@@ -49,13 +50,13 @@ describe('ProfileMenu', () => {
 
   it('opens the menu on the avatar and closes it again', () => {
     const { container } = render(<ProfileMenu user={USER} onLogout={() => undefined} />);
-    expect(popover(container).open).toBe(false);
+    expect(menu(container).open).toBe(false);
 
     fireEvent.click(avatar(container));
-    expect(popover(container).open).toBe(true);
+    expect(menu(container).open).toBe(true);
 
     fireEvent.click(avatar(container));
-    expect(popover(container).open).toBe(false);
+    expect(menu(container).open).toBe(false);
   });
 
   it('signs the user out from the menu', () => {
@@ -66,7 +67,14 @@ describe('ProfileMenu', () => {
     fireEvent.click(menuItems(container)[1]);
 
     expect(onLogout).toHaveBeenCalledOnce();
-    expect(popover(container).open).toBe(false);
+    expect(menu(container).open).toBe(false);
+  });
+
+  it('opens the menu as its own popover instead of wrapping it in a popover', () => {
+    const { container } = render(<ProfileMenu user={USER} onLogout={() => undefined} />);
+
+    expect(container.querySelector('ui5-popover')).toBeNull();
+    expect(menu(container).getAttribute('slot')).toBe('profile');
   });
 
   it('falls back to the username when the account has no email', () => {

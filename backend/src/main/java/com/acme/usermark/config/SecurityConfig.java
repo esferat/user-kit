@@ -1,10 +1,14 @@
 package com.acme.usermark.config;
 
+import com.acme.usermark.auth.AuthCookies;
+import com.acme.usermark.auth.AuthSessionService;
+import com.acme.usermark.auth.SessionTokenFilter;
 import com.acme.usermark.security.OidcJwtAuthenticationConverter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,7 +21,11 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -27,38 +35,90 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final AppProperties properties;
+    /** Requests without a body that only start a login or drop the cookies. */
+    private static final String[] PUBLIC_ENDPOINTS = {
+        "/actuator/health",
+        "/actuator/health/**",
+        "/actuator/info",
+        "/v3/api-docs",
+        "/v3/api-docs/**",
+        "/swagger-ui.html",
+        "/swagger-ui/**",
+        "/api/v1/dev/**",
+        "/api/v1/auth/config",
+        "/api/v1/auth/login",
+        "/api/v1/auth/callback",
+        "/api/v1/auth/dev-login",
+        "/api/v1/auth/logout"
+    };
 
-    public SecurityConfig(AppProperties properties) {
+    private final AppProperties properties;
+    private final AuthSessionService sessions;
+    private final AuthCookies cookies;
+
+    public SecurityConfig(AppProperties properties, AuthSessionService sessions, AuthCookies cookies) {
         this.properties = properties;
+        this.sessions = sessions;
+        this.cookies = cookies;
+    }
+
+    @Bean
+    BearerTokenResolver bearerTokenResolver() {
+        return new CookieAwareBearerTokenResolver();
     }
 
     @Bean
     SecurityFilterChain apiSecurity(
-            HttpSecurity http, OidcJwtAuthenticationConverter jwtConverter, JwtDecoder jwtDecoder) throws Exception {
-        return http.csrf(csrf -> csrf.disable())
+            HttpSecurity http,
+            OidcJwtAuthenticationConverter jwtConverter,
+            JwtDecoder jwtDecoder,
+            BearerTokenResolver bearerTokenResolver)
+            throws Exception {
+        http.csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository())
+                        .csrfTokenRequestHandler(csrfTokenRequestHandler())
+                        .ignoringRequestMatchers(request -> request.getHeader("Authorization") != null))
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(requests -> requests
-                        .requestMatchers(
-                                "/actuator/health",
-                                "/actuator/health/**",
-                                "/actuator/info",
-                                "/v3/api-docs",
-                                "/v3/api-docs/**",
-                                "/swagger-ui.html",
-                                "/swagger-ui/**",
-                                "/api/v1/dev/**")
+                .authorizeHttpRequests(requests -> requests.requestMatchers(PUBLIC_ENDPOINTS)
                         .permitAll()
                         .requestMatchers("/api/v1/admin/**", "/odata/Users", "/odata/Users/**")
                         .hasRole("ADMIN")
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(bearerTokenResolver)
                         .jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(jwtConverter))
                         .authenticationEntryPoint(SecurityConfig::writeUnauthorized)
-                        .accessDeniedHandler(SecurityConfig::writeForbidden))
-                .build();
+                        .accessDeniedHandler(SecurityConfig::writeForbidden));
+        if (properties.security().oauth().enabled()) {
+            http.addFilterBefore(
+                    new SessionTokenFilter(sessions, cookies, properties.security().oauth().refreshWindow(), jwtDecoder, jwtConverter),
+                    AuthorizationFilter.class);
+        }
+        return http.build();
+    }
+
+    /**
+     * Resolves the token on every request instead of waiting for a controller to
+     * read it, so the browser receives the cookie with the first response of the
+     * login. The plain handler keeps the cookie value usable as is: the frontend
+     * repeats exactly what it reads in the header.
+     */
+    private CsrfTokenRequestAttributeHandler csrfTokenRequestHandler() {
+        CsrfTokenRequestAttributeHandler handler = new CsrfTokenRequestAttributeHandler();
+        handler.setCsrfRequestAttributeName(null);
+        return handler;
+    }
+
+    /**
+     * The browser sends the token as a readable cookie, so it has to be marked as
+     * readable on purpose; every unsafe request repeats it in the header.
+     */
+    private CookieCsrfTokenRepository csrfTokenRepository() {
+        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        AppProperties.OAuth oauth = properties.security().oauth();
+        repository.setCookieCustomizer(cookie -> cookie.path("/").sameSite("Lax").secure(oauth.cookieSecure()));
+        return repository;
     }
 
     /**

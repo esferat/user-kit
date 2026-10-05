@@ -72,6 +72,25 @@ app:
       issuer: user-kit-dev
       secret: ${DEV_AUTH_SECRET:dev-only-secret-change-me-0123456789abcdef}
       token-ttl: 12h
+    oauth:
+      # Cookie based login: the backend is the OAuth client, the browser only
+      # receives httpOnly cookies and the refresh token stays in the database.
+      enabled: ${OIDC_CLIENT_ENABLED:false}
+      client-id: ${OIDC_CLIENT_ID:user-kit-bff}
+      client-secret: ${OIDC_CLIENT_SECRET:}
+      # Optional. Set it when the discovery document is not reachable under the
+      # issuer URL, for example when Keycloak only answers on the container network.
+      issuer-uri: ${OIDC_CLIENT_ISSUER_URI:}
+      redirect-uri: ${OIDC_CLIENT_REDIRECT_URI:https://user-kit.local/api/v1/auth/callback}
+      post-logout-redirect-uri: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI:https://user-kit.local/}
+      scopes: ${OIDC_CLIENT_SCOPES:openid profile email}
+      login-state-ttl: ${OIDC_LOGIN_STATE_TTL:10m}
+      session-ttl: ${OIDC_SESSION_TTL:12h}
+      # Renew the access token when it expires within this window, so a request
+      # never races the expiry of the token the browser sends.
+      refresh-window: ${OIDC_REFRESH_WINDOW:90s}
+      cookie-secure: ${OIDC_COOKIE_SECURE:true}
+      cookie-domain: ${OIDC_COOKIE_DOMAIN:}
   cors:
     # Comma separated list of browser origins, empty keeps the API same origin only
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
@@ -82,8 +101,8 @@ app:
     endpoint: ${S3_ENDPOINT:http://localhost:9000}
     region: ${S3_REGION:us-east-1}
     bucket: ${S3_BUCKET:user-kit}
-    access-key: ${S3_ACCESS_KEY:rustfsadmin}
-    secret-key: ${S3_SECRET_KEY:rustfsadmin}
+    access-key: ${S3_ACCESS_KEY:siloadmin}
+    secret-key: ${S3_SECRET_KEY:siloadmin}
     path-style-access: ${S3_PATH_STYLE:true}
     create-bucket: ${S3_CREATE_BUCKET:true}
   files:

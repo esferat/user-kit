@@ -5,8 +5,8 @@ Reference implementation of a small but production-shaped web application:
 - **Frontend** – Vite + React 19 + TypeScript + UI5 Web Components (`sap_horizon` theme).
 - **Backend** – Spring Boot 3.5 / Java 21 REST + OData V4 (subset) service.
 - **Database** – PostgreSQL 17 with Flyway migrations.
-- **Object storage** – any S3 compatible storage; the compose file ships RustFS.
-- **Identity** – OpenID Connect against the Keycloak of the Compose stack, with a local dev token issuer as an alternative.
+- **Object storage** – any S3 compatible storage; the compose file ships Silo.
+- **Identity** – OpenID Connect against the Keycloak of the Compose stack, with the backend acting as the OAuth client (cookie based, no token in the browser) and a local dev login as an alternative.
 - **Edge** – nginx with TLS termination, HTTP → HTTPS redirect and reverse proxying.
 
 The application manages **file objects**: authenticated users upload files, list and download them,
@@ -58,7 +58,7 @@ administrators additionally manage all files and the role assignment of all acco
              │ Spring Boot backend│   │ Keycloak :8080           │
              │  security → JWKS   │   │  realm user-kit          │
              │  jpa      → PostgreSQL  │  clients, roles       │
-             │  storage  → S3/RustFS   └──────────────────────────┘
+             │  storage  → S3/Silo     └──────────────────────────┘
              └────────────────────┘
 ```
 
@@ -99,11 +99,16 @@ troubleshooting. Both accounts come from
 [`keycloak/realm/user-kit-realm.json`](keycloak/realm/user-kit-realm.json), which is imported when
 the container starts without a database.
 
-The frontend is configured at build time: Vite inlines the `VITE_*` variables into the bundle and
-Compose passes them as build arguments. `.env.example` therefore selects `VITE_AUTH_MODE=oidc`
-against the local Keycloak. Switching to `dev` means setting `VITE_AUTH_MODE=dev` and rebuilding with
-`docker compose up -d --build frontend`, which skips the login dialog and uses the local token
-issuer of the backend.
+The backend is the OAuth client: it exchanges the authorization code, keeps the refresh token in the
+database and hands the browser two httpOnly cookies. The frontend bundle contains no identity
+provider configuration and no token, which is why the login has no mode to choose. What it does carry
+is configured at build time: Vite inlines the `VITE_*` variables into the bundle and Compose passes
+them as build arguments, for example `VITE_UI5_THEME` and `VITE_DEFAULT_LOCALE`. Setting
+`DEV_AUTH_ENABLED=false` removes the local login; the login dialog of Keycloak then is the only way in.
+
+For the local login the backend offers a second method next to the dialog. With `DEV_AUTH_ENABLED=true`
+the login page also shows a role button, which calls `POST /api/v1/auth/dev-login` and stores a local
+token in a cookie, no password involved.
 
 | URL | Description |
 | --- | --- |
@@ -126,9 +131,18 @@ curl -sk -H "Authorization: Bearer $TOKEN" -F "file=@report.pdf" -F "description
   https://user-kit.local/api/v1/files
 ```
 
-Shut the stack down with `docker compose down`; add `-v` to delete the PostgreSQL and RustFS volumes.
+Shut the stack down with `docker compose down`; add `-v` to delete the PostgreSQL and Silo volumes.
 Keycloak keeps its data inside the container (`dev-file`), so a recreated container starts from the
 realm import again.
+
+### Demo documents
+
+With the `dev` profile the backend fills an **empty** store with eight sample documents: two PDF, two
+CSV, two Markdown and two plain text files, owned by the local account `demo`. The seeder runs once
+per empty store, so a restart with existing documents changes nothing; delete the documents in the UI
+to get them again. `DEMO_DATA_ENABLED=false` starts the backend without them. Outside the `dev`
+profile the seeder is not even registered, which the wiring test of `DemoDataSeederWiringTest`
+guarantees.
 
 To verify a running stack end to end (edge, identity provider, roles, upload to the object storage,
 OData, locking, deletion) run the smoke script; it prints one line per check and exits with `1` on
@@ -141,7 +155,7 @@ pwsh ./scripts/smoke.ps1 -AuthMode dev  # force the local token issuer
 
 ## Local development
 
-Run the services from source while keeping PostgreSQL and RustFS in Docker:
+Run the services from source while keeping PostgreSQL and Silo in Docker:
 
 ```bash
 docker compose up -d postgres object-storage
@@ -152,9 +166,14 @@ docker compose up -d postgres object-storage
 ```bash
 cd frontend
 npm ci
-cp .env.example .env.local     # VITE_AUTH_MODE=dev for the local token issuer
+cp .env.example .env.local     # VITE_API_BASE_URL only, the login lives in the backend
 npm run dev                   # http://localhost:5173
 ```
+
+The dev server serves the SPA on `http://localhost:5173` while the backend runs on `8080`. The login
+round trip goes through the backend, so `OIDC_CLIENT_REDIRECT_URI` must contain
+`http://localhost:5173/api/v1/auth/callback` in that setup, otherwise the provider rejects the
+redirect after the login form.
 
 | Script | Purpose |
 | --- | --- |
@@ -194,8 +213,8 @@ export DATABASE_URL=jdbc:postgresql://localhost:5432/userkit
 export DATABASE_USERNAME=userkit
 export DATABASE_PASSWORD=userkit
 export S3_ENDPOINT=http://localhost:9000
-export S3_ACCESS_KEY=rustfsadmin
-export S3_SECRET_KEY=rustfsadmin
+export S3_ACCESS_KEY=siloadmin
+export S3_SECRET_KEY=siloadmin
 export S3_CREATE_BUCKET=true
 export DEV_AUTH_ENABLED=true
 export DEV_AUTH_SECRET=dev-only-secret-change-me-0123456789abcdef
@@ -222,10 +241,22 @@ export DEV_AUTH_SECRET=dev-only-secret-change-me-0123456789abcdef
 | `OIDC_JWK_SET_URI` | empty | Optional second URL for the keys when the issuer is not reachable from the backend |
 | `OIDC_AUDIENCES` | `user-kit-api` | Accepted `aud` values |
 | `OIDC_ROLES_CLAIM` | `roles` | Claim that carries the roles |
-| `DEV_AUTH_ENABLED` | `false` | Expose `/api/v1/dev/token` (dev profile only) |
+| `DEV_AUTH_ENABLED` | `false` | Expose the local login and `/api/v1/dev/token` (dev profile only) |
 | `DEV_AUTH_SECRET` | dev-only value | HS256 secret of the dev issuer, minimum 32 characters |
+| `OIDC_CLIENT_ENABLED` | `false` | Backend performs the browser login as OAuth client |
+| `OIDC_CLIENT_ID` | empty | Confidential client id of the realm, for example `user-kit-bff` |
+| `OIDC_CLIENT_SECRET` | empty | Secret of that client |
+| `OIDC_CLIENT_ISSUER_URI` | empty | Optional URL for discovery when the public issuer is not reachable |
+| `OIDC_CLIENT_REDIRECT_URI` | `https://user-kit.local/api/v1/auth/callback` | Must be registered for the client |
+| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI` | `https://user-kit.local/` | Where the provider returns after the logout |
+| `OIDC_CLIENT_SCOPES` | `openid profile email` | Requested scopes |
+| `OIDC_LOGIN_STATE_TTL` | `10m` | How long a started login may take |
+| `OIDC_SESSION_TTL` | `12h` | Lifetime of a session without activity |
+| `OIDC_COOKIE_SECURE` | `true` | `Secure` flag of the session cookies; set `false` for plain HTTP |
+| `OIDC_COOKIE_DOMAIN` | empty | Optional cookie domain |
+| `OIDC_REFRESH_WINDOW` | `90s` | Renew the access token this long before it expires |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma separated browser origins; empty keeps the API same origin only |
-| `CORS_ALLOWED_HEADERS` | `Authorization, Content-Type, If-Match, Accept` | Allowed request headers |
+| `CORS_ALLOWED_HEADERS` | `Authorization, Content-Type, If-Match, Accept, X-XSRF-TOKEN` | Allowed request headers |
 | `CORS_EXPOSED_HEADERS` | `ETag, Location, Content-Disposition` | Headers readable by the browser |
 | `CORS_MAX_AGE` | `30m` | Preflight cache duration |
 | `ODATA_DEFAULT_PAGE_SIZE` | `50` | Page size when `$top` is absent |
@@ -236,25 +267,25 @@ export DEV_AUTH_SECRET=dev-only-secret-change-me-0123456789abcdef
 | Variable | Default | Description |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | empty | Empty means same origin; used for split deployments |
-| `VITE_AUTH_MODE` | `oidc` | `oidc` or `dev` |
 | `VITE_UI5_THEME` | `sap_horizon` | UI5 theme name |
-| `VITE_OIDC_AUTHORITY` | `https://user-kit.local/auth/realms/user-kit` | Issuer URL of the identity provider |
-| `VITE_OIDC_CLIENT_ID` | `user-kit-web` | Public client id |
-| `VITE_OIDC_REDIRECT_URI` | `https://user-kit.local/` | Registered redirect URI |
-| `VITE_OIDC_POST_LOGOUT_REDIRECT_URI` | `https://user-kit.local/` | Registered post logout URI |
-| `VITE_OIDC_SCOPE` | `openid profile email` | Requested scopes |
-| `VITE_OIDC_ROLES_CLAIM` | empty | Overrides the claim used for roles |
-| `VITE_DEV_ROLE` | `admin` | Role requested from the dev token endpoint |
+| `VITE_DEFAULT_LOCALE` | `ru` | `ru` or `en`, the user can switch the language |
+| `VITE_DEV_ROLE` | `user` | Role requested by the local login of the dev profile |
 
-The Compose stack defaults `VITE_AUTH_MODE` to `oidc` against the local Keycloak. Because Vite
-inlines these variables, a change requires `docker compose up -d --build frontend`.
+The frontend has no identity provider configuration: the backend reports the available login methods
+through `GET /api/v1/auth/config`. Because Vite inlines these variables, a change requires
+`docker compose up -d --build frontend`.
 
 ## API overview
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/me` | Profile and roles of the caller |
-| `GET` | `/api/v1/dev/token?role=admin\|user` | Local token issuer, dev profile only |
+| `GET` | `/api/v1/auth/config` | Available login methods: `oidc`, `dev` or `none` |
+| `GET` | `/api/v1/auth/login?returnUrl=%23/route` | Starts the login, answers `302` to the provider |
+| `GET` | `/api/v1/auth/callback` | Redirect target of the provider, sets the cookies |
+| `POST` | `/api/v1/auth/dev-login` | Local login into a cookie, dev profile only, needs CSRF |
+| `POST` | `/api/v1/auth/logout` | Drops the session and ends the provider session, needs CSRF |
+| `GET` | `/api/v1/dev/token?role=admin\|user` | Local token issuer for scripts, dev profile only |
 | `GET` | `/api/v1/dev/roles` | Roles supported by the dev issuer |
 | `GET` | `/api/v1/files?page=&size=` | REST list of visible files |
 | `POST` | `/api/v1/files` | `multipart/form-data` upload (`file`, optional `description`) |
@@ -288,7 +319,7 @@ Details and examples are in [`docs/api.md`](docs/api.md) and [`docs/odata.md`](d
 ## Tests
 
 ```bash
-# backend: 76 unit tests (compiled and executed by Maven inside a container)
+# backend: 95 unit tests (compiled and executed by Maven inside a container)
 docker run --rm -v userkit-m2:/root/.m2 -v "$PWD/backend:/workspace" -w /workspace \
   maven:3.9-eclipse-temurin-21 mvn -B -ntp test
 
@@ -304,7 +335,7 @@ user-kit/
 │   └── src/main/java/com/acme/usermark/
 │       ├── common/         error shape, exception handler, patch helpers
 │       ├── config/         security, JWT, S3 client, OpenAPI, properties
-│       ├── dev/            local token issuer
+│       ├── dev/            local token issuer, demo documents
 │       ├── file/           file entity, service, storage, REST controller
 │       ├── odata/          parser, query engine, mappings, controllers
 │       ├── security/       role extraction from JWT claims

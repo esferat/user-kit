@@ -34,7 +34,7 @@ class FileServiceTest {
         repository = mock(FileObjectRepository.class);
         storage = mock(FileStorageService.class);
         AppProperties properties = new AppProperties(
-                null, new AppProperties.Storage(null, null, null, null, null, true, true), new AppProperties.Files(1024), null, null);
+                null, new AppProperties.Storage(null, null, null, null, null, true, true), new AppProperties.Files(1024), null, null, null);
         service = new FileService(repository, storage, properties);
         owner = new UserAccount("sub-1", "jane", "jane@example.com", "Jane", Set.of("user"));
         when(repository.saveAndFlush(any(FileObject.class))).thenAnswer(invocation -> invocation.getArgument(0));

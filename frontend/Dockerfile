@@ -3,15 +3,10 @@ WORKDIR /app
 
 # Configuration is baked in at build time, because Vite inlines VITE_* variables
 # into the bundle. Pass them as build arguments, see docker-compose.yml.
-ARG VITE_AUTH_MODE=oidc
+# The bundle carries no identity provider settings: the backend owns the login and
+# tells the frontend which methods it offers.
 ARG VITE_API_BASE_URL=
 ARG VITE_UI5_THEME=sap_horizon
-ARG VITE_OIDC_AUTHORITY=
-ARG VITE_OIDC_CLIENT_ID=user-kit-web
-ARG VITE_OIDC_REDIRECT_URI=
-ARG VITE_OIDC_POST_LOGOUT_REDIRECT_URI=
-ARG VITE_OIDC_SCOPE=openid profile email
-ARG VITE_OIDC_ROLES_CLAIM=
 ARG VITE_DEV_ROLE=user
 ARG VITE_DEFAULT_LOCALE=ru
 

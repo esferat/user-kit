@@ -25,8 +25,6 @@ export class ApiError extends Error {
   }
 }
 
-export type TokenProvider = () => Promise<string | null>;
-
 export interface RequestOptions {
   method?: HttpMethod;
   body?: BodyInit | null;
@@ -34,10 +32,34 @@ export interface RequestOptions {
   rawBody?: boolean;
   accept?: string;
   headers?: Record<string, string>;
-  token?: string | null;
   signal?: AbortSignal;
-  /** Skip the Authorization header (used for the dev token endpoint). */
-  anonymous?: boolean;
+}
+
+/**
+ * The backend authenticates the browser with an httpOnly cookie, so there is no
+ * token to attach here: the browser sends the cookie itself. The only readable
+ * cookie is the CSRF token, which the backend expects in a header next to every
+ * write.
+ */
+const CSRF_COOKIE = 'XSRF-TOKEN';
+const CSRF_HEADER = 'X-XSRF-TOKEN';
+const SAFE_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+export function readCookie(name: string): string | null {
+  const prefix = `${name}=`;
+  const found = document.cookie
+    .split(';')
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith(prefix));
+  return found === undefined ? null : decodeURIComponent(found.slice(prefix.length));
+}
+
+export function csrfHeaders(method: HttpMethod): Record<string, string> {
+  if (SAFE_METHODS.has(method)) {
+    return {};
+  }
+  const token = readCookie(CSRF_COOKIE);
+  return token === null ? {} : { [CSRF_HEADER]: token };
 }
 
 export async function readErrorBody(response: Response): Promise<ApiErrorBody | null> {
@@ -53,23 +75,23 @@ export async function readErrorBody(response: Response): Promise<ApiErrorBody | 
 }
 
 export async function request(url: string, options: RequestOptions = {}): Promise<Response> {
+  const method = options.method ?? 'GET';
   const headers: Record<string, string> = {
     Accept: options.accept ?? 'application/json',
+    ...csrfHeaders(method),
     ...options.headers,
   };
 
-  if (options.token && !options.anonymous) {
-    headers.Authorization = `Bearer ${options.token}`;
-  }
   if (options.body !== undefined && options.body !== null && !options.rawBody) {
     headers['Content-Type'] = 'application/json';
   }
 
   const response = await fetch(url, {
-    method: options.method ?? 'GET',
+    method,
     headers,
     body: options.body ?? null,
     signal: options.signal,
+    credentials: 'include',
   });
 
   if (!response.ok) {

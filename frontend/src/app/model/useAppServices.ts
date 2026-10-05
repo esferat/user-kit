@@ -32,7 +32,6 @@ export function useAppServices(config: AppConfig = appConfig): AppServices {
     const auth = createAuthProvider(config);
     const odata = new ODataClient({
       baseUrl: config.apiBaseUrl,
-      getAccessToken: () => auth.getAccessToken(),
       queryableProperties: {
         Files: FILE_QUERYABLE_PROPERTIES,
         Users: USER_QUERYABLE_PROPERTIES,
@@ -41,8 +40,8 @@ export function useAppServices(config: AppConfig = appConfig): AppServices {
 
     return {
       auth,
-      fileApi: createFileApi({ baseUrl: config.apiBaseUrl, odata, getAccessToken: () => auth.getAccessToken() }),
-      userApi: createUserApi({ baseUrl: config.apiBaseUrl, odata, getAccessToken: () => auth.getAccessToken() }),
+      fileApi: createFileApi({ baseUrl: config.apiBaseUrl, odata }),
+      userApi: createUserApi({ baseUrl: config.apiBaseUrl, odata }),
       router: createRouter(),
       themeStore: createThemeStore(config.theme),
     };

@@ -1,7 +1,6 @@
-export { DevAuthProvider } from './dev/devAuthProvider';
+export { CookieAuthProvider } from './cookie/cookieAuthProvider';
 export { createAuthProvider } from './model/createAuthProvider';
 export { AuthenticationError } from './model/types';
-export type { AuthProvider, AuthProviderKind } from './model/types';
-export { consumeReturnUrl, createUserManager, OidcAuthProvider, saveReturnUrl } from './oidc/oidcAuthProvider';
+export type { AuthMode, AuthProvider, LoginOptions } from './model/types';
 export { AuthSessionProvider, useAuthSession } from './ui/AuthSession';
 export type { AuthSession, AuthSessionProviderProps, AuthStatus } from './ui/AuthSession';

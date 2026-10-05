@@ -4,8 +4,6 @@ param(
     [switch]$SkipCertificateCheck,
     [ValidateSet('auto', 'dev', 'oidc')]
     [string]$AuthMode = 'auto',
-    [ValidateSet('dev', 'oidc')]
-    [string]$ExpectAuthMode = '',
     [string]$Realm = 'user-kit',
     [string]$ClientId = 'user-kit-web',
     [string]$AdminUser = 'admin-user',
@@ -153,9 +151,8 @@ Show 'GET /odata/$metadata' (HttpCode $A "$base/odata/`$metadata")
 Show 'GET /api/v1/me without token' (HttpCode @() "$base/api/v1/me") '401'
 Show 'GET /odata/Users as user' (HttpCode $U "$base/odata/Users") '403'
 
-# The SPA bundle carries the build time configuration, so verify it was built
-# with the settings of this stack. Both code paths are part of every bundle,
-# therefore the inlined authority is what tells an OIDC build apart.
+# The SPA bundle must not carry identity provider settings any more: the backend
+# owns the login, so the only thing the frontend needs is the API base URL.
 $indexHtml = (Http @() "$base/") -join "`n"
 $entry = [regex]::Match($indexHtml, 'src="(?<src>/assets/index-[^"]+\.js)"').Groups['src'].Value
 $bundlePath = Join-Path $env:TEMP 'user-kit-bundle.js'
@@ -163,19 +160,19 @@ if ($entry) {
     Http @('-o', $bundlePath) "$base$entry" | Out-Null
     $bundle = [System.IO.File]::ReadAllText($bundlePath)
     Show 'GET /assets/index-*.js (SPA bundle)' (HttpCode @() "$base$entry") ("bytes=" + $bundle.Length)
-    $hasAuthority = $bundle.Contains($issuer)
-    $hasDevToken = $bundle.Contains('/api/v1/dev/token')
-    ShowCheck 'SPA bundle carries the OIDC authority' $hasAuthority ("authority=$issuer")
-    ShowCheck 'SPA bundle carries the dev token endpoint' $hasDevToken
-    if ($ExpectAuthMode -eq 'oidc') {
-        ShowCheck 'SPA bundle was built for OIDC' $hasAuthority
-    } elseif ($ExpectAuthMode -eq 'dev') {
-        ShowCheck 'SPA bundle was built for the dev token issuer' $hasDevToken
-    }
-    Remove-Item -LiteralPath $bundlePath -Force -ErrorAction SilentlyContinue
+    ShowCheck 'SPA bundle carries no identity provider' (-not $bundle.Contains($issuer))
+    ShowCheck 'SPA bundle carries no OIDC client library' (-not $bundle.Contains('oidc-client-ts'))
 } else {
     ShowCheck 'SPA entry script referenced by index.html' $false
 }
+
+# The backend tells the frontend which login methods it offers.
+$authConfig = (Http @() "$base/api/v1/auth/config") | ConvertFrom-Json
+Show 'GET /api/v1/auth/config' '200' ("mode=" + $authConfig.mode)
+$expectedMode = if ($mode -eq 'oidc') { 'oidc' } elseif ($authConfig.devEnabled) { 'dev' } else { 'none' }
+ShowCheck 'auth config reports the expected mode' ($authConfig.mode -eq $expectedMode) ("mode=" + $authConfig.mode)
+Show 'GET /api/v1/auth/login redirects to the provider' (HttpCode @('-o', 'NUL') "$base/api/v1/auth/login") $(if ($mode -eq 'oidc') { '302' } else { '400' })
+Show 'POST /api/v1/auth/logout without CSRF token' (HttpCode @('-X', 'POST', '-H', 'Content-Type: application/json', '--data-binary', '{}') "$base/api/v1/auth/logout") '403'
 
 $me = (Http $A "$base/api/v1/me") | ConvertFrom-Json
 Show 'GET /api/v1/me (admin token)' '200' ("roles=" + ($me.roles -join ',') + " id=" + $me.id)

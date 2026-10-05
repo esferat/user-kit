@@ -1,4 +1,4 @@
-import { ApiError, request, requestJson, type TokenProvider } from '../http';
+import { request, requestJson } from '../http';
 
 import { buildEntitySetUrl, joinUrl, type ODataQuery } from './query';
 
@@ -16,7 +16,6 @@ export type ODataEntity = {
 
 export interface ODataClientOptions {
   baseUrl: string;
-  getAccessToken: TokenProvider;
   /** Property names that may be used in $filter/$orderby/$select per entity set. */
   queryableProperties?: Record<string, readonly string[]>;
 }
@@ -26,25 +25,16 @@ export interface ODataClientOptions {
  * application relies on ($filter, $select, $orderby, $top, $skip, $count, $metadata).
  *
  * The client is protocol only and knows no entity; the entity slices build their
- * own API on top of it.
+ * own API on top of it. Authorization is left to the browser: the backend expects
+ * the httpOnly cookie of the login and sends the CSRF header along with writes.
  */
 export class ODataClient {
   private readonly baseUrl: string;
-  private readonly getAccessToken: TokenProvider;
   private readonly queryableProperties: Record<string, readonly string[]>;
 
   constructor(options: ODataClientOptions) {
     this.baseUrl = options.baseUrl;
-    this.getAccessToken = options.getAccessToken;
     this.queryableProperties = options.queryableProperties ?? {};
-  }
-
-  private async authorize(): Promise<string> {
-    const token = await this.getAccessToken();
-    if (!token) {
-      throw new ApiError(401, 'No access token available');
-    }
-    return token;
   }
 
   private allowedProperties(entitySet: string): readonly string[] | undefined {
@@ -52,9 +42,7 @@ export class ODataClient {
   }
 
   async metadata(signal?: AbortSignal): Promise<string> {
-    const token = await this.authorize();
     const response = await request(joinUrl(this.baseUrl, '/odata/$metadata'), {
-      token,
       accept: 'application/xml',
       signal,
     });
@@ -62,41 +50,34 @@ export class ODataClient {
   }
 
   async list<T>(entitySet: string, query: ODataQuery = {}, signal?: AbortSignal): Promise<ODataListResponse<T>> {
-    const token = await this.authorize();
     const url = buildEntitySetUrl(this.baseUrl, entitySet, query, this.allowedProperties(entitySet));
-    return requestJson<ODataListResponse<T>>(url, { token, signal });
+    return requestJson<ODataListResponse<T>>(url, { signal });
   }
 
   async get<T>(entitySet: string, key: string, signal?: AbortSignal): Promise<T> {
-    const token = await this.authorize();
     const url = joinUrl(this.baseUrl, `/odata/${entitySet}/${encodeURIComponent(key)}`);
-    return requestJson<T>(url, { token, signal });
+    return requestJson<T>(url, { signal });
   }
 
   async create<T>(entitySet: string, payload: unknown, signal?: AbortSignal): Promise<T> {
-    const token = await this.authorize();
     const url = joinUrl(this.baseUrl, `/odata/${entitySet}`);
-    return requestJson<T>(url, { method: 'POST', body: JSON.stringify(payload), token, signal });
+    return requestJson<T>(url, { method: 'POST', body: JSON.stringify(payload), signal });
   }
 
   async update<T>(entitySet: string, key: string, payload: unknown, etag?: string, signal?: AbortSignal): Promise<T> {
-    const token = await this.authorize();
     const url = joinUrl(this.baseUrl, `/odata/${entitySet}/${encodeURIComponent(key)}`);
     return requestJson<T>(url, {
       method: 'PATCH',
       body: JSON.stringify(payload),
-      token,
       signal,
       headers: etag === undefined ? {} : { 'If-Match': etag },
     });
   }
 
   async remove(entitySet: string, key: string, etag?: string, signal?: AbortSignal): Promise<void> {
-    const token = await this.authorize();
     const url = joinUrl(this.baseUrl, `/odata/${entitySet}/${encodeURIComponent(key)}`);
     await request(url, {
       method: 'DELETE',
-      token,
       signal,
       headers: etag === undefined ? {} : { 'If-Match': etag },
     });

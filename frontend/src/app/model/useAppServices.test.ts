@@ -6,14 +6,14 @@ import { useAppServices, type AppServices } from './useAppServices';
 import { readConfig, type AppConfig } from '@/shared/config';
 
 function configOf(overrides: Record<string, string>): AppConfig {
-  return readConfig({ VITE_AUTH_MODE: 'dev', ...overrides });
+  return readConfig(overrides);
 }
 
 describe('useAppServices', () => {
   it('creates the services of the configured application', () => {
     const { result } = renderHook(() => useAppServices(configOf({})));
 
-    expect(result.current.auth.kind).toBe('dev');
+    expect(result.current.auth).toBeDefined();
     expect(result.current.router).toBeDefined();
     expect(result.current.themeStore.current()).toBe('sap_horizon');
   });

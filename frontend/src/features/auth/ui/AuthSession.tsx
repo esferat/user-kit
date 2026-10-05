@@ -1,8 +1,8 @@
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { AuthProvider } from '../model/types';
+import type { AuthProvider, LoginOptions } from '../model/types';
 
-import type { AuthenticatedUser } from '@/entities/user';
+import type { AuthenticatedUser, Role } from '@/entities/user';
 
 export type AuthStatus = 'restoring' | 'anonymous' | 'authenticated';
 
@@ -12,7 +12,7 @@ export interface AuthSession {
   status: AuthStatus;
   /** Reason of a failed session restore, shown on the login screen. */
   error: unknown;
-  login(returnUrl?: string): Promise<void>;
+  login(returnUrl?: string, role?: Role): Promise<void>;
   logout(): Promise<void>;
 }
 
@@ -36,10 +36,10 @@ export function AuthSessionProvider({ auth, children }: AuthSessionProviderProps
   });
 
   /**
-   * `StrictMode` runs every effect twice, and a second `restore()` of an OIDC
-   * redirect callback would consume the same `code` and `state` twice. The restore
-   * therefore starts once per provider instance, and its result is applied through
-   * `mounted` because the second effect run reuses the same component instance.
+   * `StrictMode` runs every effect twice. Asking the backend twice for the
+   * current session is harmless, but it would be two requests on every mount, so
+   * the restore starts once per provider instance and its result is applied
+   * through `mounted` because the second effect run reuses the component.
    */
   const mounted = useRef(false);
   const restoring = useRef<AuthProvider | null>(null);
@@ -92,9 +92,11 @@ export function AuthSessionProvider({ auth, children }: AuthSessionProviderProps
   }, [auth]);
 
   const login = useCallback(
-    async (returnUrl?: string): Promise<void> => {
-      await auth.login(returnUrl);
-      // The dev provider authenticates in place, the OIDC provider leaves the page.
+    async (returnUrl?: string, role?: Role): Promise<void> => {
+      const options: LoginOptions = role === undefined ? { returnUrl } : { returnUrl, role };
+      await auth.login(options);
+      // The local dev login authenticates in place. With a provider the browser
+      // has left the page by now and the request below never completes here.
       const user = await auth.restore();
       setState({ user, status: user === null ? 'anonymous' : 'authenticated', error: undefined });
     },
@@ -105,9 +107,9 @@ export function AuthSessionProvider({ auth, children }: AuthSessionProviderProps
     try {
       await auth.logout();
     } catch (error) {
-      // The provider already dropped its local session before it redirects, so a
-      // failing redirect leaves nothing to recover: the session keeps whatever the
-      // provider reported and the reason only deserves the console.
+      // The backend clears the cookies before it answers, so a failing redirect
+      // leaves nothing to recover: the session keeps what the provider reported
+      // and the reason only deserves the console.
       console.error('logout failed', error);
     }
   }, [auth]);

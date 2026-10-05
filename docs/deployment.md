@@ -16,16 +16,18 @@ docker compose ps
 | `backend` | built from `backend/` | 8080 | REST and OData service |
 | `keycloak` | `quay.io/keycloak/keycloak:26.4` | 8180, internal 8080 | identity provider, realm `user-kit` |
 | `postgres` | `postgres:17-alpine` | internal 5432 | database with Flyway migrations |
-| `object-storage` | `rustfs/rustfs:latest` | internal 9000 | S3 compatible file storage |
+| `object-storage` | `${SILO_IMAGE:-pgsty/silo}:${SILO_VERSION}` | console 9001, internal 9000 | S3 compatible file storage |
 
 Volumes `postgres-data` and `object-storage-data` keep the state across restarts. `docker compose
 down -v` deletes them. Keycloak uses `dev-file`, so its data lives inside the container and a
 recreated container imports `keycloak/realm/user-kit-realm.json` again.
 
 Health checks: PostgreSQL uses `pg_isready`, Keycloak queries `/auth/health/ready` on its management
-port, the backend calls `/actuator/health` and waits up to 45 seconds for the first start, the
-frontend checks its index page. The backend therefore only starts after PostgreSQL and Keycloak are
-healthy, and it retries the bucket check for 20 seconds so the storage may start in parallel.
+port, Silo queries `/minio/health/live` (Silo keeps the reserved routes of the MinIO server), the
+backend calls `/actuator/health` and waits up to 45
+seconds for the first start, the frontend checks its index page. The backend therefore only starts
+after PostgreSQL and Keycloak are healthy, and it retries the bucket check and creation for 20
+seconds so the storage may start in parallel.
 
 ## TLS
 
@@ -74,9 +76,13 @@ included challenge location, mount the webroot of the certificate client into
 | `DATABASE_NAME` / `DATABASE_USERNAME` / `DATABASE_PASSWORD` | `userkit` | PostgreSQL |
 | `S3_BUCKET` | `user-kit` | bucket name |
 | `S3_REGION` | `us-east-1` | signing region |
-| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | `rustfsadmin` | storage credentials, change them |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | `siloadmin` | storage credentials, also used as `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, change them |
 | `S3_CREATE_BUCKET` | `true` | create the bucket on startup |
+| `SILO_VERSION` | `latest` | image tag of the object storage |
+| `SILO_IMAGE` | `pgsty/silo` | image of the object storage, set it to a mirror when Docker Hub is not reachable |
+| `SILO_CONSOLE_PORT` | `9001` | published port of the Silo console, the S3 API stays internal |
 | `SPRING_PROFILES_ACTIVE` | `dev` | set to something else in production |
+| `DEMO_DATA_ENABLED` | `true` | fill an empty store with sample documents, dev profile only |
 | `BACKEND_PORT` | `8080` | published backend port, remove the mapping for edge only access |
 | `OIDC_ENABLED` | `true` | validate tokens against the identity provider |
 | `OIDC_ISSUER_URI` | `https://user-kit.local/auth/realms/user-kit` | expected `iss`, also used for JWKS discovery |
@@ -90,20 +96,27 @@ included challenge location, mount the webroot of the certificate client into
 | `KEYCLOAK_PORT` | `8180` | published port that bypasses the edge |
 | `KEYCLOAK_RELATIVE_PATH` | `/auth` | prefix below `SERVER_NAME`, forwarded by the edge |
 | `KEYCLOAK_HOSTNAME` | `https://user-kit.local/auth` | public base URL of Keycloak, must match `SERVER_NAME` plus the prefix |
-| `VITE_AUTH_MODE` | `oidc` | build argument, `dev` skips the login dialog |
-| `VITE_DEV_ROLE` | `admin` | build argument, role used in `dev` mode |
+| `OIDC_CLIENT_ENABLED` | `true` | backend acts as the OAuth client of the browser login |
+| `OIDC_CLIENT_ID` | `user-kit-bff` | confidential client of the realm |
+| `OIDC_CLIENT_SECRET` | dev-only value | client secret, change it for production |
+| `OIDC_CLIENT_ISSUER_URI` | `http://keycloak:8080/auth/realms/user-kit` | URL used for discovery, keep it while the public issuer is not reachable from the backend |
+| `OIDC_CLIENT_REDIRECT_URI` | `https://user-kit.local/api/v1/auth/callback` | must be registered for the client |
+| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI` | `https://user-kit.local/` | where the provider returns after the logout |
+| `OIDC_CLIENT_SCOPES` | `openid profile email` | requested scopes |
+| `OIDC_LOGIN_STATE_TTL` | `10m` | how long a started login may take |
+| `OIDC_SESSION_TTL` | `12h` | lifetime of a session without activity |
+| `OIDC_COOKIE_SECURE` | `false` | set to `true` for every HTTPS deployment |
+| `OIDC_COOKIE_DOMAIN` | empty | optional cookie domain, empty scopes them to the host |
+| `OIDC_REFRESH_WINDOW` | `90s` | renew the access token this long before it expires |
+| `VITE_DEV_ROLE` | `admin` | build argument, role used by the local dev login |
 | `VITE_UI5_THEME` | `sap_horizon` | build argument, initial theme before the user switches it |
 | `VITE_DEFAULT_LOCALE` | `ru` | build argument, `ru` or `en`; the user can switch the language |
-| `VITE_OIDC_AUTHORITY` | `https://user-kit.local/auth/realms/user-kit` | build arguments for `oidc` mode |
-| `VITE_OIDC_CLIENT_ID` | `user-kit-web` | public client of the realm |
-| `VITE_OIDC_REDIRECT_URI` / `VITE_OIDC_POST_LOGOUT_REDIRECT_URI` | `https://user-kit.local/` | build arguments, must match the registered URIs |
 
 The `VITE_*` variables are build time configuration: Vite inlines them into the bundle and Compose
 forwards them as build arguments to the `frontend` image. A change therefore needs
-`docker compose up -d --build frontend`, not a restart. For an `oidc` deployment set
-`VITE_AUTH_MODE=oidc` together with `VITE_OIDC_AUTHORITY`, `VITE_OIDC_REDIRECT_URI` and
-`VITE_OIDC_POST_LOGOUT_REDIRECT_URI`; a bundle built without them renders a configuration error
-instead of the login page.
+`docker compose up -d --build frontend`, not a restart. Identity provider settings are no longer part
+of the bundle: the backend owns the login and reports the available methods through
+`/api/v1/auth/config`, so a provider change is a restart of the backend.
 
 Backend only settings are documented in the README, for example `FILES_MAX_SIZE_BYTES`,
 `CORS_ALLOWED_ORIGINS` and `ODATA_MAX_PAGE_SIZE`.
@@ -114,13 +127,15 @@ Backend only settings are documented in the README, for example `FILES_MAX_SIZE_
 - [ ] A trusted TLS certificate is mounted, `ssl_stapling` is enabled if the issuer supports OCSP.
 - [ ] `SPRING_PROFILES_ACTIVE` is not `dev`, `DEV_AUTH_ENABLED=false`, `DEV_AUTH_SECRET` is random.
 - [ ] `DATABASE_PASSWORD`, `S3_SECRET_KEY` and `OIDC_ISSUER_URI` are set for the real environment.
-- [ ] `VITE_AUTH_MODE=oidc` together with `VITE_OIDC_*` is baked into the frontend image, because
-      `docker compose up -d` without `--build` would reuse the old bundle.
+- [ ] `OIDC_CLIENT_SECRET` is the production secret of the `user-kit-bff` client, not the value of the
+      shipped realm.
+- [ ] `OIDC_COOKIE_SECURE=true`, because the session and access token cookies are then HTTPS only.
+- [ ] `OIDC_CLIENT_REDIRECT_URI` and the post logout URI are registered for the client.
 - [ ] `OIDC_AUDIENCES` contains the backend client id, so tokens of other clients are rejected.
 - [ ] Keycloak uses a real database instead of `dev-file`, the realm import directory is not
-      mounted, and direct access grants of `user-kit-web` are disabled.
-- [ ] `KEYCLOAK_HOSTNAME`, `OIDC_ISSUER_URI` and `VITE_OIDC_AUTHORITY` describe the same public URL,
-      including the `/auth` prefix.
+      mounted, and direct access grants of `user-kit-web` and `user-kit-bff` are disabled.
+- [ ] `KEYCLOAK_HOSTNAME` and `OIDC_ISSUER_URI` describe the same public URL, including the `/auth`
+      prefix.
 - [ ] `BACKEND_PORT` mapping is removed if only nginx should reach the backend.
 - [ ] `/v3/api-docs` and `/swagger-ui` are blocked at the edge if the contract must stay private.
 - [ ] Database and bucket backups are configured; both contain state that cannot be recreated.
@@ -130,9 +145,12 @@ Backend only settings are documented in the README, for example `FILES_MAX_SIZE_
 
 ## Scaling and operations
 
-- The backend is stateless: scale with `docker compose up -d --scale backend=3` after removing the
-  `BACKEND_PORT` mapping, behind a load balancer that terminates TLS. No session state exists, all
-  tokens are verified per request.
+- The backend keeps no session state in memory: scale with `docker compose up -d --scale backend=3`
+  after removing the `BACKEND_PORT` mapping, behind a load balancer that terminates TLS. Browser
+  sessions and refresh tokens live in PostgreSQL, so any instance can serve any request.
+- `auth_session` and `auth_login_state` grow until the next login cleans them up. Schedule a
+  `DELETE FROM auth_session WHERE updated_at < now() - interval '12 hours'` and
+  `DELETE FROM auth_login_state WHERE expires_at < now()` for a deployment with few logins.
 - Uploads are buffered in memory up to `FILES_MAX_SIZE_BYTES` (25 MB default). For larger objects
   switch to streaming and multipart uploads.
 - OData filtering runs in memory after the JPA query. If a collection grows beyond a few thousand
@@ -154,7 +172,6 @@ pwsh ./scripts/smoke.ps1 -ServerName app.local
 pwsh ./scripts/smoke.ps1 -SkipCertificateCheck             # only with a trusted certificate
 pwsh ./scripts/smoke.ps1 -AuthMode oidc                    # tokens from the identity provider
 pwsh ./scripts/smoke.ps1 -AuthMode dev                      # tokens from /api/v1/dev/token
-pwsh ./scripts/smoke.ps1 -ExpectAuthMode oidc              # assert the deployed SPA bundle
 pwsh ./scripts/smoke.ps1 -Realm user-kit -AdminUser jane   # other realm or accounts
 ```
 
@@ -164,9 +181,10 @@ issuer when no discovery document is reachable. The `oidc` mode checks the issue
 are rejected. Direct access grants must be enabled on the client for this, which is the case for
 `user-kit-web` of the shipped realm.
 
-The script also inspects the deployed SPA bundle, because Vite inlines the `VITE_*` variables at build
-time: it verifies that the bundle carries the configured OIDC authority. Add `-ExpectAuthMode dev|oidc`
-to assert one specific mode in a deployment pipeline.
+The script also checks the cookie login: `/api/v1/auth/config` has to report the expected mode,
+`/api/v1/auth/login` has to redirect to the provider and an unsafe call without a CSRF token has to
+be rejected with `403`. It finally inspects the deployed SPA bundle to confirm that no identity
+provider configuration and no OIDC client library leaked into it.
 
 ## Useful commands
 

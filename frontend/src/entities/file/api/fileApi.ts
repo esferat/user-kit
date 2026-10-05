@@ -2,7 +2,7 @@ import type { FileObjectDto } from '../model/types';
 
 import type { ODataClient } from '@/shared/api';
 
-import { ApiError, joinUrl, request, requestJson, type ODataListResponse, type ODataQuery } from '@/shared/api';
+import { joinUrl, request, requestJson, type ODataListResponse, type ODataQuery } from '@/shared/api';
 
 export interface FileApi {
   list(query: ODataQuery, signal?: AbortSignal): Promise<ODataListResponse<FileObjectDto>>;
@@ -14,19 +14,10 @@ export interface FileApi {
 export interface FileApiOptions {
   baseUrl: string;
   odata: ODataClient;
-  getAccessToken: () => Promise<string | null>;
 }
 
 export function createFileApi(options: FileApiOptions): FileApi {
   const { baseUrl, odata } = options;
-
-  async function requireToken(): Promise<string> {
-    const token = await options.getAccessToken();
-    if (!token) {
-      throw new ApiError(401, 'No access token available');
-    }
-    return token;
-  }
 
   return {
     list: (query, signal) => odata.list<FileObjectDto>('Files', query, signal),
@@ -40,13 +31,11 @@ export function createFileApi(options: FileApiOptions): FileApi {
         method: 'POST',
         body: form,
         rawBody: true,
-        token: await requireToken(),
         signal,
       });
     },
     downloadContent: async (id, signal) => {
       const response = await request(joinUrl(baseUrl, `/api/v1/files/${encodeURIComponent(id)}/content`), {
-        token: await requireToken(),
         accept: '*/*',
         signal,
       });

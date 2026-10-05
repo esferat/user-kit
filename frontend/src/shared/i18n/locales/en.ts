@@ -7,7 +7,7 @@ export const en: Messages = {
   'app.notConfigured': 'The application is not configured',
   'app.startFailed': 'The application failed to start',
   'app.hint.configuration':
-    'Set the variables in frontend/.env.local for "npm run dev", or rebuild the image with matching build arguments, for example VITE_AUTH_MODE=dev.',
+    'Set the variables in frontend/.env.local for "npm run dev", or rebuild the image with matching build arguments, for example VITE_API_BASE_URL.',
   'app.hint.generic': 'Check the browser console and the backend log for details.',
 
   'common.cancel': 'Cancel',
@@ -77,9 +77,12 @@ export const en: Messages = {
 
   'login.subtitle': 'Files and users on SAPUI5',
   'login.description':
-    'Access to the application is protected by authorization through an identity provider (Keycloak, OIDC).',
-  'login.devWarning': 'Development mode: the backend dev token is used (role {role}). Never enable it in production.',
-  'login.missingAuthority': 'VITE_OIDC_AUTHORITY is not set. Copy .env.example to .env and point it at your IdP.',
+    'Access is protected with OAuth 2.0 / OpenID Connect: the backend signs the user in and the browser only receives httpOnly cookies.',
+  'login.devWarning':
+    'Development mode: the login happens locally, without an identity provider (role {role}). Never enable it in production.',
+  'login.noProvider': 'The backend offers no login method. Check OIDC_CLIENT_ENABLED and DEV_AUTH_ENABLED.',
+  'login.role.admin': 'Administrator',
+  'login.role.user': 'User',
   'login.submit': 'Sign in',
   'login.failed': 'Sign in failed',
 };

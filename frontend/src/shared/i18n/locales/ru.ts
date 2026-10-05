@@ -10,7 +10,7 @@ export const ru: Messages = {
   'app.notConfigured': 'Приложение не настроено',
   'app.startFailed': 'Приложение не удалось запустить',
   'app.hint.configuration':
-    'Укажите переменные в frontend/.env.local для "npm run dev" или пересоберите образ с такими же аргументами сборки, например VITE_AUTH_MODE=dev.',
+    'Укажите переменные в frontend/.env.local для "npm run dev" или пересоберите образ с такими же аргументами сборки, например VITE_API_BASE_URL.',
   'app.hint.generic': 'Подробности смотрите в консоли браузера и в логе backend.',
 
   'common.cancel': 'Отмена',
@@ -81,9 +81,13 @@ export const ru: Messages = {
   'users.message.roleUpdated': 'Роль пользователя {email} изменена: {role}',
 
   'login.subtitle': 'Файлы и пользователи на SAPUI5',
-  'login.description': 'Доступ к приложению защищён авторизацией через Identity Provider (Keycloak, OIDC).',
-  'login.devWarning': 'Режим разработки: используется dev-токен backend (роль {role}). Не включайте его в production.',
-  'login.missingAuthority': 'Не задан VITE_OIDC_AUTHORITY. Скопируйте .env.example в .env и укажите адрес IdP.',
+  'login.description':
+    'Доступ к приложению защищён OAuth 2.0 / OpenID Connect: вход выполняет backend, браузер получает только httpOnly cookies.',
+  'login.noProvider': 'Backend не настроен ни на один способ входа. Проверьте OIDC_CLIENT_ENABLED и DEV_AUTH_ENABLED.',
+  'login.devWarning':
+    'Режим разработки: вход выполняется локально, без Identity Provider (роль {role}). Не включайте его в production.',
+  'login.role.admin': 'Администратор',
+  'login.role.user': 'Пользователь',
   'login.submit': 'Войти',
   'login.failed': 'Не удалось выполнить вход',
 };

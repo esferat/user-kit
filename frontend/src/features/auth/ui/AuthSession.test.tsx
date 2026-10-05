@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionProvider, useAuthSession } from './AuthSession';
 
-import type { AuthProvider } from '../model/types';
+import type { AuthMode, AuthProvider } from '../model/types';
 
 import type { AuthenticatedUser } from '@/entities/user';
 
@@ -22,7 +22,7 @@ function createAuth(options: { restored?: AuthenticatedUser | null; restoreError
   let current: AuthenticatedUser | null = null;
 
   return {
-    kind: 'oidc',
+    mode: vi.fn(async (): Promise<AuthMode> => 'oidc'),
     restore: vi.fn(async () => {
       if (options.restoreError !== undefined) {
         throw options.restoreError;
@@ -35,7 +35,6 @@ function createAuth(options: { restored?: AuthenticatedUser | null; restoreError
       current = null;
       listeners.forEach((listener) => listener(null));
     }),
-    getAccessToken: vi.fn(async () => null),
     onAuthenticated: (listener) => {
       listeners.add(listener);
       listener(current);
@@ -129,7 +128,7 @@ describe('AuthSessionProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'sign in' }));
 
     await vi.waitFor(() => expect(status()).toBe('authenticated'));
-    expect(auth.login).toHaveBeenCalledWith('#/documents');
+    expect(auth.login).toHaveBeenCalledWith({ returnUrl: '#/documents' });
     expect(screen.getByTestId('user').textContent).toBe('Jane Doe');
   });
 

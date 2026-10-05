@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '../http';
-
 import { ODataClient } from './odataClient';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -25,13 +23,18 @@ describe('ODataClient', () => {
   const client = (): ODataClient =>
     new ODataClient({
       baseUrl: 'http://api:8080',
-      getAccessToken: async () => 'token-1',
       queryableProperties: { Files: ['id', 'name', 'sizeBytes'] },
     });
 
-  it('fails fast without a token', async () => {
-    const anonymous = new ODataClient({ baseUrl: '', getAccessToken: async () => null });
-    await expect(anonymous.list('Files')).rejects.toBeInstanceOf(ApiError);
+  it('lets the browser send the session cookie', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ value: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await client().list('Files');
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.credentials).toBe('include');
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
   });
 
   it('lists entities with query options', async () => {

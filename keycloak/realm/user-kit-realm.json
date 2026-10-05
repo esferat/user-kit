@@ -267,6 +267,32 @@
       },
       "defaultClientScopes": ["openid", "profile", "email", "roles", "user-kit-api-audience"],
       "optionalClientScopes": ["offline_access"]
+    },
+    {
+      "clientId": "user-kit-bff",
+      "name": "User Kit Backend for Frontend",
+      "description": "Confidential client of the backend: Authorization Code flow with the token exchange on the server, the browser only receives cookies",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "user-kit-bff-dev-secret-change-me",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "rootUrl": "https://user-kit.local",
+      "baseUrl": "/",
+      "redirectUris": [
+        "https://user-kit.local/api/v1/auth/callback",
+        "http://localhost:5173/api/v1/auth/callback"
+      ],
+      "webOrigins": ["https://user-kit.local", "http://localhost:5173"],
+      "attributes": {
+        "post.logout.redirect.uris": "https://user-kit.local/*##http://localhost:5173/*",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.session.required": "true"
+      },
+      "defaultClientScopes": ["openid", "profile", "email", "roles", "user-kit-api-audience"]
     }
   ],
   "users": [

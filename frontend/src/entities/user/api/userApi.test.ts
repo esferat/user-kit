@@ -3,19 +3,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createUserApi } from './userApi';
 import { USER_QUERYABLE_PROPERTIES } from './userQueries';
 
-import { ApiError, ODataClient } from '@/shared/api';
+import { ODataClient } from '@/shared/api';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
-function api(options: { token?: string | null; baseUrl?: string } = {}) {
-  const getAccessToken = async (): Promise<string | null> => (options.token === undefined ? 'token-1' : options.token);
+function api(options: { baseUrl?: string } = {}) {
   const baseUrl = options.baseUrl ?? '';
   return createUserApi({
     baseUrl,
-    getAccessToken,
-    odata: new ODataClient({ baseUrl, getAccessToken, queryableProperties: { Users: USER_QUERYABLE_PROPERTIES } }),
+    odata: new ODataClient({ baseUrl, queryableProperties: { Users: USER_QUERYABLE_PROPERTIES } }),
   });
 }
 
@@ -56,11 +54,14 @@ describe('createUserApi', () => {
     expect(init.body).toBe(JSON.stringify({ roles: ['admin'] }));
   });
 
-  it('fails without an access token', async () => {
-    const fetchMock = vi.fn();
+  it('reads the principal with the cookie of the browser', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 'u-1', roles: ['user'] }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(api({ token: null }).me()).rejects.toBeInstanceOf(ApiError);
-    expect(fetchMock).not.toHaveBeenCalled();
+    await api().me();
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    expect(init.credentials).toBe('include');
   });
 });

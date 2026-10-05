@@ -21,7 +21,7 @@ This document describes how the components fit together, which decisions were ta
                         └───────┬──────────────┬───────────┘
                                 │              │
                     ┌───────────▼───┐   ┌──────▼──────────────┐
-                    │ PostgreSQL 17 │   │ S3 / RustFS        │
+                    │ PostgreSQL 17 │   │ S3 / Silo         │
                     │ Flyway       │   │ file content       │
                     └───────────────┘   └─────────────────────┘
                                           ▲
@@ -77,16 +77,22 @@ guarantees that every read which needs the owner has it loaded. `FileObject.owne
 mapped as `FetchType.EAGER`, so a detached owner can no longer turn into a `LazyInitializationException`
 when a file leaves the service layer.
 
-### Object storage: RustFS in compose, S3 everywhere else
+### Object storage: Silo in compose, S3 everywhere else
 
-`FileStorageService` speaks plain S3 with the AWS SDK v2. The compose file uses
-`rustfs/rustfs:latest` because the MinIO images are not reachable from every build environment
-(Docker Hub rate limits, `quay.io/minio/*` requiring authentication). Nothing in the code depends
-on MinIO specific APIs, so switching to AWS S3, MinIO, Ceph or Garage only requires the endpoint,
-region, credentials and `S3_PATH_STYLE`.
+`FileStorageService` speaks plain S3 with the AWS SDK v2, so Silo, AWS S3, Ceph or Garage only
+need the endpoint, region, credentials and `S3_PATH_STYLE`. The compose file runs
+`${SILO_IMAGE:-pgsty/silo}:${SILO_VERSION:-latest}` with path style addressing. Silo is a community
+maintained fork of the MinIO server, so it keeps the S3 API, the storage format, the reserved
+`/minio/*` routes and the `MINIO_*` environment variables; `MINIO_ROOT_USER` and
+`MINIO_ROOT_PASSWORD` are therefore fed from `S3_ACCESS_KEY` and `S3_SECRET_KEY` and the backend and
+the container always use the same credentials. Only the web console is published
+(`SILO_CONSOLE_PORT`, default `9001`), the S3 API stays inside the compose network. `SILO_IMAGE`
+exists for environments that cannot pull from Docker Hub: point it at a mirror or at an image you
+are allowed to pull without changing the compose file.
 
-The bucket is created on startup when `S3_CREATE_BUCKET=true`; the check retries for 20 seconds so
-that the order in which compose starts the containers does not matter.
+Silo needs a few seconds longer to accept connections than a local filesystem, so
+`ensureBucket` retries both the bucket check and the bucket creation for about 20 seconds before it
+gives up. The bucket is created on startup when `S3_CREATE_BUCKET=true`.
 
 ### Own OData implementation
 
@@ -108,12 +114,20 @@ The identity provider decides the role of a user the first time the account appe
 stored roles are authoritative and only administrators can change them, which makes the
 authorization model independent of claim mapping quirks of a specific IdP. See [`auth.md`](auth.md).
 
-### Stateless security
+### Cookie security, tokens stay on the server
 
-The backend is a JWT resource server without sessions: CSRF protection is disabled because there is
-no cookie based authentication, and CORS stays disabled until `CORS_ALLOWED_ORIGINS` is set. Tokens
-are validated against the JWKS of the issuer, the audience list is checked, and roles are mapped to
-Spring authorities with the `ROLE_` prefix.
+The backend is both the OAuth client and the JWT resource server. The browser login is a full backend
+for frontend: `auth_login_state` and `auth_session` keep the PKCE verifier, the session id hash and the
+refresh token in PostgreSQL, while the browser only receives `HttpOnly` cookies. Tokens are validated
+against the JWKS of the issuer, the audience list is checked, and roles are mapped to Spring
+authorities with the `ROLE_` prefix.
+
+Because the browser authenticates with cookies, CSRF protection is on: `CookieCsrfTokenRepository`
+issues `XSRF-TOKEN` and unsafe methods need it as `X-XSRF-TOKEN`. A request with an `Authorization`
+header skips that check, which is what keeps command line clients usable without a CORS exception.
+`SessionTokenFilter` authenticates the cookie session itself instead of letting the bearer token filter
+do it, because a request for which a bearer token can be resolved is exempt from CSRF. CORS itself stays
+disabled until `CORS_ALLOWED_ORIGINS` is set. Details are in [`auth.md`](auth.md).
 
 ### Errors
 
@@ -135,21 +149,39 @@ enabled         boolean               storage_key     text unique
 created_at      timestamptz           owner_id        uuid FK -> user_account
 updated_at      timestamptz           version         bigint
 version         bigint                created_at      timestamptz
-                                      updated_at      timestamptz
+                                       updated_at      timestamptz
+
+auth_login_state                      auth_session
+────────────────                      ────────────
+state_hash      text PK               id_hash                text PK
+redirect_uri    text                  subject               text
+code_verifier   text                  client_id             text
+expires_at      timestamptz           access_token_expires_at timestamptz
+created_at      timestamptz           refresh_token          text nullable
+                                       id_token              text nullable
+                                       created_at            timestamptz
+                                       updated_at            timestamptz
 ```
 
 `subject` is the stable identifier of the account at the identity provider (`sub` claim). File
 content never reaches the database; `storage_key` points to the object storage and `checksum`
 stores the SHA-256 of the uploaded bytes.
 
+Both auth tables hold a hash, never a value the browser presents: `state_hash` and `id_hash` are
+SHA-256 of the random values in the cookies, so a dump of the database does not allow a session to be
+hijacked. Only `auth_session.refresh_token` is stored as issued, because the provider requires it for
+the next refresh.
+
 ## Request flow example
 
 Upload of `report.pdf` as user `jane`:
 
-1. Browser sends `POST /api/v1/files` with a `multipart/form-data` body and a Bearer token.
+1. Browser sends `POST /api/v1/files` with a `multipart/form-data` body, its cookies and the
+   `X-XSRF-TOKEN` header. A command line client sends `Authorization: Bearer` instead and skips CSRF.
 2. nginx terminates TLS and forwards the request to the backend.
-3. `SecurityConfig` validates the token, `OidcJwtAuthenticationConverter` maps the claims to
-   authorities.
+3. `CookieAwareBearerTokenResolver` picks the token of a command line client from the header,
+   `SessionTokenFilter` renews the token of a cookie session if it is about to expire and turns it into
+   the authentication, and `OidcJwtAuthenticationConverter` maps the claims to authorities.
 4. `AuthenticatedUserService` loads or creates the `UserAccount` for `sub` and returns the entity.
 5. `FileService.upload` validates name, size and content type, computes the checksum and the
    `files/2026/10/<uuid>/report.pdf` key.

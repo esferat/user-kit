@@ -1,7 +1,6 @@
 import { Avatar } from '@ui5/webcomponents-react/Avatar';
 import { Menu } from '@ui5/webcomponents-react/Menu';
 import { MenuItem } from '@ui5/webcomponents-react/MenuItem';
-import { Popover } from '@ui5/webcomponents-react/Popover';
 import { useState } from 'react';
 
 import type { AuthenticatedUser } from '@/entities/user';
@@ -33,7 +32,7 @@ export function ProfileMenu({ user, onLogout }: ProfileMenuProps) {
           setOpen((isOpen) => !isOpen);
         }}
       />
-      <Popover
+      <Menu
         slot="profile"
         placement="Bottom"
         open={open}
@@ -42,18 +41,16 @@ export function ProfileMenu({ user, onLogout }: ProfileMenuProps) {
           setOpen(false);
         }}
       >
-        <Menu>
-          <MenuItem icon={ICONS.account} text={user.email ?? user.username} />
-          <MenuItem
-            icon={ICONS.logout}
-            text={t('shell.logout')}
-            onClick={() => {
-              setOpen(false);
-              onLogout();
-            }}
-          />
-        </Menu>
-      </Popover>
+        <MenuItem icon={ICONS.account} text={user.email ?? user.username} />
+        <MenuItem
+          icon={ICONS.logout}
+          text={t('shell.logout')}
+          onClick={() => {
+            setOpen(false);
+            onLogout();
+          }}
+        />
+      </Menu>
     </>
   );
 }

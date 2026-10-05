@@ -18,30 +18,25 @@ const ADMIN = {
 
 const USER = { ...ADMIN, username: 'bob', displayName: 'Bob Roe', email: 'bob@user-kit.local', roles: ['user'] };
 
-const CONFIG: AppConfig = readConfig({
-  VITE_AUTH_MODE: 'oidc',
-  VITE_OIDC_AUTHORITY: 'https://idp.user-kit.local/realms/main',
-  VITE_OIDC_REDIRECT_URI: 'http://localhost:5173/',
-});
+const CONFIG: AppConfig = readConfig({});
 
 /**
- * The OIDC client would need a real authorization server and the list endpoints
- * a running backend, so both are replaced. Everything around them - the session,
- * the router, the shell and the pages - is the real composition.
+ * The cookie session would need a running backend for every call, so the provider
+ * and the list endpoints are replaced. Everything around them - the session, the
+ * router, the shell and the pages - is the real composition.
  */
 const fakes = vi.hoisted(() => {
   const listeners = new Set<(user: unknown) => void>();
   return {
     user: null as unknown,
     auth: {
-      kind: 'oidc',
+      mode: vi.fn(async (): Promise<'oidc'> => 'oidc'),
       restore: vi.fn(async () => fakes.user),
       login: vi.fn(async () => undefined),
       logout: vi.fn(async () => {
         fakes.user = null;
         listeners.forEach((listener) => listener(null));
       }),
-      getAccessToken: vi.fn(async () => 'token-1'),
       onAuthenticated: vi.fn((listener: (user: unknown) => void) => {
         listeners.add(listener);
         listener(fakes.user);
