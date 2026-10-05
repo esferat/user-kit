@@ -1,6 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { observer } from 'mobx-react-lite';
 import { StrictMode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+import { SessionStore } from '../model/sessionStore';
 
 import { AuthSessionProvider, useAuthSession } from './AuthSession';
 
@@ -16,18 +19,14 @@ const USER: AuthenticatedUser = {
   roles: ['admin'],
 };
 
-/** Authentication facade with the listener behaviour of the real providers. */
-function createAuth(options: { restored?: AuthenticatedUser | null; restoreError?: unknown } = {}): AuthProvider {
+function createAuth(restored: AuthenticatedUser | null = null): AuthProvider {
   const listeners = new Set<(user: AuthenticatedUser | null) => void>();
   let current: AuthenticatedUser | null = null;
 
   return {
     mode: vi.fn(async (): Promise<AuthMode> => 'oidc'),
     restore: vi.fn(async () => {
-      if (options.restoreError !== undefined) {
-        throw options.restoreError;
-      }
-      current = options.restored ?? null;
+      current = restored;
       return current;
     }),
     login: vi.fn(async () => undefined),
@@ -45,13 +44,12 @@ function createAuth(options: { restored?: AuthenticatedUser | null; restoreError
   };
 }
 
-function Probe() {
-  const { status, user, error, login, logout } = useAuthSession();
+const Probe = observer(function Probe() {
+  const { status, user, login, logout } = useAuthSession();
   return (
     <div>
       <span data-testid="status">{status}</span>
       <span data-testid="user">{user?.displayName ?? '-'}</span>
-      <span data-testid="error">{error instanceof Error ? error.message : '-'}</span>
       <button type="button" onClick={() => void login('#/documents')}>
         sign in
       </button>
@@ -60,107 +58,62 @@ function Probe() {
       </button>
     </div>
   );
-}
+});
 
-function renderSession(auth: AuthProvider) {
-  return render(
-    <AuthSessionProvider auth={auth}>
+function renderSession(store: SessionStore, strict = false) {
+  const tree = (
+    <AuthSessionProvider store={store}>
       <Probe />
-    </AuthSessionProvider>,
+    </AuthSessionProvider>
   );
+  return render(strict ? <StrictMode>{tree}</StrictMode> : tree);
 }
 
 function status(): string | null {
   return screen.getByTestId('status').textContent;
 }
 
-beforeEach(() => {
-  vi.spyOn(console, 'error').mockImplementation(() => undefined);
-});
-
 describe('AuthSessionProvider', () => {
-  it('reports no user while the session is restored', () => {
-    const auth = createAuth();
-    auth.restore = vi.fn(() => new Promise<null>(() => undefined));
+  it('renders the state the store observes', async () => {
+    renderSession(new SessionStore(createAuth(USER)));
 
-    renderSession(auth);
-
-    expect(status()).toBe('restoring');
+    await vi.waitFor(() => expect(status()).toBe('authenticated'));
+    expect(screen.getByTestId('user').textContent).toBe('Jane Doe');
   });
 
-  it('is anonymous without a stored session', async () => {
-    renderSession(createAuth());
+  it('re-renders when the store changes', async () => {
+    const store = new SessionStore(createAuth(USER));
+    renderSession(store);
+    await vi.waitFor(() => expect(status()).toBe('authenticated'));
+
+    await store.logout();
 
     await vi.waitFor(() => expect(status()).toBe('anonymous'));
     expect(screen.getByTestId('user').textContent).toBe('-');
   });
 
-  it('authenticates the restored user', async () => {
-    renderSession(createAuth({ restored: USER }));
+  it('starts the store once even when the effects run twice', async () => {
+    const auth = createAuth(USER);
+    const start = vi.spyOn(SessionStore.prototype, 'start');
+
+    renderSession(new SessionStore(auth), true);
 
     await vi.waitFor(() => expect(status()).toBe('authenticated'));
-    expect(screen.getByTestId('user').textContent).toBe('Jane Doe');
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(auth.restore).toHaveBeenCalledOnce();
+    start.mockRestore();
   });
 
-  it('keeps the reason of a failed restore', async () => {
-    renderSession(createAuth({ restoreError: new Error('session expired') }));
-
-    await vi.waitFor(() => expect(screen.getByTestId('error').textContent).toBe('session expired'));
-    expect(status()).toBe('anonymous');
-  });
-
-  it('follows the logout of the provider', async () => {
-    renderSession(createAuth({ restored: USER }));
+  it('unsubscribes from the provider on unmount', async () => {
+    const auth = createAuth(USER);
+    const unsubscribe = vi.fn();
+    auth.onAuthenticated = vi.fn(() => unsubscribe);
+    const { unmount } = renderSession(new SessionStore(auth));
     await vi.waitFor(() => expect(status()).toBe('authenticated'));
 
-    fireEvent.click(screen.getByRole('button', { name: 'sign out' }));
+    unmount();
 
-    await vi.waitFor(() => expect(status()).toBe('anonymous'));
-    expect(screen.getByTestId('user').textContent).toBe('-');
-  });
-
-  it('signs the user in with the current hash as return url', async () => {
-    const auth = createAuth();
-    renderSession(auth);
-    await vi.waitFor(() => expect(status()).toBe('anonymous'));
-    auth.restore = vi.fn(async () => USER);
-
-    fireEvent.click(screen.getByRole('button', { name: 'sign in' }));
-
-    await vi.waitFor(() => expect(status()).toBe('authenticated'));
-    expect(auth.login).toHaveBeenCalledWith({ returnUrl: '#/documents' });
-    expect(screen.getByTestId('user').textContent).toBe('Jane Doe');
-  });
-
-  it('restores the session once even when the effects run twice', async () => {
-    const auth = createAuth({ restored: USER });
-
-    render(
-      <StrictMode>
-        <AuthSessionProvider auth={auth}>
-          <Probe />
-        </AuthSessionProvider>
-      </StrictMode>,
-    );
-
-    await vi.waitFor(() => expect(status()).toBe('authenticated'));
-    expect(auth.restore).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('user').textContent).toBe('Jane Doe');
-  });
-
-  it('keeps the session when the logout of the provider fails', async () => {
-    const auth = createAuth({ restored: USER });
-    auth.logout = vi.fn(async () => {
-      throw new Error('end session endpoint is unreachable');
-    });
-    renderSession(auth);
-    await vi.waitFor(() => expect(status()).toBe('authenticated'));
-
-    fireEvent.click(screen.getByRole('button', { name: 'sign out' }));
-
-    await vi.waitFor(() => expect(console.error).toHaveBeenCalledOnce());
-    expect(status()).toBe('authenticated');
-    expect(screen.getByTestId('error').textContent).toBe('-');
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
   it('fails outside of a provider', () => {

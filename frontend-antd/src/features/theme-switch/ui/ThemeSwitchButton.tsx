@@ -1,5 +1,5 @@
 import { Button } from 'antd';
-import { useSyncExternalStore } from 'react';
+import { observer } from 'mobx-react-lite';
 
 import type { ThemeStore } from '../model/themeStore';
 
@@ -10,10 +10,9 @@ export interface ThemeSwitchButtonProps {
   store: ThemeStore;
 }
 
-/** Header button that switches between the light and the dark Ant Design theme. */
-export function ThemeSwitchButton({ store }: ThemeSwitchButtonProps) {
+function ThemeSwitchButtonView({ store }: ThemeSwitchButtonProps) {
   const t = useTranslate();
-  const dark = useSyncExternalStore(store.subscribe, store.isDark, store.isDark);
+  const dark = store.isDark;
   const label = t(dark ? 'shell.theme.light' : 'shell.theme.dark');
 
   return (
@@ -28,3 +27,6 @@ export function ThemeSwitchButton({ store }: ThemeSwitchButtonProps) {
     />
   );
 }
+
+/** Header button that switches between the light and the dark Ant Design theme. */
+export const ThemeSwitchButton = observer(ThemeSwitchButtonView);

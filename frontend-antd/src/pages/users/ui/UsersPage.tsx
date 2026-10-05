@@ -1,48 +1,26 @@
 import { Button, Space } from 'antd';
-import { useEffect, useState } from 'react';
+import { observer } from 'mobx-react-lite';
+import { useEffect } from 'react';
 
-import type { Role, UserApi, UserDto } from '@/entities/user';
+import type { UsersStore } from '../model/usersStore';
 
-import { roleLabel } from '@/entities/user';
+import type { Role, UserDto } from '@/entities/user';
+
 import { useTranslate } from '@/shared/i18n';
-import { messageOfError, useAsyncTask, type AppMessage } from '@/shared/lib';
 import { ICONS, Message } from '@/shared/ui';
 import { UsersTable } from '@/widgets/users-table';
 
 export interface UsersPageProps {
-  userApi: UserApi;
+  store: UsersStore;
 }
 
-/** Administration page: all users with the inline role assignment. */
-export function UsersPage({ userApi }: UsersPageProps) {
+function UsersPageView({ store }: UsersPageProps) {
   const t = useTranslate();
-  const [message, setMessage] = useState<AppMessage | undefined>(undefined);
 
-  const list = useAsyncTask(() => userApi.list({ orderBy: [{ property: 'email' }], top: 100, count: true }));
-  const { data, error, loading, run } = list;
+  useEffect(() => store.start(), [store]);
 
-  useEffect(() => {
-    void run();
-  }, [run]);
-
-  useEffect(() => {
-    if (error !== undefined) {
-      setMessage({ text: messageOfError(error, t('common.unknownError')), design: 'Error' });
-    }
-  }, [error, t]);
-
-  async function updateRoles(user: UserDto, role: Role): Promise<void> {
-    try {
-      await userApi.updateRoles(user.id, [role]);
-      setMessage({
-        text: t('users.message.roleUpdated', { email: user.email, role: roleLabel(role) }),
-        design: 'Success',
-      });
-      await run();
-    } catch (reason) {
-      setMessage({ text: messageOfError(reason, t('common.unknownError')), design: 'Error' });
-      await run();
-    }
+  function onRoleChange(user: UserDto, role: Role): void {
+    void store.updateRoles(user, role);
   }
 
   return (
@@ -55,10 +33,9 @@ export function UsersPage({ userApi }: UsersPageProps) {
               aria-label={t('users.refresh')}
               title={t('users.refresh')}
               icon={<ICONS.refresh />}
-              loading={loading}
+              loading={store.loading}
               onClick={() => {
-                setMessage(undefined);
-                void run();
+                void store.refresh();
               }}
             />
           </Space>
@@ -66,16 +43,13 @@ export function UsersPage({ userApi }: UsersPageProps) {
       </div>
       <div className="page-content">
         <div className="message-host">
-          {message !== undefined && <Message text={message.text} design={message.design} />}
+          {store.message !== undefined && <Message text={store.message.text} design={store.message.design} />}
         </div>
-        <UsersTable
-          users={data?.value ?? []}
-          loading={loading}
-          onRoleChange={(user, role) => {
-            void updateRoles(user, role);
-          }}
-        />
+        <UsersTable users={store.users} loading={store.loading} onRoleChange={onRoleChange} />
       </div>
     </div>
   );
 }
+
+/** Administration page: all users with the inline role assignment. */
+export const UsersPage = observer(UsersPageView);

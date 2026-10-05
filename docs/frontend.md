@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | `vite`, `@vitejs/plugin-react` | 8.x / 6.x | build, dev server, JSX transform |
 | `react`, `react-dom` | 19.x | UI runtime, `createRoot`, `StrictMode` |
+| `mobx`, `mobx-react-lite` | 6.x / 4.x | application state and the `observer` binding to React |
 | `typescript` | 5.9 | strict type checking, no emit |
 | `vitest`, `happy-dom` | 5.x / 20.x | unit tests with a DOM |
 | `@testing-library/react`, `@testing-library/user-event`, `@testing-library/dom` | 16.x / 14.x / 10.x | rendering and interaction of components |
@@ -75,11 +76,11 @@ frontend/src/
 │   ├── documents-table/
 │   └── users-table/
 ├── features/                  user facing capability, can be switched on and off
-│   ├── auth/                  cookie provider, session state
+│   ├── auth/                  cookie provider, MobX session store
 │   ├── file-download/
 │   ├── file-upload/
 │   ├── locale-switch/
-│   ├── theme-switch/
+│   ├── theme-switch/          MobX theme store and the shell bar item
 │   └── user-role/
 ├── entities/                  business data and the operations on it
 │   ├── file/
@@ -88,7 +89,7 @@ frontend/src/
     ├── api/                   http wrapper, OData client and query builder
     ├── config/                typed access to the VITE_* variables
     ├── i18n/                  translator, dictionaries, React bindings
-    ├── lib/                   async tasks, formatting, messages, hash router
+    ├── lib/                   AsyncResource, formatting, messages, hash router
     └── ui/                    icon names, message strip
 ```
 
@@ -133,37 +134,73 @@ createRoot(container).render(
 );
 ```
 
-There is no global store. State lives where it is used:
+The application state lives in MobX stores, one per concern, created once per configuration in
+`useAppServices`. A component reads what it renders and is wrapped in `observer`, so a change of a
+store repaints exactly the components that read it:
+
+```tsx
+export const DocumentsPage = observer(function DocumentsPage() {
+  const store = useFilesStore();
+  return <DocumentsTable files={store.files} loading={store.loading} />;
+});
+```
 
 | Concern | Where |
 | --- | --- |
-| session | `useAuthSession()` from `features/auth`, fed by `AuthSessionProvider` |
-| page data | `useAsyncTask()` per page, see [Asynchronous work](#asynchronous-work) |
+| session | `SessionStore` of `features/auth`, reached through `useAuthSession()`, started by `AuthSessionProvider` |
+| page data | `FilesStore` / `UsersStore` under `pages/<page>/model`, see [Asynchronous work](#asynchronous-work) |
 | route | `useRouteId(router)` |
 | interface language | `useTranslate()` / `useLocale()` |
-| theme | `ThemeSwitchButton` reads `ThemeStore` through `useSyncExternalStore` |
+| theme | `ThemeStore` of `features/theme-switch`, read by an `observer` component |
 | ephemeral dialog state | `useState` inside the component that owns the dialog |
 
-Anything that already exists as an external store — the i18n store, the hash router, the theme
-store — is read with `useSyncExternalStore`, so React stays consistent with it and the store keeps
-its plain TypeScript API. That is what makes those three modules testable without React at all.
+Two external stores stay outside of MobX on purpose: the i18n store and the hash router. Both are
+read with `useSyncExternalStore`, so they need no lifecycle of their own and stay testable without
+React.
+
+Stores follow the FSD boundaries like everything else. `FilesStore` lives under
+`pages/documents/model` instead of `entities/file/model` because it offers a file to the browser and
+therefore uses `features/file-download`, which `entities` must not import. A store is only created
+once, in `useAppServices`, and `App` passes it down through props or a context; nothing calls
+`useState` to mirror it again.
 
 ### Asynchronous work
 
-`useAsyncTask` is the only place where a request becomes state:
+Every request is a MobX action on a store, and the lifecycle of the run is an observable
+`AsyncResource` from `shared/lib`:
 
 ```ts
-const files = useAsyncTask(() => fileApi.list(query));
+class FilesStore {
+  files: FileObjectDto[] = [];
+  query: FileQuery = NEWEST_FIRST;
 
-useEffect(() => {
-  void files.run();
-}, [files.run, query]);
+  private readonly list = new AsyncResource(() => this.fileApi.list(this.query));
+
+  start(): () => void {
+    return reaction(() => this.query, () => void this.list.fetch());
+  }
+
+  async refresh(): Promise<void> {
+    this.message = undefined;
+    await this.list.fetch();
+  }
+}
 ```
 
-It keeps the result of the most recent run only, so a slow reload can never overwrite a newer one,
-and a failure keeps the data that is already on screen — which is what a list needs while it
-refreshes. `run()` has a stable identity, so it is safe as an effect dependency, and results that
-arrive after the unmount are dropped.
+`AsyncResource` publishes `status`, `data` and `error` as observables and keeps the result of the
+most recent run only, so a slow reload can never overwrite a newer one, and a failure keeps the data
+that is already on screen — which is what a list needs while it refreshes. It needs no subscriber
+registry and no unmount bookkeeping, so it is tested without React at all.
+
+A store reacts to the query it renders instead of polling it:
+
+```ts
+useEffect(() => store.start(), [store]);
+```
+
+`start()` is idempotent, so `StrictMode` mounting the tree twice does not send the request twice.
+Everything after an `await` is applied with `runInAction`, and `fetch()` never rejects: the reason of
+a failure reaches the store through `resource.error`.
 
 ### UI5 components in React
 
@@ -327,8 +364,8 @@ Consequences worth keeping in mind:
 
 `sap_horizon` by default, switchable to `sap_horizon_dark` from the shell bar. The choice is stored
 in `localStorage` under `user-kit:theme` and applied through `setTheme()` of
-`@ui5/webcomponents-base`. `ThemeStore` is a plain external store and `ThemeSwitchButton` subscribes
-to it with `useSyncExternalStore`, so the store itself stays free of React and is tested directly.
+`@ui5/webcomponents-base`. `ThemeStore` is a MobX class, so it stays free of React and is tested
+directly; `ThemeSwitchButton` is an `observer` and repaints as soon as the theme changes.
 
 ## Icons
 
@@ -454,7 +491,8 @@ internal state of a UI5 element beyond the properties the application sets.
 | `src/entities/file/api/fileApi.test.ts` | upload, download, delete |
 | `src/features/auth/model/createAuthProvider.test.ts` | provider creation from the configuration |
 | `src/features/auth/cookie/cookieAuthProvider.test.ts` | mode detection, login navigation, dev login, logout redirect |
-| `src/features/auth/ui/AuthSession.test.tsx` | restore, logout, `StrictMode` double effect |
+| `src/features/auth/model/sessionStore.test.ts` | restore once, mode request, login, logout, failure messages |
+| `src/features/auth/ui/AuthSession.test.tsx` | the context starts the store, repaints on a change and unsubscribes on unmount |
 | `src/features/file-download/model/downloadBlob.test.ts` | object URL and revocation |
 | `src/features/file-upload/ui/UploadDialog.test.tsx` | fields, disabled confirm button, reset |
 | `src/features/user-role/ui/RoleSelect.test.tsx` | role change without a duplicated event |
@@ -465,7 +503,9 @@ internal state of a UI5 element beyond the properties the application sets.
 | `src/shared/api/odata/odataClient.test.ts` | URLs, value wrapping, `$expand` |
 | `src/shared/config/config.test.ts` | environment parsing |
 | `src/shared/i18n/i18n.test.ts` | interpolation, plurals, fallback to `ru` and to the key |
-| `src/shared/lib/async/useAsyncTask.test.tsx` | loading, result, failure, discarded runs |
+| `src/shared/lib/store/asyncResource.test.ts` | loading, result, failure, discarded runs |
+| `src/pages/documents/model/filesStore.test.ts` | query changes, upload, download, delete, failure messages |
+| `src/pages/users/model/usersStore.test.ts` | list, role change, reload after a rejected change |
 | `src/shared/lib/format/format.test.ts` | byte size, dates, initials |
 | `src/shared/lib/message` and `src/shared/ui/Message.test.tsx` | design of a message |
 | `src/shared/lib/router/hashRouter.test.ts`, `useRoute.test.tsx` | hash parsing, navigation, subscription |

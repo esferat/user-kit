@@ -2,7 +2,7 @@
 
 Reference implementation of a small but production-shaped web application:
 
-- **Frontend** – Vite + React 19 + TypeScript + UI5 Web Components (`sap_horizon` theme).
+- **Frontend** – Vite + React 19 + TypeScript + MobX + UI5 Web Components (`sap_horizon` theme).
 - **Backend** – Spring Boot 3.5 / Java 21 REST + OData V4 (subset) service.
 - **Database** – PostgreSQL 17 with Flyway migrations.
 - **Object storage** – any S3 compatible storage; the compose file ships Silo.
@@ -195,7 +195,8 @@ redirect after the login form.
 | `npm run check` | lint + format:check + typecheck + test |
 
 The sources follow [Feature Sliced Design](https://feature-sliced.design) (`src/app`, `src/pages`,
-`src/widgets`, `src/features`, `src/entities`, `src/shared`) and the interface is bilingual, Russian
+`src/widgets`, `src/features`, `src/entities`, `src/shared`), the state lives in MobX stores, one per
+concern, and the interface is bilingual, Russian
 and English, with the language switch in the shell bar. Both are explained in
 [docs/frontend.md](docs/frontend.md).
 
@@ -333,7 +334,7 @@ Details and examples are in [`docs/api.md`](docs/api.md) and [`docs/odata.md`](d
 docker run --rm -v userkit-m2:/root/.m2 -v "$PWD/backend:/workspace" -w /workspace \
   maven:3.9-eclipse-temurin-21 mvn -B -ntp test
 
-# frontend: 277 (UI5) and 269 (Ant Design) unit tests plus lint, formatting and the production build
+# frontend: 316 (UI5) and 306 (Ant Design) unit tests plus lint, formatting and the production build
 cd frontend && npm run check && npm run build
 cd ../frontend-antd && npm run check && npm run build
 ```
@@ -359,7 +360,7 @@ user-kit/
 │       ├── features/       auth, upload, download, role, theme and locale switch
 │       ├── entities/       user and file domain with their API calls
 │       └── shared/         http and OData, configuration, i18n, hooks, format, router, UI
-├── frontend-antd/          second frontend, Vite + React 19 + TypeScript + Ant Design
+├── frontend-antd/          second frontend, Vite + React 19 + TypeScript + MobX + Ant Design
 ├── nginx/                  edge template and certificates directory
 ├── keycloak/realm/         realm import of the local identity provider
 ├── scripts/                development helper scripts

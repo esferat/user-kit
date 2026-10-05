@@ -1,6 +1,8 @@
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { FilesStore } from '../model/filesStore';
+
 import { DocumentsPage } from './DocumentsPage';
 
 import type { FileApi, FileObjectDto } from '@/entities/file';
@@ -39,7 +41,7 @@ function createFileApi(files: FileObjectDto[] = [FILE]): FileApi {
 }
 
 function renderPage(fileApi: FileApi) {
-  return render(<DocumentsPage fileApi={fileApi} />);
+  return render(<DocumentsPage store={new FilesStore(fileApi)} />);
 }
 
 function searchInput(container: HTMLElement): HTMLInputElement {
@@ -156,8 +158,9 @@ describe('DocumentsPage', () => {
 
     fireEvent.change(searchInput(container), { target: { value: '   ' } });
 
-    await waitFor(() => expect(fileApi.list).toHaveBeenCalledTimes(2));
-    expect(fileApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ filter: undefined }));
+    // The query does not change, so the store does not ask the backend again.
+    expect(fileApi.list).toHaveBeenCalledOnce();
+    expect(rows(container)).toHaveLength(1);
   });
 
   it('reloads with the chosen order', async () => {

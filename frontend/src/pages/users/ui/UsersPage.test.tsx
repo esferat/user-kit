@@ -1,6 +1,8 @@
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { UsersStore } from '../model/usersStore';
+
 import { UsersPage } from './UsersPage';
 
 import type { Role, UserApi, UserDto } from '@/entities/user';
@@ -41,7 +43,7 @@ function createUserApi(users: UserDto[] = [ADMIN, PLAIN]): UserApi {
 }
 
 function renderPage(userApi: UserApi) {
-  return render(<UsersPage userApi={userApi} />);
+  return render(<UsersPage store={new UsersStore(userApi)} />);
 }
 
 function rows(container: HTMLElement): HTMLElement[] {

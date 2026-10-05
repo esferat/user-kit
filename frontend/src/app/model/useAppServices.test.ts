@@ -15,7 +15,9 @@ describe('useAppServices', () => {
 
     expect(result.current.auth).toBeDefined();
     expect(result.current.router).toBeDefined();
-    expect(result.current.themeStore.current()).toBe('sap_horizon');
+    expect(result.current.session).toBeDefined();
+    expect(result.current.themeStore.theme).toBe('sap_horizon');
+    expect(result.current.themeStore.isDark).toBe(false);
   });
 
   it('keeps the services while the configuration stays the same', () => {
@@ -44,6 +46,7 @@ describe('useAppServices', () => {
     rerender({ current: configOf({ VITE_UI5_THEME: 'sap_horizon_dark' }) });
 
     expect(result.current).not.toBe(first);
-    expect(result.current.themeStore.current()).toBe('sap_horizon_dark');
+    expect(result.current.themeStore.theme).toBe('sap_horizon_dark');
+    expect(result.current.themeStore.isDark).toBe(true);
   });
 });

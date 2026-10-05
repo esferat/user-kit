@@ -1,31 +1,32 @@
+import { autorun } from 'mobx';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DARK_THEME, LIGHT_THEME, THEME_STORAGE_KEY, createThemeStore } from './themeStore';
+import { DARK_THEME, LIGHT_THEME, THEME_STORAGE_KEY, ThemeStore, createThemeStore } from './themeStore';
 
 afterEach(() => {
   window.localStorage.clear();
   delete document.documentElement.dataset.theme;
 });
 
-describe('createThemeStore', () => {
+describe('ThemeStore', () => {
   it('starts with the configured theme', () => {
-    const store = createThemeStore(LIGHT_THEME);
+    const store = new ThemeStore(LIGHT_THEME);
 
-    expect(store.current()).toBe(LIGHT_THEME);
-    expect(store.isDark()).toBe(false);
+    expect(store.theme).toBe(LIGHT_THEME);
+    expect(store.isDark).toBe(false);
   });
 
   it('prefers the stored theme over the default', () => {
     window.localStorage.setItem(THEME_STORAGE_KEY, DARK_THEME);
 
-    const store = createThemeStore(LIGHT_THEME);
+    const store = new ThemeStore(LIGHT_THEME);
 
-    expect(store.current()).toBe(DARK_THEME);
-    expect(store.isDark()).toBe(true);
+    expect(store.theme).toBe(DARK_THEME);
+    expect(store.isDark).toBe(true);
   });
 
   it('applies the theme to the document and to the storage', () => {
-    const store = createThemeStore(LIGHT_THEME);
+    const store = new ThemeStore(LIGHT_THEME);
 
     store.apply();
 
@@ -34,28 +35,35 @@ describe('createThemeStore', () => {
   });
 
   it('toggles between the light and the dark theme', () => {
-    const store = createThemeStore(LIGHT_THEME);
+    const store = new ThemeStore(LIGHT_THEME);
 
     expect(store.toggle()).toBe(DARK_THEME);
-    expect(store.isDark()).toBe(true);
+    expect(store.isDark).toBe(true);
     expect(document.documentElement.dataset.theme).toBe(DARK_THEME);
 
     expect(store.toggle()).toBe(LIGHT_THEME);
-    expect(store.isDark()).toBe(false);
+    expect(store.isDark).toBe(false);
   });
 
-  it('notifies the subscribers until they unsubscribe', () => {
-    const store = createThemeStore(LIGHT_THEME);
-    let changes = 0;
-    const unsubscribe = store.subscribe(() => {
-      changes += 1;
+  it('is observable for the components that read it', () => {
+    const store = new ThemeStore(LIGHT_THEME);
+    const seen: boolean[] = [];
+    const stop = autorun(() => {
+      seen.push(store.isDark);
     });
 
     store.toggle();
-    unsubscribe();
     store.toggle();
+    stop();
 
-    expect(changes).toBe(1);
+    expect(seen).toEqual([false, true, false]);
+  });
+
+  it('starts with the configured theme and reads the stored one back', () => {
+    const store = createThemeStore(LIGHT_THEME);
+
+    expect(store).toBeInstanceOf(ThemeStore);
+    expect(store.theme).toBe(LIGHT_THEME);
   });
 
   it('keeps the two applications apart in the local storage', () => {

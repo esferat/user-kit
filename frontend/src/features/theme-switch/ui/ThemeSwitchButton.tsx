@@ -1,5 +1,5 @@
 import { ShellBarItem } from '@ui5/webcomponents-react/ShellBarItem';
-import { useSyncExternalStore } from 'react';
+import { observer } from 'mobx-react-lite';
 
 import type { ThemeStore } from '../model/themeStore';
 
@@ -10,10 +10,9 @@ export interface ThemeSwitchButtonProps {
   store: ThemeStore;
 }
 
-/** Shell bar item that switches between the light and the dark UI5 theme. */
-export function ThemeSwitchButton({ store }: ThemeSwitchButtonProps) {
+function ThemeSwitchButtonView({ store }: ThemeSwitchButtonProps) {
   const t = useTranslate();
-  const dark = useSyncExternalStore(store.subscribe, store.isDark, store.isDark);
+  const dark = store.isDark;
 
   return (
     <ShellBarItem
@@ -25,3 +24,6 @@ export function ThemeSwitchButton({ store }: ThemeSwitchButtonProps) {
     />
   );
 }
+
+/** Shell bar item that switches between the light and the dark UI5 theme. */
+export const ThemeSwitchButton = observer(ThemeSwitchButtonView);

@@ -23,6 +23,8 @@
   "dependencies": {
     "@ant-design/icons": "^6.3.4",
     "antd": "^6.6.5",
+    "mobx": "^6.16.1",
+    "mobx-react-lite": "^4.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

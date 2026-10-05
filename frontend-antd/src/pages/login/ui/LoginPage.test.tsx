@@ -6,7 +6,7 @@ import { LoginPage } from './LoginPage';
 import type { AuthMode, AuthProvider } from '@/features/auth';
 import type { AppConfig } from '@/shared/config';
 
-import { AuthSessionProvider } from '@/features/auth';
+import { AuthSessionProvider, SessionStore } from '@/features/auth';
 import { readConfig } from '@/shared/config';
 import { i18n } from '@/shared/i18n';
 
@@ -26,7 +26,7 @@ function createAuth(mode: AuthMode = 'oidc', overrides: Partial<AuthProvider> = 
 
 function renderPage(auth: AuthProvider, config: AppConfig = CONFIG) {
   return render(
-    <AuthSessionProvider auth={auth}>
+    <AuthSessionProvider store={new SessionStore(auth)}>
       <LoginPage config={config} />
     </AuthSessionProvider>,
   );
@@ -46,6 +46,11 @@ function roleSelect(container: HTMLElement): HTMLElement | null {
 
 function alerts(container: HTMLElement): string[] {
   return [...container.querySelectorAll('.ant-alert')].map((strip) => strip.textContent ?? '');
+}
+
+async function ready(container: HTMLElement): Promise<void> {
+  // The button stays busy until the backend has answered which login exists.
+  await waitFor(() => expect(submit(container).querySelector('.anticon-loading')).toBeNull());
 }
 
 function chooseRole(container: HTMLElement, role: 'admin' | 'user'): void {
@@ -114,6 +119,7 @@ describe('LoginPage', () => {
   it('signs in with the hash the user tried to open', async () => {
     const auth = createAuth();
     const { container } = renderPage(auth);
+    await ready(container);
 
     fireEvent.click(submit(container));
 
@@ -138,6 +144,7 @@ describe('LoginPage', () => {
       }),
     });
     const { container } = renderPage(auth);
+    await ready(container);
 
     fireEvent.click(submit(container));
 
@@ -145,7 +152,7 @@ describe('LoginPage', () => {
     expect(submit(container).querySelector('.anticon-loading')).toBeNull();
   });
 
-  it('keeps the sign in button busy while the provider works', () => {
+  it('keeps the sign in button busy while the provider works', async () => {
     let finish: () => void = () => undefined;
     const auth = createAuth('oidc', {
       login: vi.fn(
@@ -156,6 +163,7 @@ describe('LoginPage', () => {
       ),
     });
     const { container } = renderPage(auth);
+    await ready(container);
 
     fireEvent.click(submit(container));
 

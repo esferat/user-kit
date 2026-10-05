@@ -26,6 +26,8 @@
     "@ui5/webcomponents-fiori": "^2.27.2",
     "@ui5/webcomponents-icons": "^2.27.2",
     "@ui5/webcomponents-react": "^2.27.2",
+    "mobx": "^6.16.1",
+    "mobx-react-lite": "^4.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

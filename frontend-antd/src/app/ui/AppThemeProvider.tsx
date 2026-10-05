@@ -1,7 +1,7 @@
 import { ConfigProvider, theme } from 'antd';
 import enUS from 'antd/locale/en_US';
 import ruRU from 'antd/locale/ru_RU';
-import { useSyncExternalStore } from 'react';
+import { observer } from 'mobx-react-lite';
 
 import type { ThemeStore } from '@/features/theme-switch';
 import type { Locale } from '@/shared/i18n';
@@ -20,15 +20,14 @@ export interface AppThemeProviderProps {
   children: React.ReactNode;
 }
 
-export function AppThemeProvider({ store, children }: AppThemeProviderProps) {
-  const dark = useSyncExternalStore(store.subscribe, store.isDark, store.isDark);
+function AppThemeProviderView({ store, children }: AppThemeProviderProps) {
   const locale = useLocale();
 
   return (
     <ConfigProvider
       locale={ANTD_LOCALES[locale as Locale & keyof typeof ANTD_LOCALES] ?? ruRU}
       theme={{
-        algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+        algorithm: store.isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: { borderRadius: 6 },
       }}
     >
@@ -36,3 +35,5 @@ export function AppThemeProvider({ store, children }: AppThemeProviderProps) {
     </ConfigProvider>
   );
 }
+
+export const AppThemeProvider = observer(AppThemeProviderView);

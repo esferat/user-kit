@@ -1,7 +1,7 @@
 import { Button, Card, Select } from 'antd';
-import { useEffect, useState } from 'react';
+import { observer } from 'mobx-react-lite';
+import { useState } from 'react';
 
-import type { AuthMode } from '@/features/auth';
 import type { AppConfig } from '@/shared/config';
 
 import { DEFAULT_ROLE, ROLES } from '@/entities/user';
@@ -14,54 +14,25 @@ export interface LoginPageProps {
   config: AppConfig;
 }
 
-/** Screen shown as long as nobody is authenticated. */
-export function LoginPage({ config }: LoginPageProps) {
+/**
+ * Screen shown as long as nobody is authenticated. The session store answers
+ * which login exists, so the screen only adapts once the backend has replied.
+ */
+function LoginPageView({ config }: LoginPageProps) {
   const t = useTranslate();
-  const { auth, error, login } = useAuthSession();
-  const [mode, setMode] = useState<AuthMode | null>(null);
+  const session = useAuthSession();
   const [role, setRole] = useState(config.dev.role === 'admin' ? 'admin' : DEFAULT_ROLE);
-  const [pending, setPending] = useState(false);
-  const [failure, setFailure] = useState<string | undefined>(undefined);
-
-  // The backend decides which login exists, so the screen can only adapt once
-  // it has answered.
-  useEffect(() => {
-    let active = true;
-    void auth.mode().then(
-      (answer) => {
-        if (active) {
-          setMode(answer);
-        }
-      },
-      (reason: unknown) => {
-        if (active) {
-          setFailure(messageOfError(reason, t('login.failed')));
-        }
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [auth, t]);
-
-  function start(): void {
-    setPending(true);
-    setFailure(undefined);
-    void login(window.location.hash, role).catch((reason: unknown) => {
-      setFailure(messageOfError(reason, t('login.failed')));
-      setPending(false);
-    });
-  }
+  const mode = session.loginMode;
 
   return (
     <div className="login-page">
       <Card className="login-card" title={t('app.title')}>
         <div className="login-card-body">
           <p className="login-description">{t('login.description')}</p>
-          {error !== undefined && (
-            <Message text={messageOfError(error, t('app.sessionRestoreFailed'))} design="Error" />
+          {session.error !== undefined && (
+            <Message text={messageOfError(session.error, t('app.sessionRestoreFailed'))} design="Error" />
           )}
-          {failure !== undefined && <Message text={failure} design="Error" />}
+          {session.failure !== undefined && <Message text={session.failure} design="Error" />}
           {mode === 'none' && <Message text={t('login.noProvider')} design="Error" />}
           {mode === 'dev' && (
             <>
@@ -74,7 +45,15 @@ export function LoginPage({ config }: LoginPageProps) {
               />
             </>
           )}
-          <Button type="primary" disabled={mode === 'none'} loading={pending} icon={<ICONS.login />} onClick={start}>
+          <Button
+            type="primary"
+            disabled={mode === 'none'}
+            loading={session.pending || session.modeLoading}
+            icon={<ICONS.login />}
+            onClick={() => {
+              void session.login(window.location.hash, role);
+            }}
+          >
             {t('login.submit')}
           </Button>
         </div>
@@ -82,3 +61,5 @@ export function LoginPage({ config }: LoginPageProps) {
     </div>
   );
 }
+
+export const LoginPage = observer(LoginPageView);

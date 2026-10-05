@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DARK_THEME, LIGHT_THEME } from '../model/themeStore';
+import { DARK_THEME, LIGHT_THEME, createThemeStore } from '../model/themeStore';
 
 import { ThemeSwitchButton } from './ThemeSwitchButton';
 
@@ -10,24 +10,7 @@ import type { ThemeStore } from '../model/themeStore';
 import { i18n, setLocale } from '@/shared/i18n';
 
 function createStore(initial: string): ThemeStore {
-  let theme = initial;
-  const listeners = new Set<() => void>();
-  return {
-    current: () => theme,
-    isDark: () => theme === DARK_THEME,
-    apply: vi.fn(() => theme),
-    toggle: vi.fn(() => {
-      theme = theme === DARK_THEME ? LIGHT_THEME : DARK_THEME;
-      listeners.forEach((listener) => listener());
-      return theme;
-    }),
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
+  return createThemeStore(initial);
 }
 
 function switchButton(container: HTMLElement): HTMLElement {
@@ -35,6 +18,8 @@ function switchButton(container: HTMLElement): HTMLElement {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
+  delete document.documentElement.dataset.theme;
   i18n.setLocale('ru');
 });
 
@@ -62,7 +47,18 @@ describe('ThemeSwitchButton', () => {
     await vi.waitFor(() =>
       expect(switchButton(container).getAttribute('aria-label')).toBe(i18n.t('shell.theme.light')),
     );
-    expect(store.toggle).toHaveBeenCalledOnce();
+    expect(store.theme).toBe(DARK_THEME);
+  });
+
+  it('follows a theme that changed outside of the button', async () => {
+    const store = createStore(LIGHT_THEME);
+    const { container } = render(<ThemeSwitchButton store={store} />);
+
+    store.toggle();
+
+    await vi.waitFor(() =>
+      expect(switchButton(container).getAttribute('aria-label')).toBe(i18n.t('shell.theme.light')),
+    );
   });
 
   it('follows the interface language', async () => {

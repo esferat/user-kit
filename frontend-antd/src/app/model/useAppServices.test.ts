@@ -15,7 +15,8 @@ describe('useAppServices', () => {
 
     expect(result.current.auth).toBeDefined();
     expect(result.current.router).toBeDefined();
-    expect(result.current.themeStore.current()).toBe('light');
+    expect(result.current.session).toBeDefined();
+    expect(result.current.themeStore.theme).toBe('light');
   });
 
   it('keeps the services while the configuration stays the same', () => {
@@ -44,6 +45,6 @@ describe('useAppServices', () => {
     rerender({ current: configOf({ VITE_ANTD_THEME: 'dark' }) });
 
     expect(result.current).not.toBe(first);
-    expect(result.current.themeStore.current()).toBe('dark');
+    expect(result.current.themeStore.theme).toBe('dark');
   });
 });
