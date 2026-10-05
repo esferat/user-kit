@@ -39,14 +39,19 @@ public class OAuthTokenClient {
     public OAuthTokenClient(ClientRegistration registration, RestClient.Builder restClient, AppProperties properties) {
         this.registration = registration;
         this.restClient = restClient.build();
-        this.postLogoutRedirectUri = properties.security().oauth().postLogoutRedirectUri();
+        this.postLogoutRedirectUri = properties.security().oauth().postLogoutRedirectUriList().get(0);
     }
 
-    public String authorizationUrl(String state, String codeChallenge) {
+    /**
+     * Authorization URL for a started login. The callback is the one of the
+     * frontend the visitor came from; without it the configured default is used,
+     * which keeps a single frontend deployment working unchanged.
+     */
+    public String authorizationUrl(String state, String codeChallenge, String callbackUri) {
         Map<String, String> parameters = new LinkedHashMap<>();
         parameters.put("response_type", "code");
         parameters.put("client_id", registration.getClientId());
-        parameters.put("redirect_uri", registration.getRedirectUri());
+        parameters.put("redirect_uri", callbackUri == null || callbackUri.isBlank() ? registration.getRedirectUri() : callbackUri);
         parameters.put("scope", String.join(" ", registration.getScopes()));
         parameters.put("state", state);
         parameters.put("code_challenge", codeChallenge);
@@ -54,11 +59,12 @@ public class OAuthTokenClient {
         return endpoint(AUTHORIZATION_ENDPOINT, parameters);
     }
 
-    public TokenSet exchangeCode(String code, String codeVerifier) {
+    /** Exchanges the code with the same callback the authorization request used. */
+    public TokenSet exchangeCode(String code, String codeVerifier, String callbackUri) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("code", code);
-        form.add("redirect_uri", registration.getRedirectUri());
+        form.add("redirect_uri", callbackUri == null || callbackUri.isBlank() ? registration.getRedirectUri() : callbackUri);
         form.add("code_verifier", codeVerifier);
         return tokenSet(postForm(endpoint(TOKEN_ENDPOINT, Map.of()), form, true));
     }
@@ -86,7 +92,7 @@ public class OAuthTokenClient {
     }
 
     /** URL that ends the session of the provider itself, so the next login shows the form again. */
-    public Optional<String> endSessionUrl(String idToken) {
+    public Optional<String> endSessionUrl(String idToken, String redirectUri) {
         if (!hasEndpoint(END_SESSION_ENDPOINT)) {
             return Optional.empty();
         }
@@ -95,12 +101,9 @@ public class OAuthTokenClient {
         if (idToken != null && !idToken.isBlank()) {
             parameters.put("id_token_hint", idToken);
         }
-        parameters.put("post_logout_redirect_uri", postLogoutRedirectUri());
+        String target = redirectUri == null || redirectUri.isBlank() ? postLogoutRedirectUri : redirectUri;
+        parameters.put("post_logout_redirect_uri", target);
         return Optional.of(endpoint(END_SESSION_ENDPOINT, parameters));
-    }
-
-    String postLogoutRedirectUri() {
-        return postLogoutRedirectUri;
     }
 
     private JsonNode postForm(String url, MultiValueMap<String, String> form, boolean authenticated) {

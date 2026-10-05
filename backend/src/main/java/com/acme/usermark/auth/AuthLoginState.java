@@ -15,8 +15,17 @@ public class AuthLoginState {
     @Column(name = "state_hash", length = 64)
     private String stateHash;
 
+    /** Frontend the browser returns to after the callback. */
     @Column(name = "redirect_uri", nullable = false, length = 512)
     private String redirectUri;
+
+    /**
+     * Callback that was sent to the provider. The code exchange has to repeat it
+     * verbatim, and it is what tells a login of one frontend from a login of the
+     * other one. Null for a row that was started before several frontends existed.
+     */
+    @Column(name = "callback_uri", length = 512)
+    private String callbackUri;
 
     @Column(name = "code_verifier", nullable = false, length = 128)
     private String codeVerifier;
@@ -31,8 +40,14 @@ public class AuthLoginState {
     }
 
     public AuthLoginState(String stateHash, String redirectUri, String codeVerifier, Instant expiresAt) {
+        this(stateHash, redirectUri, null, codeVerifier, expiresAt);
+    }
+
+    public AuthLoginState(
+            String stateHash, String redirectUri, String callbackUri, String codeVerifier, Instant expiresAt) {
         this.stateHash = stateHash;
         this.redirectUri = redirectUri;
+        this.callbackUri = callbackUri;
         this.codeVerifier = codeVerifier;
         this.expiresAt = expiresAt;
     }
@@ -47,6 +62,10 @@ public class AuthLoginState {
 
     public String getRedirectUri() {
         return redirectUri;
+    }
+
+    public String getCallbackUri() {
+        return callbackUri;
     }
 
     public String getCodeVerifier() {

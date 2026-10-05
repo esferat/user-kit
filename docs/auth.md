@@ -125,9 +125,9 @@ every start of a fresh container:
 
 | Object | Value |
 | --- | --- |
-| Realm | `user-kit`, served below `/auth` of the public host |
-| Issuer | `https://user-kit.local/auth/realms/user-kit` |
-| Client `user-kit-bff` | confidential, the backend performs Authorization Code + PKCE (`S256`), redirects `/api/v1/auth/callback` |
+| Realm | `user-kit`, served below `/auth` of the canonical host |
+| Issuer | `https://user-kit.ui5.local/auth/realms/user-kit` |
+| Client `user-kit-bff` | confidential, the backend performs Authorization Code + PKCE (`S256`), redirects `/api/v1/auth/callback` of both domains |
 | Client `user-kit-web` | legacy public client, no longer used by the frontend |
 | Client `user-kit-api` | audience of the access token, no interactive login |
 | Client scope `user-kit-api-audience` | adds `aud=user-kit-api` to the access token |
@@ -146,8 +146,8 @@ now, the frontend asks `/api/v1/auth/config` what it can use. To use one:
 2. Create a confidential client, for example `user-kit-bff`:
    - type: confidential, client authentication on,
    - standard flow enabled,
-   - valid redirect URI `https://<host>/api/v1/auth/callback`,
-   - post logout redirect URI `https://<host>/`,
+   - valid redirect URI `https://<host>/api/v1/auth/callback`, one entry per served domain,
+   - post logout redirect URI `https://<host>/`, one entry per served domain,
    - web origin `https://<host>` (the dev flow is not used for this client).
 3. Create a client for the audience, for example `user-kit-api`, and put its client id into
    `OIDC_AUDIENCES`. It is only used as the expected audience of incoming tokens.
@@ -167,14 +167,37 @@ DEV_AUTH_ENABLED=false
 OIDC_CLIENT_ENABLED=true
 OIDC_CLIENT_ID=user-kit-bff
 OIDC_CLIENT_SECRET=the-secret-of-that-client
-OIDC_CLIENT_REDIRECT_URI=https://user-kit.local/api/v1/auth/callback
-OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI=https://user-kit.local/
+OIDC_CLIENT_REDIRECT_URIS=https://app.example.com/api/v1/auth/callback,https://app2.example.com/api/v1/auth/callback
+OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS=https://app.example.com/,https://app2.example.com/
 OIDC_CLIENT_SCOPES=openid profile email
 OIDC_COOKIE_SECURE=true
 ```
 
 Redirect URIs must match exactly. The client secret lives only in the backend environment, so a
 user of the frontend bundle cannot impersonate the client.
+
+### Two domains, one login
+
+A browser sends its cookies per host, so a session of one domain is invisible to the other one. The
+login therefore continues where it started:
+
+1. `GET /api/v1/auth/login` on `https://app2.example.com` arrives at the backend through the edge.
+   The backend reads the public origin from `X-Forwarded-Proto` and `X-Forwarded-Host`.
+2. It picks the callback and the frontend root of that origin from `OIDC_CLIENT_REDIRECT_URIS` and
+   `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS`. An origin that is not in those lists falls back to the
+   first entry, so a forged `Host` header can only choose between configured URIs, never invent one.
+3. The state row keeps that exact callback next to the PKCE verifier (`auth_login_state.callback_uri`).
+4. The callback of the provider may land on any host the edge accepts, so the exchange does not trust
+   the callback request: it uses the callback stored in step 3. A login therefore always completes
+   on the domain it began on, and the cookies it sets are the ones that domain will send back.
+5. The logout URL carries the frontend root of the domain that asked for the logout, so the provider
+   returns the visitor to the same application.
+
+`auth_login_state.callback_uri` is nullable and added in migration `V3`. A state row without it comes
+from before the second domain existed and falls back to `OIDC_CLIENT_REDIRECT_URI`, which keeps old
+logins alive during a rolling update. Both domains also need an entry in the realm: every callback in
+`OIDC_CLIENT_REDIRECT_URIS` has to be a valid redirect URI of the client, and every root in
+`OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS` has to be a valid post logout redirect URI.
 
 ### Hostname configuration of Keycloak
 
@@ -184,28 +207,34 @@ issuer that no client can reach:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `SERVER_NAME` | `user-kit.local` | public host of the edge container |
+| `SERVER_NAME` | `user-kit.ui5.local` | canonical public host of the edge container, the one that serves `/auth` |
+| `SERVER_NAME_ALT` | `user-kit.ant.local` | second public host, its `/auth` redirects to the canonical domain |
 | `KEYCLOAK_RELATIVE_PATH` | `/auth` | prefix below `SERVER_NAME` |
-| `KEYCLOAK_HOSTNAME` | `https://user-kit.local/auth` | public base URL of Keycloak, **including** the prefix |
+| `KEYCLOAK_HOSTNAME` | `https://user-kit.ui5.local/auth` | public base URL of Keycloak, **including** the prefix |
+
+The provider is served by one domain only. That is what keeps a single `iss` for both applications and
+avoids the same provider answering under two hostnames. The second domain reaches it through the
+authorization URL the backend builds, and a stray `/auth` link is redirected by the edge.
 
 When `SERVER_NAME` changes, set `KEYCLOAK_HOSTNAME` accordingly and keep
 `OIDC_ISSUER_URI=https://<host><prefix>/realms/user-kit` plus the matching
-`OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI` and the registered redirect URIs of `user-kit-bff`.
+`OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS` and the registered redirect URIs of `user-kit-bff`.
 
 `keycloak/realm/user-kit-realm.json` registers several post logout URIs at once. Keycloak stores
 that client attribute as a single string and splits it on `##`, so a comma separated value is read
 as one unusable URI and the provider answers the logout with `Invalid redirect uri` instead of
-redirecting.
+redirecting. The realm is imported only when the container starts without a database, so after
+changing the file delete the realm through the admin console and restart Keycloak.
 
 ### Split issuer for the backend
 
 `OIDC_JWK_SET_URI` and `OIDC_CLIENT_ISSUER_URI` are optional and only needed when the public URL is
 not reachable from the backend. Docker compose uses both, because the public URL is
-`https://user-kit.local/...` with a self signed certificate while the container reaches Keycloak over
+`https://user-kit.ui5.local/...` with a self signed certificate while the container reaches Keycloak over
 plain HTTP:
 
 ```bash
-OIDC_ISSUER_URI=https://user-kit.local/auth/realms/user-kit
+OIDC_ISSUER_URI=https://user-kit.ui5.local/auth/realms/user-kit
 OIDC_JWK_SET_URI=http://keycloak:8080/auth/realms/user-kit/protocol/openid-connect/certs
 OIDC_CLIENT_ISSUER_URI=http://keycloak:8080/auth/realms/user-kit
 ```
@@ -221,8 +250,8 @@ backend can additionally publish a second, local issuer (`user-kit-dev`, HS256) 
 `DEV_AUTH_ENABLED=true`:
 
 ```bash
-curl -sk "https://user-kit.local/api/v1/dev/token?role=admin"
-curl -sk "https://user-kit.local/api/v1/dev/token?role=user&subject=jane@example.com"
+curl -sk "https://user-kit.ui5.local/api/v1/dev/token?role=admin"
+curl -sk "https://user-kit.ui5.local/api/v1/dev/token?role=user&subject=jane@example.com"
 ```
 
 The browser uses `POST /api/v1/auth/dev-login` instead: the response body carries the profile but no

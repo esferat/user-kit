@@ -15,6 +15,13 @@ frontend/.vite
 frontend/.env
 frontend/.env.local
 frontend/.env.*.local
+frontend-antd/node_modules
+frontend-antd/dist
+frontend-antd/coverage
+frontend-antd/.vite
+frontend-antd/.env
+frontend-antd/.env.local
+frontend-antd/.env.*.local
 
 # Backend
 backend/target

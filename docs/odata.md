@@ -92,7 +92,7 @@ Details:
 Examples:
 
 ```bash
-BASE=https://user-kit.local
+BASE=https://user-kit.ui5.local
 AUTH="Authorization: Bearer $TOKEN"
 
 # contains + comparison + and

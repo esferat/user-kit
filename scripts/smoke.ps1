@@ -1,5 +1,6 @@
 param(
-    [string]$ServerName = $(if ($env:SERVER_NAME) { $env:SERVER_NAME } else { 'user-kit.local' }),
+    [string]$ServerName = $(if ($env:SERVER_NAME) { $env:SERVER_NAME } else { 'user-kit.ui5.local' }),
+    [string]$AltServerName = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.ant.local' }),
     [string]$Address = '127.0.0.1',
     [switch]$SkipCertificateCheck,
     [ValidateSet('auto', 'dev', 'oidc')]
@@ -21,10 +22,16 @@ param(
 # Tokens come from the local Keycloak of docker compose by default. Use
 # -AuthMode dev for the token issuer of the dev profile, which then has to be
 # enabled with DEV_AUTH_ENABLED=true.
+#
+# $ServerName is the canonical domain: it hosts the identity provider and the
+# first frontend. $AltServerName is the second frontend, the one that only
+# reaches the provider through a redirect. The last block checks that both
+# domains keep their own login.
 
 $ErrorActionPreference = 'Stop'
 $base = "https://$ServerName"
-$resolve = @('--resolve', "${ServerName}:443:${Address}", '-s')
+$altBase = "https://$AltServerName"
+$resolve = @('--resolve', "${ServerName}:443:${Address}", '--resolve', "${AltServerName}:443:${Address}", '-s')
 if (-not $SkipCertificateCheck) {
     $resolve = @('-k') + $resolve
 }
@@ -73,6 +80,21 @@ function ShowCheck {
     $script:Checks++
     $color = if ($Ok) { 'Green' } else { 'Red' }
     Write-Host ("{0,-52} {1,-4} {2}" -f $Label, $(if ($Ok) { 'ok' } else { 'FAIL' }), $Detail) -ForegroundColor $color
+}
+
+function Get-Location {
+    # The Location header of a redirect, empty when the answer is not a redirect.
+    param([string]$Url)
+    $headers = Join-Path $env:TEMP 'user-kit-smoke-headers.txt'
+    Http @('-D', $headers, '-o', 'NUL') $Url | Out-Null
+    if (-not (Test-Path -LiteralPath $headers)) { return '' }
+    try {
+        $line = (Get-Content -LiteralPath $headers | Where-Object { $_ -match '^[Ll]ocation:' } | Select-Object -First 1)
+        if (-not $line) { return '' }
+        ($line -replace '^[Ll]ocation:\s*', '').Trim()
+    } finally {
+        Remove-Item -LiteralPath $headers -Force -ErrorAction SilentlyContinue
+    }
 }
 
 Write-Host "Smoke test against $base" -ForegroundColor Cyan
@@ -249,6 +271,37 @@ try {
     Show 'GET deleted content' (HttpCode $A "$base/api/v1/files/$($file.id)/content") '404'
 } finally {
     Remove-Item -LiteralPath $tempFile, $tempBody, $patchBody, $rolesBody -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host ''
+Write-Host "Second frontend on $altBase" -ForegroundColor Cyan
+Write-Host ''
+
+# The second domain serves its own SPA and the same API. Only the identity
+# provider lives on the canonical domain, so the browser reaches it from there.
+Show "$AltServerName GET /healthz" (HttpCode @() "$altBase/healthz")
+Show "$AltServerName GET / (SPA index)" (HttpCode @() "$altBase/")
+Show "$AltServerName GET /v3/api-docs" (HttpCode @() "$altBase/v3/api-docs")
+Show "$AltServerName GET /api/v1/me without token" (HttpCode @() "$altBase/api/v1/me") '401'
+Show "$AltServerName GET /api/v1/auth/config" (HttpCode @() "$altBase/api/v1/auth/config")
+
+$altIndex = (Http @() "$altBase/") -join "`n"
+$altEntry = [regex]::Match($altIndex, 'src="(?<src>/assets/index-[^"]+\.js)"').Groups['src'].Value
+ShowCheck "$AltServerName index.html references a bundle" ([bool]$altEntry) ("entry=" + $altEntry)
+
+if ($mode -eq 'oidc') {
+    # A login of the second domain has to come back to the second domain, the
+    # session cookies of the canonical one would be unknown to the browser.
+    $altLogin = Get-Location "$altBase/api/v1/auth/login"
+    ShowCheck "$AltServerName login redirects to the provider" ($altLogin -like "$base/auth/*") ("location=" + $altLogin)
+    ShowCheck "$AltServerName login announces its own callback" ($altLogin.Contains("redirect_uri=$altBase/api/v1/auth/callback")) ("callback=$altBase/api/v1/auth/callback")
+    ShowCheck "$AltServerName login does not announce the other domain" (-not $altLogin.Contains("redirect_uri=$base/api/v1/auth/callback"))
+
+    $authRedirect = Get-Location "$altBase/auth/realms/$Realm/.well-known/openid-configuration"
+    Show "$AltServerName GET /auth/... redirects to the canonical domain" (HttpCode @('-o', 'NUL') "$altBase/auth/realms/$Realm/.well-known/openid-configuration") '308'
+    ShowCheck "$AltServerName /auth redirect keeps the path" ($authRedirect -eq "$base/auth/realms/$Realm/.well-known/openid-configuration") ("location=" + $authRedirect)
+} else {
+    Show "$AltServerName GET /api/v1/auth/login without a provider" (HttpCode @('-o', 'NUL') "$altBase/api/v1/auth/login") '400'
 }
 
 Write-Host ''

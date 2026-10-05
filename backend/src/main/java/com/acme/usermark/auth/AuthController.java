@@ -21,8 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Endpoints of the cookie based login. The browser only ever receives cookies:
@@ -64,11 +62,15 @@ public class AuthController {
 
     @GetMapping("/login")
     @Operation(summary = "Starts the login in the identity provider")
-    public ResponseEntity<Void> login(@RequestParam(required = false) String returnUrl) {
+    public ResponseEntity<Void> login(
+            @RequestParam(required = false) String returnUrl, HttpServletRequest request) {
         if (!sessions.oauthEnabled()) {
             throw ApiException.badRequest("oidc_disabled", "The OAuth login is disabled on the server");
         }
-        return ResponseEntity.status(302).header(HttpHeaders.LOCATION, sessions.startLogin(returnUrl)).build();
+        String origin = RequestOrigin.of(request);
+        return ResponseEntity.status(302)
+                .header(HttpHeaders.LOCATION, sessions.startLogin(returnUrl, origin))
+                .build();
     }
 
     @PostMapping(path = "/dev-login", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -90,9 +92,11 @@ public class AuthController {
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String state,
             @RequestParam(required = false) String error,
+            HttpServletRequest request,
             HttpServletResponse response) {
+        String origin = RequestOrigin.of(request);
         if (error != null || code == null || code.isBlank() || state == null || state.isBlank()) {
-            return redirect(errorUrl(), response);
+            return redirect(errorUrl(origin), response);
         }
         try {
             AuthSessionService.LoginResult login = sessions.completeLogin(state, code);
@@ -101,24 +105,24 @@ public class AuthController {
             return redirect(login.appUri(), response);
         } catch (ApiException exception) {
             cookies.clear(response);
-            return redirect(errorUrl(), response);
+            return redirect(errorUrl(origin), response);
         } catch (RuntimeException exception) {
             // A provider that is down must not leave the visitor on a stack trace:
             // the cookies stay empty and the application asks for the login again.
             log.warn("The login of the identity provider failed: {}", exception.getMessage());
             cookies.clear(response);
-            return redirect(errorUrl(), response);
+            return redirect(errorUrl(origin), response);
         }
     }
 
     @PostMapping("/logout")
     @Operation(summary = "Drops the cookies, the server side session and the provider session")
-    public LogoutResponse logout(HttpServletResponse response) {
-        String sessionId = cookies.read(currentRequest(), AuthCookies.SESSION).orElse(null);
+    public LogoutResponse logout(HttpServletRequest request, HttpServletResponse response) {
+        String sessionId = cookies.read(request, AuthCookies.SESSION).orElse(null);
         AuthSession session = sessionId == null ? null : sessions.findSession(sessionId).orElse(null);
         cookies.clear(response);
         sessions.closeSession(sessionId, session);
-        return new LogoutResponse(sessions.endSessionUrl(session).orElse(null));
+        return new LogoutResponse(sessions.endSessionUrl(session, RequestOrigin.of(request)).orElse(null));
     }
 
     public record AuthConfig(String mode, boolean devEnabled, boolean oidcConfigured) {
@@ -139,12 +143,9 @@ public class AuthController {
         return ResponseEntity.status(302).header(HttpHeaders.LOCATION, location).build();
     }
 
-    private String errorUrl() {
-        String separator = sessions.defaultAppUri().contains("?") ? "&" : "?";
-        return sessions.defaultAppUri() + separator + "authError=1";
-    }
-
-    private HttpServletRequest currentRequest() {
-        return ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+    private String errorUrl(String origin) {
+        String appUri = sessions.defaultAppUri(origin);
+        String separator = appUri.contains("?") ? "&" : "?";
+        return appUri + separator + "authError=1";
     }
 }

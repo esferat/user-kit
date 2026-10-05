@@ -1,0 +1,190 @@
+:root {
+  --app-gap: 1rem;
+  --app-header-height: 3.5rem;
+  --app-surface: #f5f5f5;
+  --app-border: #e5e7eb;
+  --app-text: #1f2329;
+  --app-text-muted: #6b7280;
+  --app-surface-raised: #ffffff;
+}
+
+/* Dark scheme, written by the theme store so the own styles of the shell follow
+   the Ant Design algorithm without a second source of truth. */
+:root[data-theme='dark'] {
+  --app-surface: #141414;
+  --app-border: #303030;
+  --app-text: #f0f0f0;
+  --app-text-muted: #9ca3af;
+  --app-surface-raised: #1f1f1f;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  color: var(--app-text);
+}
+
+#app {
+  height: 100%;
+}
+
+/* ---------------------------------------------------------------- app shell */
+
+.app-shell {
+  height: 100%;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-gap);
+  height: var(--app-header-height);
+  padding-inline: 1rem;
+  line-height: var(--app-header-height);
+  background: var(--app-surface-raised);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.app-header-primary {
+  font-size: 1.125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.app-header-secondary {
+  color: var(--app-text-muted);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.app-sider {
+  border-right: 1px solid var(--app-border);
+}
+
+.app-sider nav {
+  border-inline-end: none;
+}
+
+.app-content {
+  padding: var(--app-gap);
+}
+
+/* -------------------------------------------------------------------- pages */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-gap);
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.page-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.page-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-gap);
+  min-width: 0;
+}
+
+.message-host:empty {
+  display: none;
+}
+
+/* ------------------------------------------------------------------- login */
+
+.login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--app-gap);
+  background: var(--app-surface);
+}
+
+.login-card {
+  width: min(32rem, 100%);
+}
+
+.login-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-gap);
+}
+
+.login-description {
+  margin: 0;
+  color: var(--app-text-muted);
+}
+
+/* ------------------------------------------------------------------ dialog */
+
+.upload-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-gap);
+}
+
+/* ---------------------------------------------------------- startup failure */
+
+.startup-error {
+  box-sizing: border-box;
+  max-width: 42rem;
+  margin: 3rem auto;
+  padding: 1.5rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.5rem;
+  background: var(--app-surface);
+}
+
+.startup-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+.startup-message {
+  margin: 0 0 0.75rem;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  word-break: break-word;
+}
+
+.startup-hint {
+  margin: 0;
+  color: var(--app-text-muted);
+}

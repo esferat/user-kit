@@ -68,13 +68,15 @@ class OAuthTokenClientTest {
                                 "user-kit-bff",
                                 "s3cret",
                                 ISSUER,
-                                REDIRECT_URI,
+REDIRECT_URI,
                                 POST_LOGOUT_URI,
                                 "openid profile",
                                 Duration.ofMinutes(10),
                                 Duration.ofHours(12),
                                 Duration.ofSeconds(90),
                                 true,
+                                "",
+                                "",
                                 "")),
                 null,
                 null,
@@ -87,16 +89,27 @@ class OAuthTokenClientTest {
         client = new OAuthTokenClient(registration, builder, properties);
     }
 
-    @Test
+@Test
     @DisplayName("builds the authorization URL with PKCE and every parameter")
     void buildsAuthorizationUrl() {
-        String url = client.authorizationUrl("state-1", "challenge-1");
+        String url = client.authorizationUrl("state-1", "challenge-1", REDIRECT_URI);
 
         assertThat(url).startsWith(ISSUER + "/protocol/openid-connect/auth?");
         assertThat(url).contains("response_type=code", "client_id=user-kit-bff", "state=state-1");
         assertThat(url).contains("scope=openid%20profile", "code_challenge=challenge-1", "code_challenge_method=S256");
         assertThat(url).contains("redirect_uri=https://app.example.com/api/v1/auth/callback");
         assertThat(url).doesNotContain(" ");
+    }
+
+    @Test
+    @DisplayName("sends the callback of the frontend that started the login, not the one of the first domain")
+    void usesCallbackOfTheLogin() {
+        String second = "https://second.example.com/api/v1/auth/callback";
+
+        String url = client.authorizationUrl("state-2", "challenge-2", second);
+
+        assertThat(url).contains("redirect_uri=https://second.example.com/api/v1/auth/callback");
+        assertThat(url).doesNotContain("app.example.com");
     }
 
     @Test
@@ -113,13 +126,29 @@ class OAuthTokenClientTest {
                         {"access_token":"at-1","refresh_token":"rt-1","id_token":"it-1","expires_in":300}""",
                         MediaType.APPLICATION_JSON));
 
-        TokenSet tokens = client.exchangeCode("the-code", "the-verifier");
+TokenSet tokens = client.exchangeCode("the-code", "the-verifier", REDIRECT_URI);
 
         assertThat(tokens.accessToken()).isEqualTo("at-1");
         assertThat(tokens.refreshToken()).isEqualTo("rt-1");
         assertThat(tokens.idToken()).isEqualTo("it-1");
         assertThat(tokens.expiresAt()).isAfter(java.time.Instant.now());
         assertThat(tokens.refreshTokenValid(java.time.Instant.now())).isTrue();
+        provider.verify();
+    }
+
+    @Test
+    @DisplayName("sends the same callback in the token request that the login announced")
+    void exchangesCodeWithTheCallbackOfTheLogin() {
+        String second = "https://second.example.com/api/v1/auth/callback";
+        provider.expect(requestTo(ISSUER + "/protocol/openid-connect/token"))
+                .andExpect(content().string(containsString("redirect_uri=https%3A%2F%2Fsecond.example.com%2Fapi%2Fv1%2Fauth%2Fcallback")))
+                .andRespond(withSuccess(
+                        """
+                        {"access_token":"at-9","refresh_token":"rt-9","expires_in":300}""",
+                        MediaType.APPLICATION_JSON));
+
+        client.exchangeCode("the-code", "the-verifier", second);
+
         provider.verify();
     }
 
@@ -148,7 +177,7 @@ class OAuthTokenClientTest {
         provider.expect(requestTo(ISSUER + "/protocol/openid-connect/token"))
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> client.exchangeCode("code", "verifier"))
+        assertThatThrownBy(() -> client.exchangeCode("code", "verifier", REDIRECT_URI))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("did not return an access token");
         provider.verify();
@@ -191,17 +220,33 @@ class OAuthTokenClientTest {
                 .build();
         OAuthTokenClient limited = new OAuthTokenClient(withoutRevocation, RestClient.builder(), properties);
 
-        limited.revokeRefreshToken("rt-1");
-        assertThat(limited.endSessionUrl("it-1")).isEmpty();
+limited.revokeRefreshToken("rt-1");
+        assertThat(limited.endSessionUrl("it-1", POST_LOGOUT_URI)).isEmpty();
     }
 
     @Test
     @DisplayName("builds the logout URL of the provider")
     void buildsEndSessionUrl() {
-        String url = client.endSessionUrl("it-1").orElseThrow();
+        String url = client.endSessionUrl("it-1", POST_LOGOUT_URI).orElseThrow();
 
         assertThat(url).startsWith(ISSUER + "/protocol/openid-connect/logout?");
         assertThat(url).contains("client_id=user-kit-bff", "id_token_hint=it-1");
+        assertThat(url).contains("post_logout_redirect_uri=https://app.example.com/");
+    }
+
+    @Test
+    @DisplayName("sends the visitor back to the frontend that asked for the logout")
+    void usesPostLogoutUriOfTheRequest() {
+        String url = client.endSessionUrl("it-1", "https://second.example.com/").orElseThrow();
+
+        assertThat(url).contains("post_logout_redirect_uri=https://second.example.com/");
+    }
+
+    @Test
+    @DisplayName("falls back to the configured post logout URI when the request has no known origin")
+    void fallsBackToConfiguredPostLogoutUri() {
+        String url = client.endSessionUrl("it-1", null).orElseThrow();
+
         assertThat(url).contains("post_logout_redirect_uri=https://app.example.com/");
     }
 

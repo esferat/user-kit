@@ -83,6 +83,11 @@ app:
       issuer-uri: ${OIDC_CLIENT_ISSUER_URI:}
       redirect-uri: ${OIDC_CLIENT_REDIRECT_URI:https://user-kit.local/api/v1/auth/callback}
       post-logout-redirect-uri: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI:https://user-kit.local/}
+      # One callback per frontend, comma separated. A login always continues on the
+      # domain it started on, because the session cookies of the other domain would
+      # be unknown to the browser. Empty keeps the singular property above.
+      redirect-uris: ${OIDC_CLIENT_REDIRECT_URIS:}
+      post-logout-redirect-uris: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS:}
       scopes: ${OIDC_CLIENT_SCOPES:openid profile email}
       login-state-ttl: ${OIDC_LOGIN_STATE_TTL:10m}
       session-ttl: ${OIDC_SESSION_TTL:12h}

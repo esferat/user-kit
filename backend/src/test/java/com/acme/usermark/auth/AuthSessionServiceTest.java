@@ -58,7 +58,9 @@ class AuthSessionServiceTest {
                                 Duration.ofHours(12),
                                 Duration.ofSeconds(90),
                                 false,
-                                "")),
+                                "",
+                                "https://app/api/v1/auth/callback,https://other/api/v1/auth/callback",
+                                "https://app/,https://other/")),
                 null,
                 null,
                 null,
@@ -75,15 +77,16 @@ class AuthSessionServiceTest {
     @Test
     @DisplayName("stores the login state hashed and redirects to the provider")
     void startsLogin() {
-        when(tokenClient.authorizationUrl(anyString(), anyString())).thenReturn("https://idp/auth?state=x");
+        when(tokenClient.authorizationUrl(anyString(), anyString(), anyString())).thenReturn("https://idp/auth?state=x");
 
-        String url = service.startLogin(null);
+        String url = service.startLogin(null, "https://app");
 
         assertThat(url).isEqualTo("https://idp/auth?state=x");
         ArgumentCaptor<AuthLoginState> saved = ArgumentCaptor.forClass(AuthLoginState.class);
         verify(loginStates).save(saved.capture());
         assertThat(saved.getValue().getStateHash()).hasSize(64);
         assertThat(saved.getValue().getRedirectUri()).isEqualTo("https://app/");
+        assertThat(saved.getValue().getCallbackUri()).isEqualTo("https://app/api/v1/auth/callback");
         assertThat(saved.getValue().isUsable(Instant.now().plusSeconds(60))).isTrue();
         assertThat(saved.getValue().isUsable(Instant.now().plusSeconds(601))).isFalse();
         verify(loginStates).deleteExpired(any(Instant.class));
@@ -92,9 +95,9 @@ class AuthSessionServiceTest {
     @Test
     @DisplayName("sends the visitor back to the router route it came from")
     void keepsLocalReturnUrl() {
-        when(tokenClient.authorizationUrl(anyString(), anyString())).thenReturn("https://idp/auth");
+        when(tokenClient.authorizationUrl(anyString(), anyString(), anyString())).thenReturn("https://idp/auth");
 
-        service.startLogin("#/admin-users");
+        service.startLogin("#/admin-users", "https://app");
 
         ArgumentCaptor<AuthLoginState> saved = ArgumentCaptor.forClass(AuthLoginState.class);
         verify(loginStates).save(saved.capture());
@@ -104,9 +107,9 @@ class AuthSessionServiceTest {
     @Test
     @DisplayName("refuses a return URL that points at another origin")
     void dropsForeignReturnUrl() {
-        when(tokenClient.authorizationUrl(anyString(), anyString())).thenReturn("https://idp/auth");
+        when(tokenClient.authorizationUrl(anyString(), anyString(), anyString())).thenReturn("https://idp/auth");
 
-        service.startLogin("https://evil.example.com/steal");
+        service.startLogin("https://evil.example.com/steal", "https://app");
 
         ArgumentCaptor<AuthLoginState> saved = ArgumentCaptor.forClass(AuthLoginState.class);
         verify(loginStates).save(saved.capture());
@@ -122,7 +125,7 @@ class AuthSessionServiceTest {
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("login state");
 
-        verify(tokenClient, never()).exchangeCode(anyString(), anyString());
+        verify(tokenClient, never()).exchangeCode(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -142,7 +145,7 @@ class AuthSessionServiceTest {
     void completesLogin() {
         AuthLoginState loginState = new AuthLoginState("hash", "https://app/#/documents", "verifier", Instant.now().plusSeconds(60));
         when(loginStates.findById(anyString())).thenReturn(Optional.of(loginState));
-        when(tokenClient.exchangeCode("code", "verifier")).thenReturn(tokens());
+        when(tokenClient.exchangeCode("code", "verifier", "https://app/api/v1/auth/callback")).thenReturn(tokens());
 
         AuthSessionService.LoginResult result = service.completeLogin("state", "code");
 
@@ -165,7 +168,7 @@ class AuthSessionServiceTest {
         when(loginStates.findById(anyString()))
                 .thenReturn(Optional.of(new AuthLoginState(
                         "hash", "https://app/", "verifier", Instant.now().plusSeconds(60))));
-        when(tokenClient.exchangeCode(anyString(), anyString())).thenReturn(tokens());
+        when(tokenClient.exchangeCode(anyString(), anyString(), anyString())).thenReturn(tokens());
 
         service.completeLogin("state", "code");
 
@@ -233,10 +236,50 @@ class AuthSessionServiceTest {
     @DisplayName("builds the provider logout URL from the id token of the session")
     void buildsEndSessionUrl() {
         AuthSession session = new AuthSession("hash", "subject-1", "user-kit-bff", tokens());
-        when(tokenClient.endSessionUrl("id-1")).thenReturn(Optional.of("https://idp/logout"));
+        when(tokenClient.endSessionUrl("id-1", "https://other/")).thenReturn(Optional.of("https://idp/logout"));
 
-        assertThat(service.endSessionUrl(session)).contains("https://idp/logout");
-        assertThat(service.endSessionUrl(null)).isEmpty();
+        assertThat(service.endSessionUrl(session, "https://other")).contains("https://idp/logout");
+        assertThat(service.endSessionUrl(null, "https://other")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("keeps the callback the login announced, even when the callback arrives on another host")
+    void exchangesCodeWithTheStoredCallback() {
+        AuthLoginState loginState = new AuthLoginState(
+                "hash", "https://other/", "https://other/api/v1/auth/callback", "verifier", Instant.now().plusSeconds(60));
+        when(loginStates.findById(anyString())).thenReturn(Optional.of(loginState));
+        when(tokenClient.exchangeCode("code", "verifier", "https://other/api/v1/auth/callback")).thenReturn(tokens());
+
+        AuthSessionService.LoginResult result = service.completeLogin("state", "code");
+
+        assertThat(result.appUri()).isEqualTo("https://other/");
+    }
+
+    @Test
+    @DisplayName("starts the login of the frontend the request came from")
+    void picksCallbackOfTheRequestOrigin() {
+        when(tokenClient.authorizationUrl(anyString(), anyString(), anyString())).thenReturn("https://idp/auth");
+
+        service.startLogin("#/documents", "https://other");
+
+        ArgumentCaptor<AuthLoginState> saved = ArgumentCaptor.forClass(AuthLoginState.class);
+        verify(loginStates).save(saved.capture());
+        assertThat(saved.getValue().getCallbackUri()).isEqualTo("https://other/api/v1/auth/callback");
+        assertThat(saved.getValue().getRedirectUri()).isEqualTo("https://other/#/documents");
+    }
+
+    @Test
+    @DisplayName("falls back to the first frontend of the list when the origin is unknown")
+    void fallsBackToTheFirstFrontend() {
+        assertThat(service.defaultAppUri("https://unknown.example.com")).isEqualTo("https://app/");
+        when(tokenClient.authorizationUrl(anyString(), anyString(), anyString())).thenReturn("https://idp/auth");
+
+        service.startLogin(null, "https://unknown.example.com");
+
+        ArgumentCaptor<AuthLoginState> saved = ArgumentCaptor.forClass(AuthLoginState.class);
+        verify(loginStates).save(saved.capture());
+        assertThat(saved.getValue().getCallbackUri()).isEqualTo("https://app/api/v1/auth/callback");
+        assertThat(saved.getValue().getRedirectUri()).isEqualTo("https://app/");
     }
 
     private TokenSet tokens() {

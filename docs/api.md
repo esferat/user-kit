@@ -1,6 +1,6 @@
 # API
 
-Base URL in the compose deployment: `https://user-kit.local`. All endpoints below expect
+Base URL in the compose deployment: `https://user-kit.ui5.local`. All endpoints below expect
 `Authorization: Bearer <access token>` unless stated otherwise. The examples use `-k` because the
 development certificate is self-signed.
 
@@ -64,7 +64,7 @@ Returns the profile of the caller. The roles are the roles stored in the applica
 claims of the token.
 
 ```bash
-curl -sk -H "Authorization: Bearer $TOKEN" https://user-kit.local/api/v1/me
+curl -sk -H "Authorization: Bearer $TOKEN" https://user-kit.ui5.local/api/v1/me
 ```
 
 ```json
@@ -88,7 +88,7 @@ Issues a short lived HS256 token for the local issuer `user-kit-dev`. Without `s
 subject is generated, which creates a new account on the first call.
 
 ```bash
-curl -sk "https://user-kit.local/api/v1/dev/token?role=admin"
+curl -sk "https://user-kit.ui5.local/api/v1/dev/token?role=admin"
 ```
 
 ```json
@@ -147,7 +147,7 @@ with the created file.
 ```bash
 curl -sk -H "Authorization: Bearer $TOKEN" \
   -F "file=@report.pdf" -F "description=Q3 numbers" \
-  https://user-kit.local/api/v1/files
+  https://user-kit.ui5.local/api/v1/files
 ```
 
 Rules applied by the service:
@@ -170,7 +170,7 @@ Deletes metadata and content, answers 204. Honours `If-Match`:
 
 ```bash
 curl -sk -X DELETE -H "Authorization: Bearer $TOKEN" -H 'If-Match: W/"3"' \
-  https://user-kit.local/api/v1/files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
+  https://user-kit.ui5.local/api/v1/files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
 ```
 
 ## OData
@@ -204,7 +204,7 @@ answered with `bad_request` and the message `Unknown request property: <name>`.
 ```bash
 curl -sk -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -H 'If-Match: W/"0"' -d '{"name":"renamed.pdf","description":"final"}' \
-  https://user-kit.local/odata/Files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
+  https://user-kit.ui5.local/odata/Files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
 ```
 
 Roles are normalized: the set must be a non-empty subset of `admin` and `user`, and `admin` is

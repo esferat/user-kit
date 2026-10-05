@@ -255,13 +255,13 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
-      "rootUrl": "https://user-kit.local",
+      "rootUrl": "https://user-kit.ui5.local",
       "baseUrl": "/",
-      "redirectUris": ["https://user-kit.local/*"],
-      "webOrigins": ["https://user-kit.local"],
+      "redirectUris": ["https://user-kit.ui5.local/*"],
+      "webOrigins": ["https://user-kit.ui5.local"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://user-kit.local/*",
+        "post.logout.redirect.uris": "https://user-kit.ui5.local/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.session.required": "true"
       },
@@ -280,15 +280,22 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "rootUrl": "https://user-kit.local",
+      "rootUrl": "https://user-kit.ui5.local",
       "baseUrl": "/",
       "redirectUris": [
-        "https://user-kit.local/api/v1/auth/callback",
-        "http://localhost:5173/api/v1/auth/callback"
+        "https://user-kit.ui5.local/api/v1/auth/callback",
+        "https://user-kit.ant.local/api/v1/auth/callback",
+        "http://localhost:5173/api/v1/auth/callback",
+        "http://localhost:5174/api/v1/auth/callback"
       ],
-      "webOrigins": ["https://user-kit.local", "http://localhost:5173"],
+      "webOrigins": [
+        "https://user-kit.ui5.local",
+        "https://user-kit.ant.local",
+        "http://localhost:5173",
+        "http://localhost:5174"
+      ],
       "attributes": {
-        "post.logout.redirect.uris": "https://user-kit.local/*##http://localhost:5173/*",
+        "post.logout.redirect.uris": "https://user-kit.ui5.local/*##https://user-kit.ant.local/*##http://localhost:5173/*##http://localhost:5174/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.session.required": "true"
       },

@@ -61,27 +61,30 @@ public class AuthSessionService {
 
     /** Starts a login and returns the provider URL the browser has to visit. */
     @Transactional
-    public String startLogin(String returnUrl) {
+    public String startLogin(String returnUrl, String origin) {
         OAuthTokenClient client = requireTokenClient();
         Instant now = Instant.now();
         loginStates.deleteExpired(now);
         String state = randomValue(SECRET_BYTES);
         String codeVerifier = randomValue(VERIFIER_BYTES);
+        String callbackUri = properties.security().oauth().callbackUriFor(origin);
         loginStates.save(new AuthLoginState(
                 hash(state),
-                appUri(returnUrl),
+                appUri(returnUrl, origin),
+                callbackUri,
                 codeVerifier,
                 now.plus(properties.security().oauth().loginStateTtl())));
-        return client.authorizationUrl(state, codeChallenge(codeVerifier));
+        return client.authorizationUrl(state, codeChallenge(codeVerifier), callbackUri);
     }
 
     /**
-     * Keeps the return URL inside the application: only a fragment of the router
-     * is accepted, so a crafted link cannot turn the callback into an open
-     * redirect that carries the freshly issued session cookies to another origin.
+     * Keeps the return URL inside the frontend that started the login: only a
+     * fragment of the router is accepted, so a crafted link cannot turn the
+     * callback into an open redirect that carries the freshly issued session
+     * cookies to another origin.
      */
-    private String appUri(String returnUrl) {
-        String appUri = defaultAppUri();
+    private String appUri(String returnUrl, String origin) {
+        String appUri = properties.security().oauth().appUriFor(origin);
         if (returnUrl == null || returnUrl.isBlank()) {
             return appUri;
         }
@@ -103,7 +106,7 @@ public class AuthSessionService {
                 .filter(candidate -> candidate.isUsable(now))
                 .orElseThrow(() -> ApiException.badRequest("auth_state_invalid", "The login state is unknown or expired"));
         loginStates.delete(loginState);
-        TokenSet tokens = client.exchangeCode(code, loginState.getCodeVerifier());
+        TokenSet tokens = client.exchangeCode(code, loginState.getCodeVerifier(), callbackOf(loginState));
         sessions.deleteOlderThan(now.minus(properties.security().oauth().sessionTtl()));
         String sessionId = randomValue(SECRET_BYTES);
         sessions.save(new AuthSession(
@@ -114,9 +117,15 @@ public class AuthSessionService {
         return new LoginResult(sessionId, tokens, loginState.getRedirectUri());
     }
 
+    /** A state that predates several frontends carries no callback of its own. */
+    private String callbackOf(AuthLoginState loginState) {
+        String callbackUri = loginState.getCallbackUri();
+        return callbackUri == null || callbackUri.isBlank() ? properties.security().oauth().redirectUri() : callbackUri;
+    }
+
     /** Where the browser goes when there is no login state, for example after a failed exchange. */
-    public String defaultAppUri() {
-        return properties.security().oauth().postLogoutRedirectUri();
+    public String defaultAppUri(String origin) {
+        return properties.security().oauth().appUriFor(origin);
     }
 
     public String newSessionId() {
@@ -138,9 +147,13 @@ public class AuthSessionService {
     }
 
     /** URL that ends the session of the provider, so the next login asks for credentials again. */
-    public Optional<String> endSessionUrl(AuthSession session) {
+    public Optional<String> endSessionUrl(AuthSession session, String origin) {
         OAuthTokenClient client = tokenClient.getIfAvailable();
-        return client == null ? Optional.empty() : client.endSessionUrl(session == null ? null : session.getIdToken());
+        return client == null
+                ? Optional.empty()
+                : client.endSessionUrl(
+                        session == null ? null : session.getIdToken(),
+                        properties.security().oauth().appUriFor(origin));
     }
 
     /** Drops the local session and asks the provider to forget the refresh token. */

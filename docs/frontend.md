@@ -35,6 +35,23 @@ TypeScript application.
 If a real SAPUI5 runtime is required, keep the backend as it is and replace the `frontend/` folder
 with a UI5 CLI project that consumes the same OData and REST endpoints.
 
+## Two frontends
+
+`frontend/` and `frontend-antd/` implement the same screens and use the same endpoints, but render
+with different component libraries:
+
+| Folder | Library | Domain | Theme variable |
+| --- | --- | --- | --- |
+| `frontend/` | `@ui5/webcomponents-react` | `user-kit.ui5.local` | `VITE_UI5_THEME` |
+| `frontend-antd/` | `antd` 6 | `user-kit.ant.local` | `VITE_ANTD_THEME` |
+
+Both keep the same layering (Feature Sliced Design), the same `shared/api` transport and the same
+cookie session contract, so a change to the API contract has to be done in both folders. The library
+specific parts stay local: `shared/ui` and the widgets are the only files that differ. A domain
+difference exists only in storage: the theme and the language are stored under
+`user-kit:theme`/`user-kit:locale` in the UI5 frontend, the Ant Design frontend uses its own keys so
+that both applications remember their own choice when opened next to each other.
+
 ## Structure
 
 The sources follow [Feature Sliced Design](https://feature-sliced.design): layers may only import
@@ -297,8 +314,8 @@ frontend:
 
 Consequences worth keeping in mind:
 
-- A change to any `VITE_*` variable requires `docker compose up -d --build frontend`; a plain restart
-  keeps the old bundle.
+- A change to any `VITE_*` variable requires `docker compose up -d --build frontend frontend-antd`; a
+  plain restart keeps the old bundles.
 - Identity provider settings are **not** build arguments, so a provider change only needs a backend
   restart. `scripts/smoke.ps1` verifies that the deployed bundle contains neither the realm issuer nor
   an OIDC client library.

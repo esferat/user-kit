@@ -5,16 +5,17 @@ This document describes how the components fit together, which decisions were ta
 ## Runtime topology
 
 ```
-                    ┌───────────────────────────────────────────────┐
-  browser  ───────► │ edge (nginx, 80 + 443)                        │
-                    │  /             → frontend (nginx, static)    │
-                    │  /api/         → backend:8080                 │
-                    │  /odata/       → backend:8080                 │
-                    │  /v3/api-docs  → backend:8080                 │
-                    │  /swagger-ui   → backend:8080                 │
-                    │  /auth/        → keycloak:8080                │
-                    │  /healthz      → answered by nginx itself     │
-                    └────────────────────┬──────────────────────────┘
+                    ┌────────────────────────────────────────────────────────┐
+   browser  ───────► │ edge (nginx, 80 + 443)                                 │
+                    │  user-kit.ui5.local  /            → frontend (static)    │
+                    │  user-kit.ui5.local  /api/        → backend:8080         │
+                    │  user-kit.ui5.local  /auth/       → keycloak:8080        │
+                    │  user-kit.ant.local  /            → frontend-antd        │
+                    │  user-kit.ant.local  /api/        → backend:8080         │
+                    │  user-kit.ant.local  /auth/       → 308 to the canonical │
+                    │  /odata/, /v3/api-docs, /swagger-ui → backend:8080      │
+                    │  /healthz                         → answered by nginx    │
+                    └────────────────────┬───────────────────────────────────────┘
                                          │ HTTP inside the compose network
                         ┌────────────────▼─────────────────┐
                         │ backend (Spring Boot, Java 21)  │
@@ -32,11 +33,17 @@ This document describes how the components fit together, which decisions were ta
                                └──────────────────────┘
 ```
 
+Both frontends are the same application on a different component library: `frontend/` renders with UI5
+Web Components, `frontend-antd/` with Ant Design. They share one backend and keep separate sessions,
+because the session cookies are scoped to the host. A login therefore never crosses a domain: the
+backend picks the callback of the requesting origin and stores it in the login state, and the provider
+lives on the canonical domain only so that both applications see the same `iss`.
+
 ## Layers
 
 | Layer | Package / folder | Responsibility |
 | --- | --- | --- |
-| Edge | `nginx/` | TLS, security headers, routing, request size limit, gzip |
+| Edge | `nginx/` | TLS, security headers, routing, request size limit, gzip, two server names |
 | UI | `frontend/src/app`, `.../pages`, `.../widgets` | Composition root, shell, pages and tables, no business rules |
 | Domain | `frontend/src/features`, `.../entities` | Use cases, user and file operations, role extraction |
 | Transport | `frontend/src/shared/api` | Typed HTTP client, OData query building, error mapping |
@@ -128,6 +135,16 @@ header skips that check, which is what keeps command line clients usable without
 `SessionTokenFilter` authenticates the cookie session itself instead of letting the bearer token filter
 do it, because a request for which a bearer token can be resolved is exempt from CSRF. CORS itself stays
 disabled until `CORS_ALLOWED_ORIGINS` is set. Details are in [`auth.md`](auth.md).
+
+### One session per domain, callback chosen per login
+
+Cookies are scoped to the host, so the two frontends cannot share a session. `AuthSessionService`
+therefore derives the public origin from the forwarded headers of the request, selects the callback and
+the frontend root of that origin from the configured allowlists and stores the callback in
+`auth_login_state`. The token exchange reads that stored value instead of the callback request, so a
+login completes on the domain it started on even when the provider answers on another host, and a
+forged `Host` header can only choose between allowlisted URIs. The identity provider is served by the
+canonical domain only, which keeps one `iss` for both applications.
 
 ### Errors
 

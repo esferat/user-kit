@@ -11,8 +11,9 @@ docker compose ps
 
 | Service | Image | Ports | Purpose |
 | --- | --- | --- | --- |
-| `edge` | `nginx:1.27-alpine` | 80, 443 | TLS termination, reverse proxy, headers |
-| `frontend` | built from `frontend/` | internal 80 | static UI5 assets |
+| `edge` | `nginx:1.27-alpine` | 80, 443 | TLS termination, reverse proxy, headers, both server names |
+| `frontend` | built from `frontend/` | internal 80 | static UI5 assets, canonical domain |
+| `frontend-antd` | built from `frontend-antd/` | internal 80 | static Ant Design assets, second domain |
 | `backend` | built from `backend/` | 8080 | REST and OData service |
 | `keycloak` | `quay.io/keycloak/keycloak:26.4` | 8180, internal 8080 | identity provider, realm `user-kit` |
 | `postgres` | `postgres:17-alpine` | internal 5432 | database with Flyway migrations |
@@ -39,12 +40,12 @@ HTTPS with 308.
 ### Development certificate
 
 ```bash
-pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME or user-kit.local
-pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -Days 30
+pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME and SERVER_NAME_ALT
+pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -AltDomain api.local -Days 30
 ```
 
 The script runs `alpine/openssl` in Docker, so no OpenSSL installation is needed. The certificate
-contains `subjectAltName` entries for the domain, `localhost` and `127.0.0.1`. It is self signed,
+contains `subjectAltName` entries for both domains, `localhost` and `127.0.0.1`. It is self signed,
 therefore every browser and every `curl` call needs `-k` or a manual exception, and it is ignored by
 the Java trust store of a real client.
 
@@ -70,7 +71,8 @@ included challenge location, mount the webroot of the certificate client into
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `SERVER_NAME` | `user-kit.local` | `server_name` of both nginx servers |
+| `SERVER_NAME` | `user-kit.ui5.local` | canonical `server_name`, hosts the first frontend and `/auth` |
+| `SERVER_NAME_ALT` | `user-kit.ant.local` | `server_name` of the second frontend, `/auth` redirects to the canonical domain |
 | `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | published ports of the edge |
 | `MAX_UPLOAD_SIZE` | `26m` | nginx `client_max_body_size` |
 | `DATABASE_NAME` / `DATABASE_USERNAME` / `DATABASE_PASSWORD` | `userkit` | PostgreSQL |
@@ -85,7 +87,7 @@ included challenge location, mount the webroot of the certificate client into
 | `DEMO_DATA_ENABLED` | `true` | fill an empty store with sample documents, dev profile only |
 | `BACKEND_PORT` | `8080` | published backend port, remove the mapping for edge only access |
 | `OIDC_ENABLED` | `true` | validate tokens against the identity provider |
-| `OIDC_ISSUER_URI` | `https://user-kit.local/auth/realms/user-kit` | expected `iss`, also used for JWKS discovery |
+| `OIDC_ISSUER_URI` | `https://user-kit.ui5.local/auth/realms/user-kit` | expected `iss`, also used for JWKS discovery |
 | `OIDC_JWK_SET_URI` | `http://keycloak:8080/...` | optional second URL for the keys, keep it while the issuer is not reachable from the backend |
 | `OIDC_AUDIENCES` | `user-kit-api` | accepted audiences |
 | `OIDC_ROLES_CLAIM` | `roles` | claim that carries the roles |
@@ -95,13 +97,15 @@ included challenge location, mount the webroot of the certificate client into
 | `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` | `admin` | bootstrap admin of the container, change them |
 | `KEYCLOAK_PORT` | `8180` | published port that bypasses the edge |
 | `KEYCLOAK_RELATIVE_PATH` | `/auth` | prefix below `SERVER_NAME`, forwarded by the edge |
-| `KEYCLOAK_HOSTNAME` | `https://user-kit.local/auth` | public base URL of Keycloak, must match `SERVER_NAME` plus the prefix |
+| `KEYCLOAK_HOSTNAME` | `https://user-kit.ui5.local/auth` | public base URL of Keycloak, must match `SERVER_NAME` plus the prefix |
 | `OIDC_CLIENT_ENABLED` | `true` | backend acts as the OAuth client of the browser login |
 | `OIDC_CLIENT_ID` | `user-kit-bff` | confidential client of the realm |
 | `OIDC_CLIENT_SECRET` | dev-only value | client secret, change it for production |
 | `OIDC_CLIENT_ISSUER_URI` | `http://keycloak:8080/auth/realms/user-kit` | URL used for discovery, keep it while the public issuer is not reachable from the backend |
-| `OIDC_CLIENT_REDIRECT_URI` | `https://user-kit.local/api/v1/auth/callback` | must be registered for the client |
-| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI` | `https://user-kit.local/` | where the provider returns after the logout |
+| `OIDC_CLIENT_REDIRECT_URIS` | both callbacks, comma separated | one entry per frontend domain, must be registered for the client |
+| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS` | both frontend roots, comma separated | where the provider may return after the logout |
+| `OIDC_CLIENT_REDIRECT_URI` | `https://user-kit.ui5.local/api/v1/auth/callback` | fallback of the callback list |
+| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI` | `https://user-kit.ui5.local/` | fallback of the post logout list |
 | `OIDC_CLIENT_SCOPES` | `openid profile email` | requested scopes |
 | `OIDC_LOGIN_STATE_TTL` | `10m` | how long a started login may take |
 | `OIDC_SESSION_TTL` | `12h` | lifetime of a session without activity |
@@ -110,12 +114,13 @@ included challenge location, mount the webroot of the certificate client into
 | `OIDC_REFRESH_WINDOW` | `90s` | renew the access token this long before it expires |
 | `VITE_DEV_ROLE` | `admin` | build argument, role used by the local dev login |
 | `VITE_UI5_THEME` | `sap_horizon` | build argument, initial theme before the user switches it |
+| `VITE_ANTD_THEME` | `light` | build argument of the second frontend |
 | `VITE_DEFAULT_LOCALE` | `ru` | build argument, `ru` or `en`; the user can switch the language |
 
 The `VITE_*` variables are build time configuration: Vite inlines them into the bundle and Compose
-forwards them as build arguments to the `frontend` image. A change therefore needs
-`docker compose up -d --build frontend`, not a restart. Identity provider settings are no longer part
-of the bundle: the backend owns the login and reports the available methods through
+forwards them as build arguments to the `frontend` and `frontend-antd` images. A change therefore
+needs `docker compose up -d --build frontend frontend-antd`, not a restart. Identity provider settings
+are no longer part of the bundle: the backend owns the login and reports the available methods through
 `/api/v1/auth/config`, so a provider change is a restart of the backend.
 
 Backend only settings are documented in the README, for example `FILES_MAX_SIZE_BYTES`,
@@ -123,14 +128,17 @@ Backend only settings are documented in the README, for example `FILES_MAX_SIZE_
 
 ## Production checklist
 
-- [ ] `SERVER_NAME` points to a real host and DNS resolves to the edge container.
-- [ ] A trusted TLS certificate is mounted, `ssl_stapling` is enabled if the issuer supports OCSP.
+- [ ] `SERVER_NAME` points to a real host and DNS resolves to the edge container;
+      `SERVER_NAME_ALT` does the same when a second frontend is served.
+- [ ] A trusted TLS certificate is mounted and covers both names, `ssl_stapling` is enabled if the
+      issuer supports OCSP.
 - [ ] `SPRING_PROFILES_ACTIVE` is not `dev`, `DEV_AUTH_ENABLED=false`, `DEV_AUTH_SECRET` is random.
 - [ ] `DATABASE_PASSWORD`, `S3_SECRET_KEY` and `OIDC_ISSUER_URI` are set for the real environment.
 - [ ] `OIDC_CLIENT_SECRET` is the production secret of the `user-kit-bff` client, not the value of the
       shipped realm.
 - [ ] `OIDC_COOKIE_SECURE=true`, because the session and access token cookies are then HTTPS only.
-- [ ] `OIDC_CLIENT_REDIRECT_URI` and the post logout URI are registered for the client.
+- [ ] `OIDC_CLIENT_REDIRECT_URIS` and `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS` are registered for the
+      client, one entry per served domain.
 - [ ] `OIDC_AUDIENCES` contains the backend client id, so tokens of other clients are rejected.
 - [ ] Keycloak uses a real database instead of `dev-file`, the realm import directory is not
       mounted, and direct access grants of `user-kit-web` and `user-kit-bff` are disabled.
@@ -167,8 +175,9 @@ optimistic locking, role administration and deletion. It prints one line per che
 if anything deviates from the expected status.
 
 ```bash
-pwsh ./scripts/smoke.ps1                                   # SERVER_NAME or user-kit.local
+pwsh ./scripts/smoke.ps1                                   # SERVER_NAME, SERVER_NAME_ALT
 pwsh ./scripts/smoke.ps1 -ServerName app.local
+pwsh ./scripts/smoke.ps1 -AltServerName app2.local          # second domain, must exist
 pwsh ./scripts/smoke.ps1 -SkipCertificateCheck             # only with a trusted certificate
 pwsh ./scripts/smoke.ps1 -AuthMode oidc                    # tokens from the identity provider
 pwsh ./scripts/smoke.ps1 -AuthMode dev                      # tokens from /api/v1/dev/token
@@ -185,6 +194,11 @@ The script also checks the cookie login: `/api/v1/auth/config` has to report the
 `/api/v1/auth/login` has to redirect to the provider and an unsafe call without a CSRF token has to
 be rejected with `403`. It finally inspects the deployed SPA bundle to confirm that no identity
 provider configuration and no OIDC client library leaked into it.
+
+The last block runs against the second domain: it serves its own SPA and the same API, `/auth` has to
+redirect to the canonical domain, and a login of that domain has to announce the callback of that
+domain, never the one of the other one. Pass an empty `-AltServerName` only after removing the second
+server block from the edge template.
 
 ## Useful commands
 
