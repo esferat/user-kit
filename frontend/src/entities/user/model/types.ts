@@ -4,7 +4,7 @@ export type Role = (typeof ROLES)[number];
 
 export const DEFAULT_ROLE: Role = 'user';
 
-/** Principal of the authenticated session, mapped from the claims of the IdP. */
+/** Принципал аутентифицированной сессии, сопоставленный из claims IdP. */
 export interface AuthenticatedUser {
   subject: string;
   username: string;

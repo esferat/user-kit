@@ -1,22 +1,22 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 
-/** Lifecycle of a single request. */
+/** Жизненный цикл одного запроса. */
 export type ResourceStatus = 'idle' | 'loading' | 'success' | 'error';
 
 /**
- * One request as observable state.
+ * Один запрос в виде observable-состояния.
  *
- * MobX owns the whole lifecycle, so a component only reads `data`, `loading` and
- * `error` and never has to keep a loading flag of its own. Only the result of
- * the most recent run is kept, so a slow reload can never overwrite a newer one,
- * and a failure keeps the data that is already on screen.
+ * MobX владеет всем жизненным циклом, поэтому компонент лишь читает `data`, `loading` и
+ * `error` и никогда не хранит собственный флаг загрузки. Сохраняется только результат
+ * самого последнего запуска, поэтому медленная перезагрузка не может перезаписать более
+ * новую, а при сбое остаются данные, уже выведенные на экран.
  */
 export class AsyncResource<T> {
   status: ResourceStatus = 'idle';
   data: T | undefined = undefined;
   error: unknown = undefined;
 
-  /** Number of the most recent run; results of older runs are discarded. */
+  /** Номер самого последнего запуска; результаты старых запусков отбрасываются. */
   private pending = 0;
 
   private readonly task: () => Promise<T>;
@@ -38,7 +38,7 @@ export class AsyncResource<T> {
     return this.status === 'success';
   }
 
-  /** Runs the request and publishes its result. */
+  /** Запускает запрос и публикует его результат. */
   async fetch(): Promise<void> {
     this.pending += 1;
     const run = this.pending;
@@ -65,7 +65,7 @@ export class AsyncResource<T> {
     }
   }
 
-  /** Drops the result and the error without running the request. */
+  /** Сбрасывает результат и ошибку, не запуская запрос. */
   reset(): void {
     this.pending += 1;
     this.status = 'idle';
@@ -73,7 +73,7 @@ export class AsyncResource<T> {
     this.error = undefined;
   }
 
-  /** Publishes a value that did not come from the request, e.g. a local edit. */
+  /** Публикует значение, пришедшее не из запроса, например локальное изменение. */
   publish(data: T): void {
     this.pending += 1;
     this.data = data;

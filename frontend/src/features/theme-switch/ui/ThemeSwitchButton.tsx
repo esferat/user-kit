@@ -25,5 +25,5 @@ function ThemeSwitchButtonView({ store }: ThemeSwitchButtonProps) {
   );
 }
 
-/** Shell bar item that switches between the light and the dark UI5 theme. */
+/** Элемент shell bar, переключающий между светлой и тёмной темой UI5. */
 export const ThemeSwitchButton = observer(ThemeSwitchButtonView);

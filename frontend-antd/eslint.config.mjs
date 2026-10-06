@@ -8,28 +8,29 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 /**
- * Flat configuration of the User Kit frontend.
+ * Плоская конфигурация ESLint для фронтенда User Kit.
  *
- * On top of the usual TypeScript and React rules it enforces the Feature Sliced
- * Design boundaries of `src/`: a slice may only import from the layers below it,
- * and every cross slice import has to go through the public API of the target
- * slice (`@/shared/api`, never `@/shared/api/http`).
+ * Помимо стандартных правил TypeScript и React, она обеспечивает соблюдение
+ * границ Feature Sliced Design (FSD) для `src/`: слайс может импортировать
+ * только из слоёв, расположенных ниже него, а любые кросс-слайсовые импорты
+ * должны осуществляться через публичный API целевого слайда (`@/shared/api`,
+ * не `@/shared/api/http`).
  */
 const LAYERS = ['app', 'pages', 'widgets', 'features', 'entities', 'shared'];
 
 const aliasOf = (layer) => [`@/${layer}`, `@/${layer}/*`];
 
-/** Imports every layer at or above `layer` must not contain. */
+/** Импорты не должны содержать ссылки на любые слои на уровне `layer` и выше. */
 function forbiddenLayers(layer) {
   return LAYERS.slice(0, LAYERS.indexOf(layer)).flatMap(aliasOf);
 }
 
-/** Deep imports into a layer, e.g. `@/entities/user/model/roles`. */
+/** Глубокие импорты внутрь слоя, например `@/entities/user/model/roles`. */
 function forbiddenDeepImports(layer) {
   return [`@/${layer}/*/*`, `@/${layer}/*/*/*`, `@/${layer}/*/*/*/*`];
 }
 
-/** One slice level up is fine inside a slice, two levels up always crosses a boundary. */
+/** Внутри слайда допустим импорт на один уровень выше, импорт на два уровня выше всегда нарушает границы. */
 const RELATIVE_PARENT_IMPORT = ['error', { patterns: ['../../*', '../../../*'] }];
 
 const boundariesOf = (layer) => ({
@@ -42,7 +43,7 @@ const FSD_BOUNDARIES = LAYERS.map((layer) => ({
   rules: boundariesOf(layer),
 }));
 
-/** `jsx-runtime` replaces the `prop-types` rules of `recommended`. */
+/** `jsx-runtime` заменяет правила `prop-types` из конфигурации `recommended`. */
 const REACT_RULES = {
   ...react.configs.flat.recommended.rules,
   ...react.configs.flat['jsx-runtime'].rules,
@@ -67,7 +68,7 @@ export default tseslint.config(
     },
     plugins: { 'import-x': importX },
     settings: {
-      // `tsconfig: 'auto'` picks up the `@/* -> src/*` alias from tsconfig.json.
+      // `tsconfig: 'auto'` автоматически подхватывает алиас `@/* -> src/*` из tsconfig.json.
       'import-x/resolver-next': [
         createNodeResolver({ extensions: ['.ts', '.tsx', '.mjs', '.js', '.json'], tsconfig: 'auto' }),
       ],
@@ -80,8 +81,8 @@ export default tseslint.config(
           groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index', 'type'],
           'newlines-between': 'always',
           alphabetize: { order: 'asc', caseInsensitive: true },
-          // Type only imports form their own group at the end, which matches the
-          // `separate-type-imports` style produced by consistent-type-imports.
+          // Импорты только типов (`type-imports`) группируются в конце, что соответствует
+          // стилю `separate-type-imports`, используемому правилом consistent-type-imports.
           sortTypesGroup: true,
         },
       ],
@@ -94,7 +95,7 @@ export default tseslint.config(
       'no-restricted-imports': RELATIVE_PARENT_IMPORT,
       'object-shorthand': 'error',
       'prefer-const': 'error',
-      // `void somePromise()` is the marker for a deliberately un-awaited promise.
+      // `void somePromise()` используется как маркер намеренно неожидаемого промиса.
       'sonarjs/void-use': 'off',
       '@typescript-eslint/explicit-function-return-type': [
         'error',
@@ -118,10 +119,10 @@ export default tseslint.config(
     settings: { react: { version: 'detect' } },
     rules: {
       ...REACT_RULES,
-      // A component is allowed to live next to its test and its hooks.
+      // Компонент может находиться рядом со своим тестом и хуками.
       'react/jsx-key': 'error',
       'react/no-array-index-key': 'error',
-      // A component returns JSX, which the return type would only repeat.
+      // Компонент возвращает JSX, поэтому явный тип возврата избыточен.
       '@typescript-eslint/explicit-function-return-type': 'off',
     },
   },
@@ -131,8 +132,8 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks },
     rules: {
       ...reactHooks.configs['recommended-latest'].rules,
-      // The rules of the React compiler preset report the deliberate escape hatches
-      // of the manual store wiring (`ref.current`, external stores) as errors.
+      // Правила пресета React compiler ошибочно трактуют допустимые обходные решения
+      // при ручной работе с хранилищами (`ref.current`, внешние хранилища) как ошибки.
       'react-hooks/refs': 'off',
       'react-hooks/purity': 'off',
       'react-hooks/set-state-in-effect': 'off',
@@ -141,8 +142,8 @@ export default tseslint.config(
   ...FSD_BOUNDARIES,
   {
     name: 'user-kit/translations',
-    // Dictionaries hold user facing copy, so strings such as `login.missingAuthority`
-    // are translations and never credentials.
+    // Файлы словарей содержат пользовательский текст (например, `login.missingAuthority`),
+    // поэтому это переводы, а не конфиденциальные данные.
     files: ['src/shared/i18n/locales/**/*.ts'],
     rules: { 'sonarjs/no-hardcoded-secrets': 'off' },
   },
@@ -150,10 +151,10 @@ export default tseslint.config(
     name: 'user-kit/tests',
     files: ['**/*.test.{ts,tsx}'],
     rules: {
-      // Tests talk to localhost style URLs over http on purpose.
+      // В тестах намеренно используются URL вида localhost по протоколу HTTP.
       'sonarjs/no-clear-text-protocols': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
-      // Helper components of a test do not need a display name.
+      // Вспомогательным компонентам в тестах не требуется display name.
       'react/display-name': 'off',
     },
   },

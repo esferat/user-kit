@@ -15,15 +15,15 @@ export interface LocaleSources {
   fallback?: string;
 }
 
-/** Maps a language tag such as `ru-RU` onto a supported locale. */
+/** Сопоставляет ярлык языка, например `ru-RU`, с поддерживаемой локалью. */
 export function localeOfTag(tag: string | null | undefined): Locale | undefined {
   const primary = tag?.trim().toLowerCase().split(/[-_]/)[0];
   return primary !== undefined && isLocale(primary) ? primary : undefined;
 }
 
 /**
- * Precedence: the explicit choice of the user, then the language of the browser,
- * then the configured default. The first source that maps onto a known locale wins.
+ * Приоритет: явный выбор пользователя, затем язык браузера, затем настроенный
+ * по умолчанию. Побеждает первый источник, сопоставимый с известной локалью.
  */
 export function resolveInitialLocale(sources: LocaleSources): Locale {
   return localeOfTag(sources.stored) ?? localeOfTag(sources.browser) ?? localeOfTag(sources.fallback) ?? DEFAULT_LOCALE;
@@ -41,7 +41,7 @@ function storeLocale(locale: Locale): void {
   try {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
   } catch {
-    // A browser with disabled storage still works, the choice is simply not kept.
+    // Браузер с отключённым хранилищем всё равно работает, выбор просто не сохраняется.
   }
 }
 
@@ -50,8 +50,8 @@ function browserLocale(): string | null {
 }
 
 /**
- * The translator of the application. It is a module level singleton, because the
- * locale is a property of the document and not of a single component.
+ * Переводчик приложения. Это синглтон уровня модуля, потому что локаль —
+ * свойство документа, а не отдельного компонента.
  */
 export const i18n = createI18n(
   MESSAGES,
@@ -62,14 +62,14 @@ export const i18n = createI18n(
   }),
 );
 
-/** Translates outside of a component, e.g. in a helper of `shared/lib`. */
+/** Переводит вне компонента, например в хелпере `shared/lib`. */
 export const t = i18n.t;
 
 export function getLocale(): Locale {
   return i18n.getLocale();
 }
 
-/** Switches the language, remembers the choice and updates `<html lang>`. */
+/** Переключает язык, запоминает выбор и обновляет `<html lang>`. */
 export function setLocale(locale: Locale): void {
   i18n.setLocale(locale);
   storeLocale(i18n.getLocale());
@@ -80,7 +80,7 @@ export function applyLanguage(): void {
   document.documentElement.lang = i18n.getLocale();
 }
 
-/** Native name of a locale, e.g. `Русский` or `English`, in that very language. */
+/** Название локали на её родном языке, например `Русский` или `English`. */
 export function localeName(locale: Locale): string {
   const name = MESSAGES[locale]['locale.name'];
   return typeof name === 'string' ? name : locale;

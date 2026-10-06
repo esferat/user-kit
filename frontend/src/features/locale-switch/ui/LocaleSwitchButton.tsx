@@ -9,8 +9,8 @@ function nextLocale(current: Locale): Locale {
 }
 
 /**
- * Shell bar item that switches the interface between the available locales.
- * Every component follows through the i18n store, so nothing has to repaint here.
+ * Элемент shell bar, который переключает интерфейс между доступными локалями.
+ * Каждый компонент следует за i18n-стор, поэтому здесь ничего не нужно перерисовывать.
  */
 export function LocaleSwitchButton() {
   const t = useTranslate();

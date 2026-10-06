@@ -3,10 +3,10 @@ import { useSyncExternalStore } from 'react';
 import type { Router } from './hashRouter';
 
 /**
- * Id of the route of the current URL hash.
+ * Id маршрута из текущего hash URL.
  *
- * `router.current()` returns a string, so the snapshot of the external store is
- * a primitive and `useSyncExternalStore` can compare it without re-rendering.
+ * `router.current()` возвращает строку, поэтому снапшот внешнего стора —
+ * примитив, и `useSyncExternalStore` может сравнить его без повторного рендера.
  */
 export function useRouteId(router: Router): string {
   return useSyncExternalStore(

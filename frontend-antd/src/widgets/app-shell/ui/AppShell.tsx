@@ -13,7 +13,7 @@ import { useTranslate } from '@/shared/i18n';
 
 export interface AppShellProps {
   user: AuthenticatedUser;
-  /** Id of the current route; only routes the user may open are rendered. */
+  /** Id текущего маршрута; отрисовываются только маршруты, доступные пользователю. */
   routeId: string;
   themeStore: ThemeStore;
   onLogout(): void;
@@ -21,8 +21,8 @@ export interface AppShellProps {
 }
 
 /**
- * Shell of the authenticated application: header with the profile menu, theme
- * and language switches, the side navigation and the routed page.
+ * Оболочка аутентифицированного приложения: шапка с меню профиля, переключателями
+ * темы и языка, боковая навигация и страница по маршруту.
  */
 export function AppShell({ user, routeId, themeStore, onLogout, children }: AppShellProps) {
   const t = useTranslate();

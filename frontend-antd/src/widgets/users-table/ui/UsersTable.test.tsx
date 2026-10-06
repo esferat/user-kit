@@ -45,7 +45,7 @@ function selectOf(row: HTMLElement): HTMLElement {
   return row.querySelector('.ant-select') as HTMLElement;
 }
 
-/** The trigger of the select shows the label of the assigned role. */
+/** Триггер select показывает подпись назначенной роли. */
 function selectedRole(row: HTMLElement): string {
   return (selectOf(row).querySelector('.ant-select-content') as HTMLElement).title;
 }
@@ -58,12 +58,12 @@ function isLoading(container: HTMLElement): boolean {
   return container.querySelector('.ant-spin')?.classList.contains('ant-spin-spinning') ?? false;
 }
 
-/** Without users the table renders the empty text as the text of the placeholder row. */
+/** Без пользователей таблица отрисовывает пустой текст как текст строки-заглушки. */
 function emptyText(container: HTMLElement): string | undefined {
   return container.querySelector('tbody .ant-table-placeholder')?.textContent ?? undefined;
 }
 
-/** Opens the dropdown of the row and picks the option of that role. */
+/** Открывает dropdown строки и выбирает опцию этой роли. */
 function changeRole(row: HTMLElement, role: Role): void {
   fireEvent.mouseDown(selectOf(row).querySelector('.ant-select-content') as Element);
   const option = [...document.querySelectorAll('.ant-select-item-option')].find(

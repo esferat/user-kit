@@ -31,10 +31,10 @@ export default defineConfig({
     restoreMocks: true,
     server: {
       deps: {
-        // Every UI5 package has to go through Vite. The icon collection imports its
-        // JSON dynamically, which Node cannot load without an import attribute, and
-        // a package that Node loads itself would get a second copy of the icon
-        // registry, so its components would report a missing icons collection.
+        // Каждый пакет UI5 должен проходить через Vite. Коллекция иконок импортирует
+        // свой JSON динамически, который Node не может загрузить без атрибута import,
+        // а пакет, который Node загружает сам, получил бы вторую копию реестра
+        // иконок, и его компоненты сообщали бы об отсутствии коллекции иконок.
         inline: [/@ui5\/webcomponents/],
       },
     },

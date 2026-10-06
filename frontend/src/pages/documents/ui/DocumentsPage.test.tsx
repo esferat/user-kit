@@ -53,7 +53,7 @@ function sortSelect(container: HTMLElement): HTMLElement & { value: string } {
   return container.querySelector('ui5-toolbar-select') as HTMLElement & { value: string };
 }
 
-/** The toolbar carries the refresh and the upload action. */
+/** Панель инструментов содержит действия обновления и загрузки. */
 function toolbarButton(container: HTMLElement, index: number): HTMLElement {
   return container.querySelectorAll('ui5-toolbar-button')[index] as HTMLElement;
 }
@@ -74,7 +74,7 @@ function strip(container: HTMLElement): string | null {
   return container.querySelector('ui5-message-strip')?.textContent ?? null;
 }
 
-/** UI5 keeps the selection of a file uploader in a read only property. */
+/** UI5 хранит выбранный файл загрузчика в read only свойстве. */
 function chooseFile(container: HTMLElement, file: File): void {
   const uploader = container.querySelector('ui5-file-uploader') as HTMLElement;
   const transfer = new DataTransfer();
@@ -153,7 +153,7 @@ describe('DocumentsPage', () => {
     searchInput(container).value = '   ';
     fireEvent(searchInput(container), new CustomEvent('input', { bubbles: true }));
 
-    // The query does not change, so the store does not ask the backend again.
+    // Запрос не меняется, поэтому стор больше не обращается к backend.
     expect(fileApi.list).toHaveBeenCalledOnce();
     expect(rows(container)).toHaveLength(1);
   });

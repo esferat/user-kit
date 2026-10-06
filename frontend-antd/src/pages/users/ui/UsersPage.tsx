@@ -51,5 +51,5 @@ function UsersPageView({ store }: UsersPageProps) {
   );
 }
 
-/** Administration page: all users with the inline role assignment. */
+/** Страница администрирования: все пользователи с назначением ролей прямо в таблице. */
 export const UsersPage = observer(UsersPageView);

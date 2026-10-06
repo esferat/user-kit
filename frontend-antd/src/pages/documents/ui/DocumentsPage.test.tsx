@@ -68,7 +68,7 @@ function rowAction(container: HTMLElement, row: number, action: number): HTMLBut
   return rows(container)[row].querySelectorAll('td:last-child button')[action] as HTMLButtonElement;
 }
 
-/** `Modal` renders its dialog into a portal at the end of the document body. */
+/** `Modal` рендерит свой диалог в portal в конце document body. */
 function dialogButtons(root: HTMLElement): HTMLButtonElement[] {
   return [...root.querySelectorAll<HTMLButtonElement>('.ant-modal-footer button.ant-btn')];
 }
@@ -158,7 +158,7 @@ describe('DocumentsPage', () => {
 
     fireEvent.change(searchInput(container), { target: { value: '   ' } });
 
-    // The query does not change, so the store does not ask the backend again.
+    // Запрос не меняется, поэтому стор больше не обращается к backend.
     expect(fileApi.list).toHaveBeenCalledOnce();
     expect(rows(container)).toHaveLength(1);
   });
@@ -213,8 +213,8 @@ describe('DocumentsPage', () => {
 
     await waitFor(() => expect(alert(container)).toContain('file too large'));
     expect(fileApi.list).toHaveBeenCalledOnce();
-    // The dialog stays ready for a retry: the files are still listed and the
-    // confirm button is usable again.
+    // Диалог остаётся готовым к повтору: файлы всё ещё перечислены, а кнопка
+    // подтверждения снова доступна.
     expect(baseElement.querySelector('.ant-upload-list-item')).not.toBeNull();
     await waitFor(() => expect(dialogButtons(baseElement)[1].disabled).toBe(false));
   });
@@ -227,8 +227,8 @@ describe('DocumentsPage', () => {
 
     fireEvent.click(dialogButtons(baseElement)[0]);
 
-    // The page only closes the dialog; whether it really disappears is the
-    // behaviour of the dialog itself, which `UploadDialog` covers on its own.
+    // Страница только закрывает диалог; исчезает ли он на самом деле — это
+    // поведение самого диалога, которое `UploadDialog` покрывает отдельно.
     expect(fileApi.upload).not.toHaveBeenCalled();
     expect(fileApi.list).toHaveBeenCalledOnce();
   });

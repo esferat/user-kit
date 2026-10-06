@@ -10,7 +10,7 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-/** `application/x-www-form-urlencoded` uses `+` for spaces, `decodeURIComponent` does not. */
+/** В `application/x-www-form-urlencoded` пробелы обозначаются `+`, а `decodeURIComponent` этого не делает. */
 function decodeUrl(url: string): string {
   return decodeURIComponent(url.replaceAll('+', '%20'));
 }

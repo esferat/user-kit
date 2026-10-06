@@ -27,7 +27,7 @@ const COLUMNS: ReadonlyArray<{ key: string; width: string }> = [
   { key: 'documents.column.updated', width: '20%' },
 ];
 
-/** Table of the documents page, including the per row download and delete actions. */
+/** Таблица страницы документов, включая действия скачивания и удаления для каждой строки. */
 export function DocumentsTable({ files, loading, onAction }: DocumentsTableProps) {
   const t = useTranslate();
 

@@ -5,8 +5,8 @@ import { defineConfig } from 'vitest/config';
 const srcPath = fileURLToPath(new URL('./src', import.meta.url));
 
 /**
- * The dev server runs on :5174 so that the UI5 shell of the same repository can
- * keep :5173. Both proxy to the same backend on :8080.
+ * Dev-сервер работает на :5174, чтобы UI5-оболочка того же репозитория могла
+ * остаться на :5173. Оба настроены через proxy на один и тот же backend на :8080.
  */
 export default defineConfig({
   plugins: [react()],
@@ -27,13 +27,13 @@ export default defineConfig({
     outDir: 'dist',
     target: 'es2022',
     sourcemap: true,
-    // The application code is small; only the Ant Design vendor chunk is large and
-    // it is cached on its own.
+    // Код приложения небольшой; только vendor-чанк Ant Design крупный,
+    // и он кешируется отдельно.
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
-        // Ant Design is far bigger than the application code, so it is kept in
-        // its own chunk and the browser caches it across deploys of the pages.
+        // Ant Design значительно больше кода приложения, поэтому он вынесен в
+        // отдельный чанк, и браузер кеширует его между выкладками страниц.
         manualChunks(id: string): string | undefined {
           return id.includes('node_modules/antd') || id.includes('node_modules/@ant-design') ? 'antd' : undefined;
         },

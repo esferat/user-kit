@@ -11,9 +11,9 @@ interface ErrorBoundaryState {
 }
 
 /**
- * Catches a failure of the first render - a broken configuration for example -
- * and shows it instead of an empty page. Everything below the shell handles its
- * own failures, so the boundary only guards the start of the application.
+ * Перехватывает сбой первого рендера — например, сломанную конфигурацию — и
+ * показывает его вместо пустой страницы. Всё, что ниже shell, обрабатывает
+ * свои сбои, поэтому boundary охраняет только старт приложения.
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   override state: ErrorBoundaryState = { error: undefined };

@@ -9,8 +9,8 @@ export interface ThemeBootstrapProps {
 }
 
 /**
- * Applies the stored theme before the first paint of the shell and keeps
- * `<html lang>` in sync with the interface language.
+ * Применяет сохранённую тему до первой отрисовки shell и синхронизирует
+ * `<html lang>` с языком интерфейса.
  */
 export function ThemeBootstrap({ store }: ThemeBootstrapProps) {
   useEffect(() => {

@@ -2,7 +2,7 @@ export type ODataLiteral = string | number | boolean | null;
 
 export type ComparisonOperator = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le';
 
-/** Mirrors the functions supported by the backend filter parser. */
+/** Повторяет функции, поддерживаемые парсером фильтров на бэкенде. */
 export type StringFunction = 'contains' | 'startswith' | 'endswith';
 
 export interface ComparisonFilter {

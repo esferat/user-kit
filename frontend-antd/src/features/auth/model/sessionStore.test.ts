@@ -14,7 +14,7 @@ const USER: AuthenticatedUser = {
   roles: ['admin'],
 };
 
-/** Authentication facade with the listener behaviour of the real providers. */
+/** Фасад аутентификации со слушателями, как у настоящих провайдеров. */
 function createAuth(
   options: { restored?: AuthenticatedUser | null; mode?: AuthMode; modeError?: unknown } = {},
 ): AuthProvider {

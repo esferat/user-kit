@@ -1,7 +1,7 @@
-/** Semantic design of a message inside the application code. */
+/** Семантический дизайн сообщения в коде приложения. */
 export type MessageDesign = 'Information' | 'Success' | 'Warning' | 'Error';
 
-/** Maps the semantic design used in the code to the `ui5-message-strip` designs. */
+/** Сопоставляет семантический дизайн, используемый в коде, с дизайнами `ui5-message-strip`. */
 export const MESSAGE_DESIGN: Record<MessageDesign, 'Information' | 'Positive' | 'Critical' | 'Negative'> = {
   Information: 'Information',
   Success: 'Positive',
@@ -9,12 +9,12 @@ export const MESSAGE_DESIGN: Record<MessageDesign, 'Information' | 'Positive' | 
   Error: 'Negative',
 };
 
-/** Reads the message of a failed request, falling back to a generic text. */
+/** Читает сообщение неудавшегося запроса, при необходимости возвращая универсальный текст. */
 export function messageOfError(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-/** A message of a finished user interaction. */
+/** Сообщение о завершённом пользовательском действии. */
 export interface AppMessage {
   text: string;
   design: MessageDesign;

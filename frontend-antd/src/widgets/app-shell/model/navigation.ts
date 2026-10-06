@@ -3,10 +3,10 @@ import { ICONS, type IconComponent } from '@/shared/ui';
 
 export interface NavEntry {
   id: string;
-  /** Translation key of the label; resolved at render time. */
+  /** Ключ перевода подписи; разрешается во время отрисовки. */
   titleKey: string;
   icon: IconComponent;
-  /** At least one of the roles is required to see the entry. */
+  /** Для отображения пункта требуется хотя бы одна из ролей. */
   roles: Role[];
 }
 
@@ -27,8 +27,8 @@ export function defaultRouteFor(user: AuthenticatedUser | null | undefined): str
 }
 
 /**
- * Returns the route for the current URL hash, falling back to the first route the
- * user is allowed to open. Unknown and forbidden hashes must not leak content.
+ * Возвращает маршрут для текущего URL hash, а при его отсутствии — первый маршрут,
+ * который пользователь имеет право открыть. Неизвестные и запрещённые hash не должны раскрывать содержимое.
  */
 export function resolveRoute(hash: string, allowedRoutes: readonly string[]): string {
   const normalized = hash.replace(/^#\/?/, '').split('?')[0].trim();

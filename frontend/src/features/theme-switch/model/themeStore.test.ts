@@ -76,8 +76,8 @@ describe('ThemeStore', () => {
   });
 
   it('keeps the two applications apart in the local storage', () => {
-    // The Ant Design shell and the UI5 shell share a browser profile, so their
-    // storage keys must not collide.
+    // Ant Design shell и UI5 shell используют один профиль браузера, поэтому
+    // их ключи хранилища не должны совпадать.
     expect(THEME_STORAGE_KEY).toBe('user-kit:theme');
   });
 });

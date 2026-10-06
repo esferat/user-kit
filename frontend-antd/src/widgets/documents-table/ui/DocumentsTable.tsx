@@ -15,7 +15,7 @@ export interface DocumentsTableProps {
   onAction(action: DocumentAction, file: FileObjectDto): void;
 }
 
-/** Table of the documents page, including the per row download and delete actions. */
+/** Таблица страницы документов, включая действия скачивания и удаления для каждой строки. */
 export function DocumentsTable({ files, loading, onAction }: DocumentsTableProps) {
   const t = useTranslate();
 

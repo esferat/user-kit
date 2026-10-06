@@ -13,11 +13,11 @@ import {
 } from '@ant-design/icons';
 
 /**
- * Icon components used by the application.
+ * Компоненты иконок, используемые в приложении.
  *
- * The names live in one place on purpose: `icons.test.ts` renders every one of
- * them and fails the test run on an icon that produces no path data, instead of
- * leaving an empty box in the interface.
+ * Имена собраны в одном месте специально: `icons.test.tsx` отрисовывает каждую
+ * из них и приводит к падению теста, если иконка не создаёт данных пути,
+ * вместо отображения пустого прямоугольника в интерфейсе.
  */
 export const ICONS = {
   documents: FolderOutlined,
@@ -35,5 +35,5 @@ export const ICONS = {
 
 export type IconName = keyof typeof ICONS;
 
-/** Component of the entry of {@link ICONS}, renderable as `<entry.icon />`. */
+/** Компонент из записи {@link ICONS}, который можно отрендерить как `<entry.icon />`. */
 export type IconComponent = (typeof ICONS)[IconName];

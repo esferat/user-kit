@@ -25,7 +25,7 @@ const COLUMNS: ReadonlyArray<{ key: string; width: string }> = [
   { key: 'users.column.updated', width: '20%' },
 ];
 
-/** Table of the administration page with the inline role assignment. */
+/** Таблица страницы администрирования с назначением ролей прямо в строке. */
 export function UsersTable({ users, loading, onRoleChange }: UsersTableProps) {
   const t = useTranslate();
 

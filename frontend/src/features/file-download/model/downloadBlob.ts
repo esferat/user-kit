@@ -1,4 +1,4 @@
-/** Hands a blob to the browser as a download and releases the object URL. */
+/** Передаёт blob браузеру как загрузку и освобождает object URL. */
 export function downloadBlob(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');

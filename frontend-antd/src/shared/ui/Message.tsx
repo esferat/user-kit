@@ -9,7 +9,7 @@ export interface MessageProps {
   design: MessageDesign;
 }
 
-/** Result of an interaction, shown above the content it belongs to. */
+/** Результат взаимодействия, отображаемый над содержимым, к которому он относится. */
 export function Message({ text, design }: MessageProps) {
   return <Alert type={MESSAGE_DESIGN[design]} title={text} showIcon />;
 }

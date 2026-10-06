@@ -1,4 +1,4 @@
-/** Properties of the `Users` entity set that may be used in `$filter`/`$orderby`. */
+/** Свойства набора сущностей `Users`, которые можно использовать в `$filter`/`$orderby`. */
 export const USER_QUERYABLE_PROPERTIES = [
   'id',
   'subject',

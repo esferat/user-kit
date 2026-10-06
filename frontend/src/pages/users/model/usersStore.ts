@@ -11,9 +11,9 @@ import { AsyncResource, messageOfError } from '@/shared/lib';
 const LIST_QUERY: ODataQuery = { orderBy: [{ property: 'email' }], top: 100, count: true };
 
 /**
- * State of the administration page: the users of the backend and the role
- * assignment. The list request is started by the reaction of `start`, so the
- * page only renders the state of the store.
+ * Состояние страницы администрирования: пользователи backend и назначение
+ * ролей. Запрос списка запускается в reaction метода `start`, поэтому
+ * страница только отображает состояние стора.
  */
 export class UsersStore {
   message: AppMessage | undefined = undefined;
@@ -44,7 +44,7 @@ export class UsersStore {
     return this.list.error;
   }
 
-  /** Loads the users once and follows the failures of the request. */
+  /** Однократно загружает пользователей и отслеживает ошибки запроса. */
   start(): () => void {
     if (this.dispose === null) {
       this.dispose = reaction(
@@ -75,9 +75,9 @@ export class UsersStore {
   }
 
   /**
-   * Assigns a single role and reloads the list, so the table shows what the
-   * backend accepted. A rejected change is reloaded as well: the stored roles
-   * are then the ones on screen.
+   * Назначает одну роль и перезагружает список, чтобы таблица показывала то,
+   * что принял backend. Отклонённое изменение тоже перезагружается: сохранённые
+   * роли тогда совпадают с теми, что на экране.
    */
   async updateRoles(user: UserDto, role: Role): Promise<void> {
     this.clearMessage();

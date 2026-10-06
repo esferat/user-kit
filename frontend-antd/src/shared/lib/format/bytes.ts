@@ -8,7 +8,7 @@ const UNIT_KEYS = [
   'format.units.tb',
 ] as const;
 
-/** Shortened decimal size, e.g. `1.5 МБ` / `1.5 MB`. */
+/** Сокращённый десятичный размер, например `1.5 МБ` / `1.5 MB`. */
 export function formatBytes(bytes: number, fractionDigits = 1): string {
   if (!Number.isFinite(bytes) || bytes < 0) {
     return EMPTY_VALUE;
@@ -26,5 +26,5 @@ export function formatBytes(bytes: number, fractionDigits = 1): string {
   return `${value.toFixed(fractionDigits)} ${t(UNIT_KEYS[unitIndex])}`;
 }
 
-/** Rendered instead of a value that cannot be formatted. */
+/** Выводится вместо значения, которое нельзя отформатировать. */
 export const EMPTY_VALUE = '—';

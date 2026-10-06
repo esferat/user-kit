@@ -21,9 +21,9 @@ const USER = { ...ADMIN, username: 'bob', displayName: 'Bob Roe', email: 'bob@us
 const CONFIG: AppConfig = readConfig({});
 
 /**
- * The cookie session would need a running backend for every call, so the provider
- * and the list endpoints are replaced. Everything around them - the session, the
- * router, the shell and the pages - is the real composition.
+ * Куки-сессия потребовала бы работающего backend для каждого вызова, поэтому
+ * provider и эндпоинты списка подменяются. Всё вокруг них — сессия, роутер,
+ * shell и страницы — это настоящая композиция.
  */
 const fakes = vi.hoisted(() => {
   const listeners = new Set<(user: unknown) => void>();
@@ -186,7 +186,7 @@ describe('App', () => {
     const { container } = startApp(USER);
 
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
-    // The dark algorithm paints its background into the config provider.
+    // Тёмный алгоритм закрашивает свой фон в config provider.
     expect(container.querySelector('.app-shell')).not.toBeNull();
   });
 
@@ -196,7 +196,7 @@ describe('App', () => {
 
     unmount();
 
-    // Without the listener the hash change of the browser stays unnoticed.
+    // Без слушателя изменение hash в браузере остаётся незамеченным.
     expect(() => {
       window.location.hash = '#/admin-users';
       fireEvent(window, new HashChangeEvent('hashchange'));

@@ -1,4 +1,4 @@
-/** Initials for the shell bar avatar, e.g. `Jane Doe` becomes `JD`. */
+/** Инициалы для аватара в shell bar, например `Jane Doe` становится `JD`. */
 export function initialsOf(displayName: string): string {
   const parts = displayName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) {

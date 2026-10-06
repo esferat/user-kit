@@ -6,7 +6,7 @@ export const THEME_STORAGE_KEY = 'user-kit:theme';
 export const LIGHT_THEME = 'sap_horizon';
 export const DARK_THEME = 'sap_horizon_dark';
 
-/** Theme state of the shell bar, persisted in the local storage of the browser. */
+/** Состояние темы shell bar, сохраняемое в local storage браузера. */
 export class ThemeStore {
   theme: string;
 
@@ -22,7 +22,7 @@ export class ThemeStore {
     return this.theme === DARK_THEME;
   }
 
-  /** Applies the stored theme to UI5, called once during the bootstrap. */
+  /** Применяет сохранённую тему к UI5, вызывается один раз при запуске. */
   async apply(): Promise<string> {
     this.storage.setItem(THEME_STORAGE_KEY, this.theme);
     document.documentElement.dataset.theme = this.theme;

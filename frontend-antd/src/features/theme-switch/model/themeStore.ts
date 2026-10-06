@@ -6,11 +6,11 @@ export const LIGHT_THEME = 'light';
 export const DARK_THEME = 'dark';
 
 /**
- * Theme state of the shell bar, persisted in the local storage of the browser.
+ * Состояние темы shell bar, сохраняемое в local storage браузера.
  *
- * Ant Design has no global theme switch of its own: the colour scheme is derived
- * from the `algorithm` of a `ConfigProvider`, so the store only owns the state
- * and the shell feeds it into that provider.
+ * У Ant Design нет собственного глобального переключателя тем: цветовая схема
+ * выводится из `algorithm` компонента `ConfigProvider`, поэтому стор владеет
+ * только состоянием, а shell передаёт его в этот провайдер.
  */
 export class ThemeStore {
   theme: string;
@@ -27,10 +27,10 @@ export class ThemeStore {
     return this.theme === DARK_THEME;
   }
 
-  /** Applies the stored theme, called once during the bootstrap. */
+  /** Применяет сохранённую тему, вызывается один раз при запуске. */
   apply(): string {
-    // The own styles of the shell follow the scheme through this attribute, so
-    // the login screen repaints before React renders the first time.
+    // Собственные стили shell следуют схеме через этот атрибут, поэтому
+    // экран входа перерисовывается до первого рендера React.
     this.storage.setItem(THEME_STORAGE_KEY, this.theme);
     document.documentElement.dataset.theme = this.theme;
     return this.theme;

@@ -9,7 +9,7 @@ export interface RoleSelectProps {
   onChange(role: Role): void;
 }
 
-/** Dropdown that assigns one of the application roles to a user. */
+/** Выпадающий список, назначающий пользователю одну из ролей приложения. */
 export function RoleSelect({ value, accessibleName, onChange }: RoleSelectProps) {
   return (
     <Select

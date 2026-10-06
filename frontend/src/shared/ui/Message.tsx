@@ -9,7 +9,7 @@ export interface MessageProps {
   design: MessageDesign;
 }
 
-/** Result of an interaction, shown above the content it belongs to. */
+/** Результат взаимодействия, отображаемый над содержимым, к которому он относится. */
 export function Message({ text, design }: MessageProps) {
   return <MessageStrip design={MESSAGE_DESIGN[design]}>{text}</MessageStrip>;
 }

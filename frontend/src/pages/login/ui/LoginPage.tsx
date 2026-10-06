@@ -20,8 +20,9 @@ export interface LoginPageProps {
 }
 
 /**
- * Screen shown as long as nobody is authenticated. The session store answers
- * which login exists, so the screen only adapts once the backend has replied.
+ * Экран, который показывается, пока никто не аутентифицирован. Стор сессии
+ * сообщает, какие способы входа доступны, поэтому экран подстраивается только
+ * после ответа backend.
  */
 function LoginPageView({ config }: LoginPageProps) {
   const t = useTranslate();

@@ -5,7 +5,7 @@ import type { ODataClient } from '@/shared/api';
 import { joinUrl, requestJson, type ODataListResponse, type ODataQuery } from '@/shared/api';
 
 export interface UserApi {
-  /** The principal behind the current access token. */
+  /** Принципал, стоящий за текущим access token. */
   me(signal?: AbortSignal): Promise<MeResponse>;
   list(query: ODataQuery, signal?: AbortSignal): Promise<ODataListResponse<UserDto>>;
   updateRoles(id: string, roles: readonly Role[], etag?: string, signal?: AbortSignal): Promise<UserDto>;

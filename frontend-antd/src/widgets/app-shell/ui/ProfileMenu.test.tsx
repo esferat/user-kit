@@ -19,7 +19,7 @@ function avatar(container: HTMLElement): HTMLElement {
   return container.querySelector('.ant-avatar') as HTMLElement;
 }
 
-/** `Dropdown` renders its menu into a portal at the end of the document body. */
+/** `Dropdown` отрисовывает своё меню в portal в конце body документа. */
 function menuItems(): HTMLElement[] {
   return [...document.querySelectorAll('.ant-dropdown-menu-item')] as HTMLElement[];
 }

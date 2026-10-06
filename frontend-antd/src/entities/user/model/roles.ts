@@ -41,18 +41,18 @@ export function readClaimPath(claims: Record<string, unknown>, path: string): un
 }
 
 export interface ExtractRolesOptions {
-  /** Explicit claim path, e.g. `realm_access.roles`. Wins over the fallbacks. */
+  /** Явный путь claim, например `realm_access.roles`. Имеет приоритет над запасными вариантами. */
   rolesClaim?: string;
-  /** Client id, used to read `resource_access.<clientId>.roles`. */
+  /** Client id, используемый для чтения `resource_access.<clientId>.roles`. */
   clientId?: string;
 }
 
 const FALLBACK_CLAIMS = ['roles', 'groups', 'realm_access.roles', 'resource_access.roles'];
 
 /**
- * Reads `resource_access.<clientId>.roles` directly instead of through a dotted
- * path, because OAuth client ids may contain characters that are not valid in a
- * property path.
+ * Читает `resource_access.<clientId>.roles` напрямую, а не через точечный
+ * путь, поскольку OAuth client id могут содержать символы, недопустимые в
+ * пути к свойству.
  */
 function readResourceAccessRoles(claims: Record<string, unknown>, clientId: string): unknown {
   const resourceAccess = claims.resource_access;
@@ -67,10 +67,10 @@ function readResourceAccessRoles(claims: Record<string, unknown>, clientId: stri
 }
 
 /**
- * Maps IdP claims onto the two application roles.
+ * Сопоставляет claims IdP с двумя ролями приложения.
  *
- * Unknown/absent claims never produce an empty role set: an authenticated
- * principal always has at least the `user` role.
+ * Неизвестные или отсутствующие claims никогда не дают пустой набор ролей:
+ * аутентифицированный принципал всегда имеет как минимум роль `user`.
  */
 export function extractRoles(claims: Record<string, unknown>, options: ExtractRolesOptions = {}): Role[] {
   const sources: unknown[] = options.rolesClaim
@@ -122,7 +122,7 @@ export function toAuthenticatedUser(
   return email === undefined ? user : { ...user, email };
 }
 
-/** Localized name of a role. */
+/** Локализованное название роли. */
 export function roleLabel(role: Role): string {
   return t(role === 'admin' ? 'roles.admin' : 'roles.user');
 }

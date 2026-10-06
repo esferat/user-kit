@@ -6,8 +6,8 @@ import { ICONS } from './icons';
 import type { IconData } from '@ui5/webcomponents-base/dist/asset-registries/Icons.js';
 
 async function load(name: string, collection = 'SAP-icons-v5'): Promise<IconData | undefined> {
-  // getIconData triggers the collection loader, getIconDataSync then reads the
-  // cache. Together they prove the icon is registered and carries path data.
+  // getIconData запускает загрузчик коллекции, getIconDataSync считывает кэш.
+  // Вместе они подтверждают, что иконка зарегистрирована и содержит данные пути.
   await getIconData(`${collection}/${name}`);
 
   return getIconDataSync(`${collection}/${name}`);
@@ -28,13 +28,13 @@ describe('SAP icon collections', () => {
   });
 
   it.each(ICON_NAMES)('resolves the application icon "%s" in the v4 collection', async (name) => {
-    // A legacy theme family renders the v4 collection, so both must be complete.
+    // В устаревшем семействе тем используется коллекция v4, поэтому обе коллекции должны быть полны.
     expect(await load(name, 'SAP-icons-v4'), name).toBeDefined();
   });
 
   it('resolves icons that components render internally', async () => {
-    // Icons used by ui5-input, ui5-table, ui5-message-strip, ui5-file-uploader
-    // and ui5-shellbar. A missing one leaves an empty box in the UI.
+    // Иконки, используемые ui5-input, ui5-table, ui5-message-strip, ui5-file-uploader и ui5-shellbar.
+    // Отсутствие иконки приводит к отображению пустого прямоугольника в UI.
     const internal = [
       'add',
       'decline',
@@ -53,6 +53,7 @@ describe('SAP icon collections', () => {
   });
 
   it('reports an unknown icon instead of throwing', async () => {
+    // Возвращает undefined вместо выброса ошибки для несуществующей иконки.
     expect(await getIconData('definitely-not-an-icon')).toBeUndefined();
   });
 });

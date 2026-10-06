@@ -23,7 +23,7 @@ function buttons(container: HTMLElement): (HTMLElement & { disabled: boolean; lo
   return [...container.querySelectorAll('ui5-button')] as (HTMLElement & { disabled: boolean; loading: boolean })[];
 }
 
-/** UI5 reports the selected files on the uploader through a read only property. */
+/** UI5 сообщает о выбранных файлах на загрузчике через read-only свойство. */
 function selectFiles(container: HTMLElement, files: readonly File[]): void {
   const uploader = container.querySelector('ui5-file-uploader') as HTMLElement;
   const transfer = new DataTransfer();

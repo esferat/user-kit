@@ -14,7 +14,7 @@ function setCookies(value: string): void {
   Object.defineProperty(document, 'cookie', { value, configurable: true, writable: true });
 }
 
-/** happy-dom keeps the real location, so only assign() is observed. */
+/** happy-dom сохраняет реальный location, поэтому наблюдается только assign(). */
 function stubLocation(): { assigned: string[] } {
   const assigned: string[] = [];
   Object.defineProperty(window, 'location', {
@@ -161,7 +161,7 @@ describe('CookieAuthProvider', () => {
     expect(url).toBe('/api/v1/auth/logout');
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>)['X-XSRF-TOKEN']).toBe('csrf-1');
-    // The listener is called once when it subscribes and once for the logout.
+    // Слушатель вызывается один раз при подписке и один раз при выходе.
     expect(seen).toEqual([null, null]);
     expect(assigned).toEqual(['https://idp/logout']);
   });

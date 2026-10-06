@@ -2,7 +2,7 @@ import { EMPTY_VALUE } from './bytes';
 
 import { getLocale } from '@/shared/i18n';
 
-/** Short date and time, in the active locale unless another BCP 47 tag is given. */
+/** Короткие дата и время, в активной локали, если не задан другой тег BCP 47. */
 export function formatDateTime(value: string | null | undefined, locale: string = getLocale()): string {
   if (value === null || value === undefined || value === '') {
     return EMPTY_VALUE;

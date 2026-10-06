@@ -8,7 +8,7 @@ export interface ODataListResponse<T> {
   value: T[];
 }
 
-/** Optional OData control information attached to a payload. */
+/** Необязательная служебная информация OData, прилагаемая к полезной нагрузке. */
 export type ODataEntity = {
   '@odata.id'?: string;
   '@odata.etag'?: string;
@@ -16,17 +16,17 @@ export type ODataEntity = {
 
 export interface ODataClientOptions {
   baseUrl: string;
-  /** Property names that may be used in $filter/$orderby/$select per entity set. */
+  /** Имена свойств, которые можно использовать в $filter/$orderby/$select для каждого набора сущностей. */
   queryableProperties?: Record<string, readonly string[]>;
 }
 
 /**
- * Thin OData V4 client: no library, only the subset of the protocol this
- * application relies on ($filter, $select, $orderby, $top, $skip, $count, $metadata).
+ * Тонкий клиент OData V4: без библиотек, только та часть протокола, на которую
+ * опирается это приложение ($filter, $select, $orderby, $top, $skip, $count, $metadata).
  *
- * The client is protocol only and knows no entity; the entity slices build their
- * own API on top of it. Authorization is left to the browser: the backend expects
- * the httpOnly cookie of the login and sends the CSRF header along with writes.
+ * Клиент реализует только протокол и ничего не знает о сущностях; slices сущностей
+ * строят поверх него собственный API. Авторизацию ведёт браузер: бэкенд ожидает
+ * httpOnly cookie входа и отправляет CSRF-заголовок вместе с операциями записи.
  */
 export class ODataClient {
   private readonly baseUrl: string;

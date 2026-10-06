@@ -1,11 +1,11 @@
 /**
- * Icon names used by the application.
+ * Имена иконок, используемые в приложении.
  *
- * The names live in one place on purpose: `icons.test.ts` resolves every one of
- * them against the shipped SAP-icons collections, so a name that does not exist
- * fails the test run instead of rendering an empty box with a console warning.
- * The collections of `@ui5/webcomponents-icons` contain 705 icons and have no
- * `log-in`, `log-out` or `moon`, so those had to be replaced.
+ * Имена собраны в одном месте специально: `icons.test.ts` проверяет каждое из них
+ * в поставляемых коллекциях SAP-icons, поэтому несуществующее имя иконки приведёт
+ * к падению теста вместо отображения пустого прямоугольника с предупреждением в консоли.
+ * Коллекции `@ui5/webcomponents-icons` содержат 705 иконок и не включают
+ * `log-in`, `log-out` или `moon`, поэтому их пришлось заменить.
  */
 export const ICONS = {
   documents: 'folder',

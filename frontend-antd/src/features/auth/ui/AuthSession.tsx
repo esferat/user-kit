@@ -10,8 +10,8 @@ export interface AuthSessionProviderProps {
 }
 
 /**
- * Makes the session store reachable and starts it once. The store holds the
- * state, so the components below only have to observe what they read.
+ * Делает session store доступным и запускает его один раз. Store хранит
+ * состояние, поэтому компонентам ниже достаточно наблюдать за тем, что они читают.
  */
 export function AuthSessionProvider({ store, children }: AuthSessionProviderProps) {
   useEffect(() => store.start(), [store]);
@@ -19,7 +19,7 @@ export function AuthSessionProvider({ store, children }: AuthSessionProviderProp
   return <SessionContext value={store}>{children}</SessionContext>;
 }
 
-/** Store of the current session; only valid below an `AuthSessionProvider`. */
+/** Store текущей сессии; действует только внутри `AuthSessionProvider`. */
 export function useAuthSession(): SessionStore {
   const store = use(SessionContext);
   if (store === null) {

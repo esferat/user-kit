@@ -13,7 +13,7 @@ export interface UsersTableProps {
   onRoleChange(user: UserDto, role: Role): void;
 }
 
-/** Table of the administration page with the inline role assignment. */
+/** Таблица страницы администрирования с назначением ролей прямо в строке. */
 export function UsersTable({ users, loading, onRoleChange }: UsersTableProps) {
   const t = useTranslate();
 

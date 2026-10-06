@@ -1,6 +1,6 @@
 import type { Messages } from '../i18n';
 
-/** English dictionary. `i18n.test.ts` fails when a key is missing here. */
+/** Английский словарь. `i18n.test.ts` падает, если здесь нет ключа. */
 export const en: Messages = {
   'app.title': 'User Kit',
   'app.sessionRestoreFailed': 'Could not restore the session',

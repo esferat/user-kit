@@ -1,8 +1,8 @@
 import type { Messages } from '../i18n';
 
 /**
- * Russian dictionary, the source language of the application. Every key of this
- * file has to exist in every other locale as well, which `i18n.test.ts` checks.
+ * Русский словарь — исходный язык приложения. Каждый ключ этого файла
+ * должен существовать и в остальных локалях, это проверяет `i18n.test.ts`.
  */
 export const ru: Messages = {
   'app.title': 'User Kit',

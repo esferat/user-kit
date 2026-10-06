@@ -19,7 +19,7 @@ function avatar(container: HTMLElement): HTMLElement & { initials: string; inter
   return container.querySelector('ui5-avatar') as HTMLElement & { initials: string; interactive: boolean };
 }
 
-/** `ui5-menu` is the popover itself; a wrapping `ui5-popover` would hide the items. */
+/** `ui5-menu` — это сам popover; обёртка в `ui5-popover` скрыла бы пункты. */
 function menu(container: HTMLElement): HTMLElement & { open: boolean } {
   return container.querySelector('ui5-menu') as HTMLElement & { open: boolean };
 }

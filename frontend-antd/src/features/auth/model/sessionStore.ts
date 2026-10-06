@@ -7,36 +7,37 @@ import type { AuthenticatedUser, Role } from '@/entities/user';
 import { t } from '@/shared/i18n';
 import { AsyncResource, messageOfError } from '@/shared/lib';
 
-/** State of the session of the current user. */
+/** Состояние сессии текущего пользователя. */
 export type AuthStatus = 'restoring' | 'anonymous' | 'authenticated';
 
 /**
- * Authentication as observable state.
+ * Аутентификация как observable-состояние.
  *
- * The session is restored once per store, so `StrictMode` mounting the tree
- * twice does not send a second request, and every later change the provider
- * reports - the logout of the profile menu, a dev login - becomes an observable
- * the shell renders. The login methods the backend offers are read the same way,
- * because the login screen can only adapt after the backend has answered.
+ * Сессия восстанавливается один раз на store, поэтому двойное монтирование
+ * дерева в `StrictMode` не отправляет второй запрос, а каждое последующее
+ * изменение от провайдера - выход в меню профиля, dev-вход - становится
+ * observable, который рендерит оболочка. Методы входа, которые предлагает
+ * бэкенд, читаются так же, потому что экран входа может адаптироваться
+ * только после ответа бэкенда.
  */
 export class SessionStore {
   user: AuthenticatedUser | null = null;
   status: AuthStatus = 'restoring';
-  /** Reason of a failed session restore, shown on the login screen. */
+  /** Причина неудачного восстановления сессии, показывается на экране входа. */
   error: unknown = undefined;
-  /** Reason of a failed login or of an unreachable backend, shown as a message. */
+  /** Причина неудачного входа или недоступного бэкенда, показывается сообщением. */
   failure: string | undefined = undefined;
-  /** A login is on its way, either to the provider or to the dev session. */
+  /** Вход выполняется: либо у провайдера, либо в dev-сессию. */
   pending = false;
 
   private readonly auth: AuthProvider;
   private readonly mode: AsyncResource<AuthMode>;
   private unsubscribe: (() => void) | null = null;
-  /** The restore is on its way, so its result is not known yet. */
+  /** Восстановление выполняется, поэтому результат ещё неизвестен. */
   private restoring = false;
-  /** The restore has settled; only now a reported user is the current one. */
+  /** Восстановление завершено; только теперь переданный пользователь становится текущим. */
   private restored = false;
-  /** The login methods have been asked for; they do not change while the page lives. */
+  /** Методы входа уже запрошены; они не меняются, пока жива страница. */
   private modeRequested = false;
 
   constructor(auth: AuthProvider) {
@@ -49,7 +50,7 @@ export class SessionStore {
     );
   }
 
-  /** Which login the backend offers, `null` while it has not answered. */
+  /** Какой вход предлагает бэкенд, `null`, пока он не ответил. */
   get loginMode(): AuthMode | null {
     return this.mode.data ?? null;
   }
@@ -58,7 +59,7 @@ export class SessionStore {
     return this.mode.loading;
   }
 
-  /** Follows the provider and restores the session once. */
+  /** Следит за провайдером и восстанавливает сессию один раз. */
   start(): () => void {
     if (this.unsubscribe === null) {
       this.unsubscribe = this.auth.onAuthenticated((user) => {
@@ -100,7 +101,7 @@ export class SessionStore {
     this.unsubscribe = null;
   }
 
-  /** Reads the login methods the backend offers. */
+  /** Читает методы входа, которые предлагает бэкенд. */
   async loadMode(): Promise<void> {
     await this.mode.fetch();
     if (this.mode.error !== undefined) {
@@ -111,9 +112,9 @@ export class SessionStore {
   }
 
   /**
-   * Logs the user in. With a provider the browser has left the page by now and
-   * the promise never settles here; the local dev login authenticates in place,
-   * so the session is restored again afterwards.
+   * Выполняет вход пользователя. С провайдером браузер к этому моменту уже
+   * ушёл со страницы и promise здесь не завершится; локальный dev-вход
+   * аутентифицирует на месте, поэтому после него сессия восстанавливается снова.
    */
   async login(returnUrl?: string, role?: Role): Promise<void> {
     const options: LoginOptions = role === undefined ? { returnUrl } : { returnUrl, role };
@@ -141,9 +142,9 @@ export class SessionStore {
     try {
       await this.auth.logout();
     } catch (error) {
-      // The backend clears the cookies before it answers, so a failing redirect
-      // leaves nothing to recover: the session keeps what the provider reported
-      // and the reason only deserves the console.
+      // Бэкенд очищает cookie ещё до ответа, поэтому при неудачном редиректе
+      // восстанавливать нечего: сессия сохраняет то, что сообщил провайдер,
+      // а причина годится лишь для консоли.
       console.error('logout failed', error);
     }
   }

@@ -14,7 +14,7 @@ export interface ProfileMenuProps {
   onLogout(): void;
 }
 
-/** Avatar of the shell bar that opens the account menu with the sign out entry. */
+/** Аватар shell bar, открывающий меню аккаунта с пунктом выхода. */
 export function ProfileMenu({ user, onLogout }: ProfileMenuProps) {
   const t = useTranslate();
   const [open, setOpen] = useState(false);

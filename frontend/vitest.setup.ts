@@ -3,15 +3,15 @@ import '@ui5/webcomponents/dist/Table.js';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
-// Testing Library only auto-cleans when it finds a global `afterEach`; the tests
-// of this project import the hooks from `vitest` explicitly.
+// Testing Library автоматически очищается только при наличии глобального `afterEach`;
+// тесты этого проекта импортируют хуки из `vitest` явно.
 afterEach(() => {
   cleanup();
 });
 
-// UI5 Table scrolls a focused cell into view by reading its rendered header row.
-// happy-dom never renders one, so the internal lookup would throw inside the
-// focusin listener and happy-dom would report it as an unhandled rejection.
+// UI5 Table прокручивает ячейку в поле видимости, читая отрендеренную строку заголовка.
+// happy-dom никогда её не рендерит, поэтому внутренний поиск выбросил бы ошибку
+// внутри слушателя focusin, и happy-dom сообщил бы о ней как об unhandled rejection.
 interface TableInternals {
   headerRow: unknown[];
   _scrollElementIntoView: (element: Element) => void;

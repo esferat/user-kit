@@ -5,9 +5,9 @@ export interface StartupErrorProps {
 }
 
 /**
- * Renders a failure that happened before the shell could start, for example an
- * incomplete configuration. Without this the page stays blank and the reason is
- * only visible in the browser console.
+ * Рендерит сбой, который произошёл до запуска shell, — например, неполную
+ * конфигурацию. Без этого страница остаётся пустой, а причина видна только в
+ * консоли браузера.
  */
 export function StartupError({ error }: StartupErrorProps) {
   const t = useTranslate();

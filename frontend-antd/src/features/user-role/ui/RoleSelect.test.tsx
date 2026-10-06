@@ -9,7 +9,7 @@ import { i18n } from '@/shared/i18n';
 
 const NAME = 'Роль';
 
-/** The label of the option antd shows for a role. */
+/** Метка опции, которую antd показывает для роли. */
 function optionOf(role: Role): HTMLElement | undefined {
   return [...document.querySelectorAll<HTMLElement>('.ant-select-item-option')].find(
     (entry) => entry.textContent === i18n.t(`roles.${role}`),
@@ -28,7 +28,7 @@ function choose(container: HTMLElement, role: Role): void {
   }
 }
 
-/** The trigger renders the label of the selected role. */
+/** Триггер отображает метку выбранной роли. */
 function shown(container: HTMLElement): string {
   return (container.querySelector('.ant-select-content') as HTMLElement).title;
 }

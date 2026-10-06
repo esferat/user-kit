@@ -30,10 +30,10 @@ export interface AppServices {
 }
 
 /**
- * Creates the API clients, the stores, the router and the theme store of the
- * application. They only depend on the configuration, so the set is rebuilt
- * exactly when a different configuration object is passed, which `main.tsx`
- * avoids by not passing one.
+ * Создаёт API-клиенты, сторы, роутер и стор темы приложения. Они зависят
+ * только от конфигурации, поэтому набор пересоздаётся ровно тогда, когда
+ * передан другой объект конфигурации, чего `main.tsx` избегает, не передавая
+ * его.
  */
 export function useAppServices(config: AppConfig = appConfig): AppServices {
   return useMemo<AppServices>(() => {

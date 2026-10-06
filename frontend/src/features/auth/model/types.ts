@@ -1,23 +1,23 @@
 import type { AuthenticatedUser, Role } from '@/entities/user';
 
-/** Login methods the backend can offer. */
+/** Методы входа, которые может предлагать бэкенд. */
 export type AuthMode = 'oidc' | 'dev' | 'none';
 
 export interface LoginOptions {
-  /** Hash route to return to after the identity provider sent the browser back. */
+  /** Hash-роут для возврата после того, как identity provider вернёт браузер. */
   returnUrl?: string;
-  /** Role of the local dev login, ignored when a provider is configured. */
+  /** Роль локального dev-входа, игнорируется, если настроен провайдер. */
   role?: Role;
 }
 
 /**
- * Authentication facade used by the application shell.
+ * Фасад аутентификации, который использует оболочка приложения.
  *
- * There is exactly one implementation: the backend owns the OAuth client, the
- * browser holds nothing but an httpOnly cookie and asks the backend who it is.
+ * Реализация ровно одна: бэкенд владеет OAuth-клиентом, браузер хранит
+ * только httpOnly cookie и спрашивает у бэкенда, кто он такой.
  */
 export interface AuthProvider {
-  /** Which login the backend offers, so the login screen can adapt. */
+  /** Какой вход предлагает бэкенд, чтобы экран входа мог адаптироваться. */
   mode(): Promise<AuthMode>;
   restore(): Promise<AuthenticatedUser | null>;
   login(options?: LoginOptions): Promise<void>;

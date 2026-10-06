@@ -11,9 +11,9 @@ import { useLocale } from '@/shared/i18n';
 const ANTD_LOCALES = { ru: ruRU, en: enUS } as const;
 
 /**
- * Ant Design has no global theme switch, so the colour scheme and the locale of
- * the components themselves are fed in here. The wrapper has to sit above the
- * login screen as well, because that one renders Ant Design components too.
+ * У Ant Design нет глобального переключателя темы, поэтому здесь задаются
+ * цветовая схема и locale самих компонентов. Обёртка должна быть и выше экрана
+ * входа, потому что тот тоже рендерит компоненты Ant Design.
  */
 export interface AppThemeProviderProps {
   store: ThemeStore;

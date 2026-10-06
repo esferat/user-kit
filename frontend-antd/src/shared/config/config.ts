@@ -1,17 +1,17 @@
 export interface DevAuthConfig {
   /**
-   * Role requested from the dev login endpoint. Kept as the raw environment
-   * value: `shared` must not know the role model of `entities/user`.
+   * Роль, запрашиваемая у dev-эндпоинта входа. Хранится как есть из переменной
+   * окружения: `shared` не должен знать модель ролей `entities/user`.
    */
   role: string;
 }
 
 export interface AppConfig {
-  /** Empty string means "same origin", which is the default behind nginx. */
+  /** Пустая строка означает «тот же origin», так настроен nginx по умолчанию. */
   apiBaseUrl: string;
-  /** Colour scheme of the Ant Design theme: `light` or `dark`. */
+  /** Цветовая схема темы Ant Design: `light` или `dark`. */
   theme: string;
-  /** Locale of the interface, validated against the dictionaries in `shared/i18n`. */
+  /** Язык интерфейса, сверяемый со словарями в `shared/i18n`. */
   defaultLocale: string;
   dev: DevAuthConfig;
 }
@@ -47,7 +47,7 @@ export function readConfig(env: Record<string, string | undefined>): AppConfig {
 }
 
 /**
- * The build carries no identity provider settings: the login itself lives on the
- * backend, so nothing has to be validated before the application starts.
+ * В сборке нет настроек провайдера идентификации: сам вход живёт на бэкенде,
+ * поэтому перед запуском приложения ничего не нужно проверять.
  */
 export const config: AppConfig = readConfig(import.meta.env as unknown as Record<string, string | undefined>);

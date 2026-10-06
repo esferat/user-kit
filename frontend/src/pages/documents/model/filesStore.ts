@@ -8,7 +8,7 @@ import { downloadBlob } from '@/features/file-download';
 import { t } from '@/shared/i18n';
 import { AsyncResource, messageOfError } from '@/shared/lib';
 
-/** Orderings the documents page offers. */
+/** Варианты сортировки, которые предлагает страница документов. */
 export const FILES_SORTS = ['createdAt-desc', 'createdAt-asc', 'name-asc', 'sizeBytes-desc'] as const;
 
 export type FilesSort = (typeof FILES_SORTS)[number];
@@ -23,12 +23,13 @@ const SORT_TO_ORDER_BY: Record<FilesSort, OrderByItem[]> = {
 const PAGE_SIZE = 50;
 
 /**
- * State of the documents page: the search term, the ordering, the upload dialog
- * and the list of files.
+ * Состояние страницы документов: поисковый запрос, порядок сортировки, диалог
+ * загрузки и список файлов.
  *
- * The list is a MobX resource whose task reads the observables of the store, and
- * a reaction starts the request whenever the search or the ordering changes. The
- * page therefore never fetches on its own, it only renders what the store holds.
+ * Список — это ресурс MobX, задача которого читает observable-значения стора, а
+ * reaction запускает запрос при каждом изменении поиска или сортировки. Поэтому
+ * страница никогда не запрашивает данные сама, она только отображает то, что
+ * хранится в сторе.
  */
 export class FilesStore {
   search = '';
@@ -70,14 +71,14 @@ export class FilesStore {
     return { filter, orderBy: SORT_TO_ORDER_BY[this.sort], top: PAGE_SIZE, count: true };
   }
 
-  /** Key of the query, so the reaction reacts to the values and not to the object. */
+  /** Ключ запроса, чтобы reaction реагировал на значения, а не на сам объект. */
   get queryKey(): string {
     return `${this.search.trim()}|${this.sort}`;
   }
 
   /**
-   * Reacts to everything the list depends on. Returns the disposer, so the owner
-   * of the store decides when the reactions stop.
+   * Реагирует на всё, от чего зависит список. Возвращает disposer, чтобы владелец
+   * стора сам решал, когда остановить reactions.
    */
   start(): () => void {
     if (this.dispose === null) {
@@ -138,7 +139,7 @@ export class FilesStore {
     this.uploadOpen = false;
   }
 
-  /** Uploads every file of the dialog and reloads the list afterwards. */
+  /** Загружает каждый файл из диалога и затем перезагружает список. */
   async upload(files: readonly File[], description: string | undefined): Promise<void> {
     this.clearMessage();
     this.submitting = true;

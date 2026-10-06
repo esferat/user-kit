@@ -1,4 +1,4 @@
-/** Properties of the `Files` entity set that may be used in `$filter`/`$orderby`. */
+/** Свойства набора сущностей `Files`, которые можно использовать в `$filter`/`$orderby`. */
 export const FILE_QUERYABLE_PROPERTIES = [
   'id',
   'name',

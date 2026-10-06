@@ -5,7 +5,7 @@ import { useRouteId } from './useRoute';
 
 import type { RouteTarget, Router } from './hashRouter';
 
-/** Router stub with the listener bookkeeping of the real hash router. */
+/** Заглушка роутера с учётом слушателей, как в настоящем hash-роутере. */
 function createRouter(initial: string): Router & { emit(routeId: string): void; listeners: number } {
   let current = initial;
   const listeners = new Set<(route: RouteTarget) => void>();

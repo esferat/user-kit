@@ -28,5 +28,5 @@ function ThemeSwitchButtonView({ store }: ThemeSwitchButtonProps) {
   );
 }
 
-/** Header button that switches between the light and the dark Ant Design theme. */
+/** Кнопка в шапке, переключающая между светлой и тёмной темой Ant Design. */
 export const ThemeSwitchButton = observer(ThemeSwitchButtonView);

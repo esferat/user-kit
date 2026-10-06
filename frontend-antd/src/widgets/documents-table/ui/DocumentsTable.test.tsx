@@ -47,7 +47,7 @@ function cells(row: HTMLElement): string[] {
   return [...row.querySelectorAll('td')].map((cell) => cell.textContent ?? '');
 }
 
-/** The row carries the action buttons in the last column. */
+/** В строке находятся кнопки действий в последнем столбце. */
 function actionButtons(row: HTMLElement): HTMLButtonElement[] {
   return [...row.querySelectorAll('td:last-child button')] as HTMLButtonElement[];
 }
@@ -56,7 +56,7 @@ function isLoading(container: HTMLElement): boolean {
   return container.querySelector('.ant-spin')?.classList.contains('ant-spin-spinning') ?? false;
 }
 
-/** Without files the table renders the empty text as the text of the placeholder row. */
+/** Без файлов таблица отрисовывает пустой текст как текст строки-заглушки. */
 function emptyText(container: HTMLElement): string | undefined {
   return container.querySelector('tbody .ant-table-placeholder')?.textContent ?? undefined;
 }

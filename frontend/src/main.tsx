@@ -12,9 +12,9 @@ if (container === null) {
   throw new Error('Root element #app not found');
 }
 
-// Registers the SAP-icons-v4 and SAP-icons-v5 collections. Without it every
-// ui5-icon and every icon a component renders internally reports "No loader
-// registered for the SAP-icons-v5 icons collection" and stays empty.
+// Регистрирует коллекции SAP-icons-v4 и SAP-icons-v5. Без этого каждый ui5-icon
+// и каждая иконка, которую компонент рендерит внутренне, сообщает "No loader
+// registered for the SAP-icons-v5 icons collection" и остаётся пустой.
 createRoot(container).render(
   <StrictMode>
     <ErrorBoundary>

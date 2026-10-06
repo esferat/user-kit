@@ -49,7 +49,7 @@ function alerts(container: HTMLElement): string[] {
 }
 
 async function ready(container: HTMLElement): Promise<void> {
-  // The button stays busy until the backend has answered which login exists.
+  // Кнопка остаётся занятой, пока backend не ответит, какие способы входа доступны.
   await waitFor(() => expect(submit(container).querySelector('.anticon-loading')).toBeNull());
 }
 

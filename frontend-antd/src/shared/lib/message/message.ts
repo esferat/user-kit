@@ -1,7 +1,7 @@
-/** Semantic design of a message inside the application code. */
+/** Семантический дизайн сообщения в коде приложения. */
 export type MessageDesign = 'Information' | 'Success' | 'Warning' | 'Error';
 
-/** Maps the semantic design used in the code to the `antd-alert` types. */
+/** Сопоставляет семантический дизайн, используемый в коде, с типами `antd-alert`. */
 export const MESSAGE_DESIGN: Record<MessageDesign, 'info' | 'success' | 'warning' | 'error'> = {
   Information: 'info',
   Success: 'success',
@@ -9,12 +9,12 @@ export const MESSAGE_DESIGN: Record<MessageDesign, 'info' | 'success' | 'warning
   Error: 'error',
 };
 
-/** Reads the message of a failed request, falling back to a generic text. */
+/** Читает сообщение неудавшегося запроса, при необходимости возвращая универсальный текст. */
 export function messageOfError(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-/** A message of a finished user interaction. */
+/** Сообщение о завершённом действии пользователя. */
 export interface AppMessage {
   text: string;
   design: MessageDesign;

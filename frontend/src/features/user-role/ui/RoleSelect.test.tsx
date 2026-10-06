@@ -21,8 +21,8 @@ describe('RoleSelect', () => {
 
     const select = container.querySelector('ui5-select') as HTMLElement & { value: string };
     expect(select.getAttribute('accessible-name')).toBe('Роль');
-    // React assigns `value` to the element itself, UI5 only mirrors it into the
-    // attribute when it renders the options.
+    // React присваивает `value` самому элементу, UI5 лишь переносит его в
+    // атрибут, когда отрисовывает опции.
     expect(select.value).toBe('user');
     expect([...container.querySelectorAll('ui5-option')].map((option) => option.textContent)).toEqual([
       i18n.t('roles.admin'),

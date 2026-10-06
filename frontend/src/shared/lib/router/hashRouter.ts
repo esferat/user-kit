@@ -12,13 +12,13 @@ export interface Router {
 }
 
 /**
- * Hash based router: `#/documents`, `#/documents/42`.
- * Deliberately dependency free - the application has three routes.
+ * Роутер на основе hash: `#/documents`, `#/documents/42`.
+ * Сознательно без зависимостей — в приложении три маршрута.
  */
 export function createRouter(windowRef: Window = window): Router {
   const listeners = new Set<(route: RouteTarget) => void>();
   let currentRoute = '';
-  /** Hash written by `navigate`, so the browser event does not emit twice. */
+  /** Hash, записанный через `navigate`, чтобы событие браузера не срабатывало дважды. */
   let pendingHash: string | null = null;
 
   function parse(hash: string): RouteTarget {

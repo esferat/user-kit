@@ -5,7 +5,7 @@ import type { AuthenticatedUser, MeResponse, Role } from '@/entities/user';
 import { joinUrl, requestJson, ApiError } from '@/shared/api';
 
 interface AuthConfigResponse {
-  /** `oidc` for a real provider, `dev` for the local login, `none` if none is on. */
+  /** `oidc` — настоящий провайдер, `dev` — локальный вход, `none` — вход не включён. */
   mode: AuthMode;
   devEnabled: boolean;
   oidcConfigured: boolean;
@@ -20,7 +20,7 @@ interface DevSessionResponse {
 }
 
 interface LogoutResponse {
-  /** Where to send the browser to end the provider session, null in the dev profile. */
+  /** Куда отправить браузер, чтобы завершить сессию провайдера, null в dev-профиле. */
   redirectUrl: string | null;
 }
 
@@ -35,10 +35,10 @@ function toUser(response: MeResponse): AuthenticatedUser {
 }
 
 /**
- * Cookie based authentication. The backend is the OAuth client: it exchanges the
- * authorization code, keeps the refresh token in its database and hands this
- * frontend two httpOnly cookies. Nothing about the token ever reaches this
- * bundle, which is the whole point of the setup.
+ * Аутентификация на основе cookie. Бэкенд — OAuth-клиент: он обменивает
+ * код авторизации, хранит refresh token в своей базе данных и выдаёт
+ * этому фронтенду два httpOnly cookie. Ни одна часть токена не попадает
+ * в этот бандл — в этом весь смысл такой схемы.
  */
 export class CookieAuthProvider implements AuthProvider {
   private readonly baseUrl: string;
@@ -73,8 +73,8 @@ export class CookieAuthProvider implements AuthProvider {
     } catch (error) {
       this.currentUser = null;
       this.emit();
-      // A missing session is the normal state of the login screen, anything else
-      // is a problem the shell has to show.
+      // Отсутствие сессии — обычное состояние экрана входа, любая другая
+      // ошибка — проблема, которую должна показать оболочка.
       if (error instanceof ApiError && error.status === 401) {
         return null;
       }
@@ -91,8 +91,8 @@ export class CookieAuthProvider implements AuthProvider {
     if (mode === 'none') {
       throw new AuthenticationError('The backend has no login method enabled');
     }
-    // Top level navigation: the provider redirects the browser to the backend,
-    // which sets the cookies and sends the visitor back to the application.
+    // Навигация верхнего уровня: провайдер перенаправляет браузер на бэкенд,
+    // который ставит cookie и возвращает посетителя в приложение.
     const target = joinUrl(this.baseUrl, '/api/v1/auth/login');
     const returnUrl = options.returnUrl ?? window.location.hash;
     window.location.assign(
@@ -124,7 +124,7 @@ export class CookieAuthProvider implements AuthProvider {
       body: JSON.stringify({}),
     });
     if (response.redirectUrl !== null && response.redirectUrl !== '') {
-      // Ends the session of the provider as well, so the next login asks again.
+      // Заодно завершает и сессию провайдера, поэтому при следующем входе будет новый запрос.
       window.location.assign(response.redirectUrl);
     }
   }

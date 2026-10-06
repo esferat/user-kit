@@ -7,12 +7,12 @@ import { i18n } from '@/shared/i18n';
 
 const FILE = new File(['payload'], 'report.txt', { type: 'text/plain' });
 
-/** `Modal` renders its dialog into a portal at the end of the document body. */
+/** `Modal` рендерит свой диалог в portal в конце document body. */
 function dialog(root: HTMLElement): HTMLElement {
   return root.querySelector('.ant-modal') as HTMLElement;
 }
 
-/** The footer of the dialog holds the cancel and the confirm button. */
+/** Подвал диалога содержит кнопки отмены и подтверждения. */
 function buttons(root: HTMLElement): HTMLButtonElement[] {
   return [...root.querySelectorAll<HTMLButtonElement>('.ant-modal-footer button.ant-btn')];
 }
@@ -21,14 +21,14 @@ function descriptionInput(root: HTMLElement): HTMLInputElement {
   return root.querySelector('.upload-dialog-body input') as HTMLInputElement;
 }
 
-/** antd reads the selection from the hidden file input of `Upload`. */
+/** antd читает выбор из скрытого file input компонента `Upload`. */
 function chooseFiles(root: HTMLElement, files: readonly File[]): void {
   const input = root.querySelector('input[type="file"]') as HTMLInputElement;
   Object.defineProperty(input, 'files', { configurable: true, value: files });
   fireEvent.change(input);
 }
 
-/** The list of antd is filled asynchronously, the dialog unlocks with it. */
+/** Список antd заполняется асинхронно, диалог разблокируется вместе с ним. */
 async function selectFiles(root: HTMLElement, files: readonly File[]): Promise<void> {
   chooseFiles(root, files);
   await waitFor(() => expect(buttons(root)[1].disabled).toBe(false));

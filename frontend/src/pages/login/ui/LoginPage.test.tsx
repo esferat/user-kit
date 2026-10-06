@@ -37,7 +37,7 @@ function submit(container: HTMLElement): HTMLElement {
 }
 
 async function ready(container: HTMLElement): Promise<void> {
-  // The button stays busy until the backend has answered which login exists.
+  // Кнопка остаётся занятой, пока backend не ответит, какие способы входа доступны.
   await waitFor(() => expect((submit(container) as HTMLElement & { loading: boolean }).loading).toBe(false));
 }
 

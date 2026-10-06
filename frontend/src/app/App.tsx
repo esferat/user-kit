@@ -20,7 +20,7 @@ export interface AppProps {
   config?: AppConfig;
 }
 
-/** The administration page is only reachable with the admin role. */
+/** Страница администрирования доступна только с ролью admin. */
 function PageOfRoute({ routeId, services }: { routeId: string; services: AppServices }) {
   if (routeId === 'admin-users') {
     return <UsersPage store={services.usersStore} />;
@@ -28,7 +28,7 @@ function PageOfRoute({ routeId, services }: { routeId: string; services: AppServ
   return <DocumentsPage store={services.filesStore} />;
 }
 
-/** Shell with the page of the route the user is allowed to open. */
+/** Shell со страницей маршрута, который пользователю разрешено открывать. */
 function Shell({ user, routeId, services }: { user: AuthenticatedUser; routeId: string; services: AppServices }) {
   return (
     <AppShell
@@ -44,7 +44,7 @@ function Shell({ user, routeId, services }: { user: AuthenticatedUser; routeId: 
   );
 }
 
-/** Shows the login screen or the shell, depending on the session. */
+/** Показывает экран входа или shell в зависимости от сессии. */
 const Session = observer(function Session({ config, services }: { config: AppConfig; services: AppServices }) {
   const routeId = useRouteId(services.router);
   const user = services.session.user;
@@ -59,8 +59,8 @@ const Session = observer(function Session({ config, services }: { config: AppCon
 });
 
 /**
- * Composition root: reads the configuration, wires authentication, API, stores,
- * theme, router and shell together and renders the state they end up in.
+ * Корень композиции: читает конфигурацию, связывает вместе аутентификацию, API,
+ * сторы, тему, роутер и shell и рендерит итоговое состояние.
  */
 export function App({ config = appConfig }: AppProps) {
   const services = useAppServices(config);

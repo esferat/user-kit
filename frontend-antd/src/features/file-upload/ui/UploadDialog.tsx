@@ -9,28 +9,28 @@ export type UploadSubmit = (files: readonly File[], description: string | undefi
 
 export interface UploadDialogProps {
   open: boolean;
-  /** Shows the progress of the upload and disables the confirm button. */
+  /** Показывает прогресс загрузки и блокирует кнопку подтверждения. */
   submitting: boolean;
   onClose(): void;
   onSubmit: UploadSubmit;
 }
 
-/** Dialog that collects the files and the optional description of an upload. */
+/** Диалог, который собирает файлы и необязательное описание загрузки. */
 export function UploadDialog({ open, submitting, onClose, onSubmit }: UploadDialogProps) {
   const t = useTranslate();
   const [fileList, setFileList] = useState<readonly UploadFile[]>([]);
   const [description, setDescription] = useState('');
 
   const reset = useCallback((): void => {
-    // The identity of an untouched value is kept, so closing an already closed
-    // dialog does not schedule a render.
+    // Идентичность нетронутого значения сохраняется, поэтому закрытие уже
+    // закрытого диалога не запускает отрисовку.
     setFileList((current) => (current.length === 0 ? current : []));
     setDescription((current) => (current === '' ? current : ''));
   }, []);
 
   useEffect(() => {
-    // A successful upload closes the dialog through its `open` prop instead of
-    // through `onClose`, and the next dialog has to start empty.
+    // Успешная загрузка закрывает диалог через его проп `open`, а не через
+    // `onClose`, и следующий диалог должен начинаться пустым.
     if (!open) {
       reset();
     }

@@ -111,5 +111,5 @@ function DocumentsPageView({ store }: DocumentsPageProps) {
   );
 }
 
-/** Documents page: search, sorting, upload and the table of the stored files. */
+/** Страница документов: поиск, сортировка, загрузка и таблица сохранённых файлов. */
 export const DocumentsPage = observer(DocumentsPageView);
