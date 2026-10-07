@@ -285,17 +285,21 @@
       "redirectUris": [
         "https://user-kit.ui5.local/api/v1/auth/callback",
         "https://user-kit.ant.local/api/v1/auth/callback",
+        "https://user-kit.mui.local/api/v1/auth/callback",
         "http://localhost:5173/api/v1/auth/callback",
-        "http://localhost:5174/api/v1/auth/callback"
+        "http://localhost:5174/api/v1/auth/callback",
+        "http://localhost:5175/api/v1/auth/callback"
       ],
       "webOrigins": [
         "https://user-kit.ui5.local",
         "https://user-kit.ant.local",
+        "https://user-kit.mui.local",
         "http://localhost:5173",
-        "http://localhost:5174"
+        "http://localhost:5174",
+        "http://localhost:5175"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "https://user-kit.ui5.local/*##https://user-kit.ant.local/*##http://localhost:5173/*##http://localhost:5174/*",
+        "post.logout.redirect.uris": "https://user-kit.ui5.local/*##https://user-kit.ant.local/*##https://user-kit.mui.local/*##http://localhost:5173/*##http://localhost:5174/*##http://localhost:5175/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.session.required": "true"
       },

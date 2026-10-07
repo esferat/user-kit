@@ -11,9 +11,10 @@ docker compose ps
 
 | Service | Image | Ports | Purpose |
 | --- | --- | --- | --- |
-| `edge` | `nginx:1.27-alpine` | 80, 443 | TLS termination, reverse proxy, headers, both server names |
+| `edge` | `nginx:1.27-alpine` | 80, 443 | TLS termination, reverse proxy, headers, the host names of all three domains |
 | `frontend` | built from `frontend/` | internal 80 | static UI5 assets, canonical domain |
 | `frontend-antd` | built from `frontend-antd/` | internal 80 | static Ant Design assets, second domain |
+| `frontend-mui` | built from `frontend-mui/` | internal 80 | static Material UI assets, third domain |
 | `backend` | built from `backend/` | 8080 | REST and OData service |
 | `keycloak` | `quay.io/keycloak/keycloak:26.4` | 8180, internal 8080 | identity provider, realm `user-kit` |
 | `postgres` | `postgres:17-alpine` | internal 5432 | database with Flyway migrations |
@@ -40,12 +41,12 @@ HTTPS with 308.
 ### Development certificate
 
 ```bash
-pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME and SERVER_NAME_ALT
-pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -AltDomain api.local -Days 30
+pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME, SERVER_NAME_ALT and SERVER_NAME_MUI
+pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -AltDomain app2.local -MuiDomain app3.local -Days 30
 ```
 
 The script runs `alpine/openssl` in Docker, so no OpenSSL installation is needed. The certificate
-contains `subjectAltName` entries for both domains, `localhost` and `127.0.0.1`. It is self signed,
+contains `subjectAltName` entries for all three domains, `localhost` and `127.0.0.1`. It is self signed,
 therefore every browser and every `curl` call needs `-k` or a manual exception, and it is ignored by
 the Java trust store of a real client.
 
@@ -73,6 +74,7 @@ included challenge location, mount the webroot of the certificate client into
 | --- | --- | --- |
 | `SERVER_NAME` | `user-kit.ui5.local` | canonical `server_name`, hosts the first frontend and `/auth` |
 | `SERVER_NAME_ALT` | `user-kit.ant.local` | `server_name` of the second frontend, `/auth` redirects to the canonical domain |
+| `SERVER_NAME_MUI` | `user-kit.mui.local` | `server_name` of the third frontend, `/auth` redirects to the canonical domain |
 | `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | published ports of the edge |
 | `MAX_UPLOAD_SIZE` | `26m` | nginx `client_max_body_size` |
 | `DATABASE_NAME` / `DATABASE_USERNAME` / `DATABASE_PASSWORD` | `userkit` | PostgreSQL |
@@ -102,8 +104,8 @@ included challenge location, mount the webroot of the certificate client into
 | `OIDC_CLIENT_ID` | `user-kit-bff` | confidential client of the realm |
 | `OIDC_CLIENT_SECRET` | dev-only value | client secret, change it for production |
 | `OIDC_CLIENT_ISSUER_URI` | `http://keycloak:8080/auth/realms/user-kit` | URL used for discovery, keep it while the public issuer is not reachable from the backend |
-| `OIDC_CLIENT_REDIRECT_URIS` | both callbacks, comma separated | one entry per frontend domain, must be registered for the client |
-| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS` | both frontend roots, comma separated | where the provider may return after the logout |
+| `OIDC_CLIENT_REDIRECT_URIS` | the callbacks of all three domains, comma separated | one entry per frontend domain, must be registered for the client |
+| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS` | the frontend roots of all three domains, comma separated | where the provider may return after the logout |
 | `OIDC_CLIENT_REDIRECT_URI` | `https://user-kit.ui5.local/api/v1/auth/callback` | fallback of the callback list |
 | `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI` | `https://user-kit.ui5.local/` | fallback of the post logout list |
 | `OIDC_CLIENT_SCOPES` | `openid profile email` | requested scopes |
@@ -115,13 +117,14 @@ included challenge location, mount the webroot of the certificate client into
 | `VITE_DEV_ROLE` | `admin` | build argument, role used by the local dev login |
 | `VITE_UI5_THEME` | `sap_horizon` | build argument, initial theme before the user switches it |
 | `VITE_ANTD_THEME` | `light` | build argument of the second frontend |
+| `VITE_MUI_THEME` | `light` | build argument of the third frontend |
 | `VITE_DEFAULT_LOCALE` | `ru` | build argument, `ru` or `en`; the user can switch the language |
 
 The `VITE_*` variables are build time configuration: Vite inlines them into the bundle and Compose
-forwards them as build arguments to the `frontend` and `frontend-antd` images. A change therefore
-needs `docker compose up -d --build frontend frontend-antd`, not a restart. Identity provider settings
-are no longer part of the bundle: the backend owns the login and reports the available methods through
-`/api/v1/auth/config`, so a provider change is a restart of the backend.
+forwards them as build arguments to the `frontend`, `frontend-antd` and `frontend-mui` images. A change
+therefore needs `docker compose up -d --build frontend frontend-antd frontend-mui`, not a restart.
+Identity provider settings are no longer part of the bundle: the backend owns the login and reports the
+available methods through `/api/v1/auth/config`, so a provider change is a restart of the backend.
 
 Backend only settings are documented in the README, for example `FILES_MAX_SIZE_BYTES`,
 `CORS_ALLOWED_ORIGINS` and `ODATA_MAX_PAGE_SIZE`.
@@ -129,8 +132,8 @@ Backend only settings are documented in the README, for example `FILES_MAX_SIZE_
 ## Production checklist
 
 - [ ] `SERVER_NAME` points to a real host and DNS resolves to the edge container;
-      `SERVER_NAME_ALT` does the same when a second frontend is served.
-- [ ] A trusted TLS certificate is mounted and covers both names, `ssl_stapling` is enabled if the
+      `SERVER_NAME_ALT` and `SERVER_NAME_MUI` do the same for the other frontends.
+- [ ] A trusted TLS certificate is mounted and covers all three names, `ssl_stapling` is enabled if the
       issuer supports OCSP.
 - [ ] `SPRING_PROFILES_ACTIVE` is not `dev`, `DEV_AUTH_ENABLED=false`, `DEV_AUTH_SECRET` is random.
 - [ ] `DATABASE_PASSWORD`, `S3_SECRET_KEY` and `OIDC_ISSUER_URI` are set for the real environment.
@@ -175,9 +178,10 @@ optimistic locking, role administration and deletion. It prints one line per che
 if anything deviates from the expected status.
 
 ```bash
-pwsh ./scripts/smoke.ps1                                   # SERVER_NAME, SERVER_NAME_ALT
+pwsh ./scripts/smoke.ps1                                   # SERVER_NAME, SERVER_NAME_ALT, SERVER_NAME_MUI
 pwsh ./scripts/smoke.ps1 -ServerName app.local
 pwsh ./scripts/smoke.ps1 -AltServerName app2.local          # second domain, must exist
+pwsh ./scripts/smoke.ps1 -MuiServerName app3.local          # third domain, must exist
 pwsh ./scripts/smoke.ps1 -SkipCertificateCheck             # only with a trusted certificate
 pwsh ./scripts/smoke.ps1 -AuthMode oidc                    # tokens from the identity provider
 pwsh ./scripts/smoke.ps1 -AuthMode dev                      # tokens from /api/v1/dev/token
@@ -195,10 +199,10 @@ The script also checks the cookie login: `/api/v1/auth/config` has to report the
 be rejected with `403`. It finally inspects the deployed SPA bundle to confirm that no identity
 provider configuration and no OIDC client library leaked into it.
 
-The last block runs against the second domain: it serves its own SPA and the same API, `/auth` has to
-redirect to the canonical domain, and a login of that domain has to announce the callback of that
-domain, never the one of the other one. Pass an empty `-AltServerName` only after removing the second
-server block from the edge template.
+The last block runs against the second and third domain: each serves its own SPA and the same API,
+`/auth` has to redirect to the canonical domain, and a login of that domain has to announce the callback
+of that domain, never the one of another one. Pass an empty `-AltServerName` and `-MuiServerName` only
+after removing the second and third server blocks from the edge template.
 
 ## Useful commands
 

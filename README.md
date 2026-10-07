@@ -73,22 +73,23 @@ Requirements: Docker with Compose v2, PowerShell (only for the certificate helpe
 git clone <this repository> user-kit
 cd user-kit
 cp .env.example .env                 # Windows: Copy-Item .env.example .env
-pwsh ./scripts/generate-dev-cert.ps1 # creates a self-signed certificate for both domains
+pwsh ./scripts/generate-dev-cert.ps1 # creates a self-signed certificate for all three domains
 docker compose up -d --build
 ```
 
-The stack serves two independent applications: `SERVER_NAME` (default `user-kit.ui5.local`, UI5) and
-`SERVER_NAME_ALT` (default `user-kit.ant.local`, Ant Design). Both talk to the same backend but keep
-their own sessions, because the cookies are scoped to the host. Add both names to
+The stack serves three independent applications: `SERVER_NAME` (default `user-kit.ui5.local`, UI5),
+`SERVER_NAME_ALT` (default `user-kit.ant.local`, Ant Design) and `SERVER_NAME_MUI` (default
+`user-kit.mui.local`, Material UI). They all talk to the same backend but keep their own sessions,
+because the cookies are scoped to the host. Add all three names to
 `C:\Windows\System32\drivers\etc\hosts` (Windows) or `/etc/hosts` (Linux/macOS):
 
 ```
-127.0.0.1 user-kit.ui5.local user-kit.ant.local
+127.0.0.1 user-kit.ui5.local user-kit.ant.local user-kit.mui.local
 ```
 
-Open <https://user-kit.ui5.local> or <https://user-kit.ant.local> and accept the self-signed
-certificate. Because the development certificate is not issued by a trusted CA, every `curl` example
-in this repository uses `-k`.
+Open <https://user-kit.ui5.local>, <https://user-kit.ant.local> or <https://user-kit.mui.local> and
+accept the self-signed certificate. Because the development certificate is not issued by a trusted CA,
+every `curl` example in this repository uses `-k`.
 
 Sign in at the Keycloak login dialog that the application opens:
 
@@ -109,7 +110,7 @@ returns to the domain it started on: the backend picks the callback of that orig
 `OIDC_CLIENT_REDIRECT_URIS` and stores it in the login state, so the token exchange sends the same
 `redirect_uri` the provider saw. What the bundle does carry is configured at build time: Vite inlines
 the `VITE_*` variables into the bundle and Compose passes them as build arguments, for example
-`VITE_UI5_THEME`, `VITE_ANTD_THEME` and `VITE_DEFAULT_LOCALE`. Setting `DEV_AUTH_ENABLED=false`
+`VITE_UI5_THEME`, `VITE_ANTD_THEME`, `VITE_MUI_THEME` and `VITE_DEFAULT_LOCALE`. Setting `DEV_AUTH_ENABLED=false`
 removes the local login; the login dialog of Keycloak then is the only way in.
 
 For the local login the backend offers a second method next to the dialog. With `DEV_AUTH_ENABLED=true`
@@ -120,6 +121,7 @@ token in a cookie, no password involved.
 | --- | --- |
 | <https://user-kit.ui5.local/> | UI5 Web Components application, the canonical domain |
 | <https://user-kit.ant.local/> | Ant Design application, the second domain |
+| <https://user-kit.mui.local/> | Material UI application, the third domain |
 | <https://user-kit.ui5.local/auth/> | Keycloak, the identity provider of the stack, only on the canonical domain |
 | <https://user-kit.ui5.local/swagger-ui/index.html> | Swagger UI |
 | <https://user-kit.ui5.local/healthz> | Edge health probe (`ok`) |
@@ -279,12 +281,13 @@ export DEV_AUTH_SECRET=dev-only-secret-change-me-0123456789abcdef
 | `VITE_API_BASE_URL` | empty | Empty means same origin; used for split deployments |
 | `VITE_UI5_THEME` | `sap_horizon` | UI5 theme name |
 | `VITE_ANTD_THEME` | `light` | Ant Design theme alias of the second frontend |
+| `VITE_MUI_THEME` | `light` | Material UI theme alias of the third frontend |
 | `VITE_DEFAULT_LOCALE` | `ru` | `ru` or `en`, the user can switch the language |
 | `VITE_DEV_ROLE` | `user` | Role requested by the local login of the dev profile |
 
 The frontend has no identity provider configuration: the backend reports the available login methods
 through `GET /api/v1/auth/config`. Because Vite inlines these variables, a change requires
-`docker compose up -d --build frontend frontend-antd`.
+`docker compose up -d --build frontend frontend-antd frontend-mui`.
 
 ## API overview
 
@@ -334,9 +337,11 @@ Details and examples are in [`docs/api.md`](docs/api.md) and [`docs/odata.md`](d
 docker run --rm -v userkit-m2:/root/.m2 -v "$PWD/backend:/workspace" -w /workspace \
   maven:3.9-eclipse-temurin-21 mvn -B -ntp test
 
-# frontend: 316 (UI5) and 306 (Ant Design) unit tests plus lint, formatting and the production build
+# frontend: 316 (UI5), 306 (Ant Design) and 290 (Material UI) unit tests plus lint,
+# formatting and the production build
 cd frontend && npm run check && npm run build
 cd ../frontend-antd && npm run check && npm run build
+cd ../frontend-mui && npm run check && npm run build
 ```
 
 ## Repository layout
@@ -361,6 +366,7 @@ user-kit/
 │       ├── entities/       user and file domain with their API calls
 │       └── shared/         http and OData, configuration, i18n, hooks, format, router, UI
 ├── frontend-antd/          second frontend, Vite + React 19 + TypeScript + MobX + Ant Design
+├── frontend-mui/           third frontend, Vite + React 19 + TypeScript + Redux Toolkit + Material UI
 ├── nginx/                  edge template and certificates directory
 ├── keycloak/realm/         realm import of the local identity provider
 ├── scripts/                development helper scripts

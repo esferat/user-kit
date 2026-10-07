@@ -103,8 +103,8 @@ services:
       # One callback per frontend. A login always comes back to the domain it was
       # started on, because the cookies of the other domain stay unknown to the
       # browser and the state row keeps the exact callback of that login.
-      OIDC_CLIENT_REDIRECT_URIS: ${OIDC_CLIENT_REDIRECT_URIS:-https://user-kit.ui5.local/api/v1/auth/callback,https://user-kit.ant.local/api/v1/auth/callback}
-      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS:-https://user-kit.ui5.local/,https://user-kit.ant.local/}
+      OIDC_CLIENT_REDIRECT_URIS: ${OIDC_CLIENT_REDIRECT_URIS:-https://user-kit.ui5.local/api/v1/auth/callback,https://user-kit.ant.local/api/v1/auth/callback,https://user-kit.mui.local/api/v1/auth/callback}
+      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS:-https://user-kit.ui5.local/,https://user-kit.ant.local/,https://user-kit.mui.local/}
       # Singular values stay as the fallback of the lists above, they are what a
       # login state without a callback of its own falls back to.
       OIDC_CLIENT_REDIRECT_URI: ${OIDC_CLIENT_REDIRECT_URI:-https://user-kit.ui5.local/api/v1/auth/callback}
@@ -150,8 +150,8 @@ services:
       - backend
     restart: unless-stopped
 
-  # Second frontend on its own domain. Both talk to the same backend, but the
-  # login stays on the domain it started on: the session cookies are host only.
+  # Second frontend on its own domain. All of them talk to the same backend, but
+  # the login stays on the domain it started on: the session cookies are host only.
   frontend-antd:
     build:
       context: ./frontend-antd
@@ -164,20 +164,36 @@ services:
       - backend
     restart: unless-stopped
 
+  # Third frontend, Material UI, once again on its own domain.
+  frontend-mui:
+    build:
+      context: ./frontend-mui
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_MUI_THEME: ${VITE_MUI_THEME:-light}
+        VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-ru}
+        VITE_DEV_ROLE: ${VITE_DEV_ROLE:-admin}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   edge:
     image: nginx:1.27-alpine
     depends_on:
       - frontend
       - frontend-antd
+      - frontend-mui
       - backend
       - keycloak
     environment:
       # Canonical domain: serves the identity provider under /auth, so the issuer
-      # of the tokens is a single origin for both frontends.
+      # of the tokens is a single origin for all frontends.
       SERVER_NAME: ${SERVER_NAME:-user-kit.ui5.local}
       SERVER_NAME_ALT: ${SERVER_NAME_ALT:-user-kit.ant.local}
+      SERVER_NAME_MUI: ${SERVER_NAME_MUI:-user-kit.mui.local}
       UPSTREAM_FRONTEND: frontend:80
       UPSTREAM_FRONTEND_ALT: frontend-antd:80
+      UPSTREAM_FRONTEND_MUI: frontend-mui:80
       UPSTREAM_BACKEND: backend:8080
       UPSTREAM_KEYCLOAK: keycloak:8080
       MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-26m}

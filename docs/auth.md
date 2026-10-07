@@ -127,7 +127,7 @@ every start of a fresh container:
 | --- | --- |
 | Realm | `user-kit`, served below `/auth` of the canonical host |
 | Issuer | `https://user-kit.ui5.local/auth/realms/user-kit` |
-| Client `user-kit-bff` | confidential, the backend performs Authorization Code + PKCE (`S256`), redirects `/api/v1/auth/callback` of both domains |
+| Client `user-kit-bff` | confidential, the backend performs Authorization Code + PKCE (`S256`), redirects `/api/v1/auth/callback` of all application domains |
 | Client `user-kit-web` | legacy public client, no longer used by the frontend |
 | Client `user-kit-api` | audience of the access token, no interactive login |
 | Client scope `user-kit-api-audience` | adds `aud=user-kit-api` to the access token |
@@ -194,8 +194,8 @@ login therefore continues where it started:
    returns the visitor to the same application.
 
 `auth_login_state.callback_uri` is nullable and added in migration `V3`. A state row without it comes
-from before the second domain existed and falls back to `OIDC_CLIENT_REDIRECT_URI`, which keeps old
-logins alive during a rolling update. Both domains also need an entry in the realm: every callback in
+from before the other domains existed and falls back to `OIDC_CLIENT_REDIRECT_URI`, which keeps old
+logins alive during a rolling update. Every domain also needs an entry in the realm: every callback in
 `OIDC_CLIENT_REDIRECT_URIS` has to be a valid redirect URI of the client, and every root in
 `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS` has to be a valid post logout redirect URI.
 
@@ -209,11 +209,12 @@ issuer that no client can reach:
 | --- | --- | --- |
 | `SERVER_NAME` | `user-kit.ui5.local` | canonical public host of the edge container, the one that serves `/auth` |
 | `SERVER_NAME_ALT` | `user-kit.ant.local` | second public host, its `/auth` redirects to the canonical domain |
+| `SERVER_NAME_MUI` | `user-kit.mui.local` | third public host, its `/auth` redirects to the canonical domain |
 | `KEYCLOAK_RELATIVE_PATH` | `/auth` | prefix below `SERVER_NAME` |
 | `KEYCLOAK_HOSTNAME` | `https://user-kit.ui5.local/auth` | public base URL of Keycloak, **including** the prefix |
 
-The provider is served by one domain only. That is what keeps a single `iss` for both applications and
-avoids the same provider answering under two hostnames. The second domain reaches it through the
+The provider is served by one domain only. That is what keeps a single `iss` for all applications and
+avoids the same provider answering under several hostnames. The other domains reach it through the
 authorization URL the backend builds, and a stray `/auth` link is redirected by the edge.
 
 When `SERVER_NAME` changes, set `KEYCLOAK_HOSTNAME` accordingly and keep

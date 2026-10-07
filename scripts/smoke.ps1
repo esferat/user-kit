@@ -1,6 +1,7 @@
 param(
     [string]$ServerName = $(if ($env:SERVER_NAME) { $env:SERVER_NAME } else { 'user-kit.ui5.local' }),
     [string]$AltServerName = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.ant.local' }),
+    [string]$MuiServerName = $(if ($env:SERVER_NAME_MUI) { $env:SERVER_NAME_MUI } else { 'user-kit.mui.local' }),
     [string]$Address = '127.0.0.1',
     [switch]$SkipCertificateCheck,
     [ValidateSet('auto', 'dev', 'oidc')]
@@ -24,14 +25,15 @@ param(
 # enabled with DEV_AUTH_ENABLED=true.
 #
 # $ServerName is the canonical domain: it hosts the identity provider and the
-# first frontend. $AltServerName is the second frontend, the one that only
-# reaches the provider through a redirect. The last block checks that both
+# first frontend. $AltServerName is the second frontend, $MuiServerName the third,
+# both only reach the provider through a redirect. The last block checks that all
 # domains keep their own login.
 
 $ErrorActionPreference = 'Stop'
 $base = "https://$ServerName"
 $altBase = "https://$AltServerName"
-$resolve = @('--resolve', "${ServerName}:443:${Address}", '--resolve', "${AltServerName}:443:${Address}", '-s')
+$muiBase = "https://$MuiServerName"
+$resolve = @('--resolve', "${ServerName}:443:${Address}", '--resolve', "${AltServerName}:443:${Address}", '--resolve', "${MuiServerName}:443:${Address}", '-s')
 if (-not $SkipCertificateCheck) {
     $resolve = @('-k') + $resolve
 }
@@ -273,36 +275,44 @@ try {
     Remove-Item -LiteralPath $tempFile, $tempBody, $patchBody, $rolesBody -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host ''
-Write-Host "Second frontend on $altBase" -ForegroundColor Cyan
-Write-Host ''
+function Test-ApplicationDomain {
+    param([string]$Name, [string]$BaseUrl)
 
-# The second domain serves its own SPA and the same API. Only the identity
-# provider lives on the canonical domain, so the browser reaches it from there.
-Show "$AltServerName GET /healthz" (HttpCode @() "$altBase/healthz")
-Show "$AltServerName GET / (SPA index)" (HttpCode @() "$altBase/")
-Show "$AltServerName GET /v3/api-docs" (HttpCode @() "$altBase/v3/api-docs")
-Show "$AltServerName GET /api/v1/me without token" (HttpCode @() "$altBase/api/v1/me") '401'
-Show "$AltServerName GET /api/v1/auth/config" (HttpCode @() "$altBase/api/v1/auth/config")
+    # A non canonical domain serves its own SPA and the same API. Only the
+    # identity provider lives on the canonical domain, so the browser reaches it
+    # from there through a redirect.
+    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz")
+    Show "$Name GET / (SPA index)" (HttpCode @() "$BaseUrl/")
+    Show "$Name GET /v3/api-docs" (HttpCode @() "$BaseUrl/v3/api-docs")
+    Show "$Name GET /api/v1/me without token" (HttpCode @() "$BaseUrl/api/v1/me") '401'
+    Show "$Name GET /api/v1/auth/config" (HttpCode @() "$BaseUrl/api/v1/auth/config")
 
-$altIndex = (Http @() "$altBase/") -join "`n"
-$altEntry = [regex]::Match($altIndex, 'src="(?<src>/assets/index-[^"]+\.js)"').Groups['src'].Value
-ShowCheck "$AltServerName index.html references a bundle" ([bool]$altEntry) ("entry=" + $altEntry)
+    $index = (Http @() "$BaseUrl/") -join "`n"
+    $entry = [regex]::Match($index, 'src="(?<src>/assets/index-[^"]+\.js)"').Groups['src'].Value
+    ShowCheck "$Name index.html references a bundle" ([bool]$entry) ("entry=" + $entry)
 
-if ($mode -eq 'oidc') {
-    # A login of the second domain has to come back to the second domain, the
-    # session cookies of the canonical one would be unknown to the browser.
-    $altLogin = Get-Location "$altBase/api/v1/auth/login"
-    ShowCheck "$AltServerName login redirects to the provider" ($altLogin -like "$base/auth/*") ("location=" + $altLogin)
-    ShowCheck "$AltServerName login announces its own callback" ($altLogin.Contains("redirect_uri=$altBase/api/v1/auth/callback")) ("callback=$altBase/api/v1/auth/callback")
-    ShowCheck "$AltServerName login does not announce the other domain" (-not $altLogin.Contains("redirect_uri=$base/api/v1/auth/callback"))
+    if ($mode -eq 'oidc') {
+        # A login of this domain has to come back to this domain, the session
+        # cookies of the canonical one would be unknown to the browser.
+        $login = Get-Location "$BaseUrl/api/v1/auth/login"
+        ShowCheck "$Name login redirects to the provider" ($login -like "$base/auth/*") ("location=" + $login)
+        ShowCheck "$Name login announces its own callback" ($login.Contains("redirect_uri=$BaseUrl/api/v1/auth/callback")) ("callback=$BaseUrl/api/v1/auth/callback")
+        ShowCheck "$Name login does not announce another domain" (-not $login.Contains("redirect_uri=$base/api/v1/auth/callback"))
 
-    $authRedirect = Get-Location "$altBase/auth/realms/$Realm/.well-known/openid-configuration"
-    Show "$AltServerName GET /auth/... redirects to the canonical domain" (HttpCode @('-o', 'NUL') "$altBase/auth/realms/$Realm/.well-known/openid-configuration") '308'
-    ShowCheck "$AltServerName /auth redirect keeps the path" ($authRedirect -eq "$base/auth/realms/$Realm/.well-known/openid-configuration") ("location=" + $authRedirect)
-} else {
-    Show "$AltServerName GET /api/v1/auth/login without a provider" (HttpCode @('-o', 'NUL') "$altBase/api/v1/auth/login") '400'
+        $authRedirect = Get-Location "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration"
+        Show "$Name GET /auth/... redirects to the canonical domain" (HttpCode @('-o', 'NUL') "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration") '308'
+        ShowCheck "$Name /auth redirect keeps the path" ($authRedirect -eq "$base/auth/realms/$Realm/.well-known/openid-configuration") ("location=" + $authRedirect)
+    } else {
+        Show "$Name GET /api/v1/auth/login without a provider" (HttpCode @('-o', 'NUL') "$BaseUrl/api/v1/auth/login") '400'
+    }
 }
+
+Write-Host ''
+Write-Host "Second and third frontend: $altBase, $muiBase" -ForegroundColor Cyan
+Write-Host ''
+
+Test-ApplicationDomain $AltServerName $altBase
+Test-ApplicationDomain $MuiServerName $muiBase
 
 Write-Host ''
 if ($script:Failures -eq 0) {
