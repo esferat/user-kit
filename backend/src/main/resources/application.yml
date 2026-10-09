@@ -112,6 +112,5 @@ app:
     create-bucket: ${S3_CREATE_BUCKET:true}
   files:
     max-size-bytes: ${FILES_MAX_SIZE_BYTES:26214400}
-  odata:
-    default-page-size: ${ODATA_DEFAULT_PAGE_SIZE:50}
-    max-page-size: ${ODATA_MAX_PAGE_SIZE:200}
+  rest:
+    max-page-size: ${REST_MAX_PAGE_SIZE:200}

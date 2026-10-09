@@ -1,6 +1,6 @@
 # API
 
-Base URL in the compose deployment: `https://user-kit.ui5.local`. All endpoints below expect
+Base URL in the compose deployment: `https://user-kit.local`. All endpoints below expect
 `Authorization: Bearer <access token>` unless stated otherwise. The examples use `-k` because the
 development certificate is self-signed.
 
@@ -14,47 +14,51 @@ Every error of the application layer uses the same document:
   "status": 412,
   "code": "precondition_failed",
   "message": "The resource was modified by another request",
-  "path": "/odata/Files/6f1c2a6e-1f1a-4a2f-9f3f-2f2f5b7c9d10",
+  "path": "/api/v1/Files/6f1c2a6e-1f1a-4a2f-9f3f-2f2f5b7c9d10",
   "violations": []
 }
 ```
 
-| Field | Description |
-| --- | --- |
-| `timestamp` | UTC instant of the failure |
-| `status` | HTTP status code |
-| `code` | Stable machine readable code, see the table below |
-| `message` | Human readable explanation, never contains stack traces |
-| `path` | Request URI |
-| `violations` | Field level validation errors, empty otherwise |
+| Field        | Description                                             |
+| ------------ | ------------------------------------------------------- |
+| `timestamp`  | UTC instant of the failure                              |
+| `status`     | HTTP status code                                        |
+| `code`       | Stable machine readable code, see the table below       |
+| `message`    | Human readable explanation, never contains stack traces |
+| `path`       | Request URI                                             |
+| `violations` | Field level validation errors, empty otherwise          |
 
 The security filter answers 401 and 403 before the controller layer is reached and therefore uses a
 compact document without `timestamp`, `status` and `path`:
 
 ```json
-{ "code": "unauthorized", "message": "Authentication is required", "violations": [] }
+{
+  "code": "unauthorized",
+  "message": "Authentication is required",
+  "violations": []
+}
 ```
 
 ### Error codes
 
-| Code | Status | Meaning |
-| --- | --- | --- |
-| `unauthorized` | 401 | Missing, invalid or expired token |
-| `forbidden` | 403 | Authenticated but not allowed, for example a user on `/odata/Users` |
-| `bad_request` | 400 | Malformed query, JSON body or parameter type, including unknown request properties |
-| `validation_failed` | 400 | Bean validation failed, details in `violations` |
-| `unknown_role` | 400 | Dev token endpoint called with a role other than `user`/`admin` |
-| `invalid_name` | 400 | File name empty, too long or only path separators |
-| `invalid_roles` | 400 | Role set empty or contains an unsupported role |
-| `read_only_property` | 400 | PATCH tried to change an immutable property |
-| `unsupported_odata_option` | 400 | OData system query option outside the supported subset |
-| `empty_file` | 400 | Upload without content |
-| `not_found` | 404 | Unknown resource |
-| `conflict` | 409 | Conflicting state |
-| `precondition_failed` | 412 | `If-Match` does not match the current version |
-| `payload_too_large` | 413 | Upload above `FILES_MAX_SIZE_BYTES`, nginx `client_max_body_size` or the servlet limit |
-| `storage_unavailable` | 502 | The object storage rejected the request |
-| `internal_error` | 500 | Unexpected failure, details are logged server side |
+| Code                       | Status | Meaning                                                                                |
+| -------------------------- | ------ | -------------------------------------------------------------------------------------- |
+| `unauthorized`             | 401    | Missing, invalid or expired token                                                      |
+| `forbidden`                | 403    | Authenticated but not allowed, for example a user on `/api/v1/Users`                    |
+| `bad_request`              | 400    | Malformed query, JSON body or parameter type, including unknown request properties     |
+| `validation_failed`        | 400    | Bean validation failed, details in `violations`                                        |
+| `unknown_role`             | 400    | Dev token endpoint called with a role other than `user`/`admin`                        |
+| `invalid_name`             | 400    | File name empty, too long or only path separators                                      |
+| `invalid_roles`            | 400    | Role set empty or contains an unsupported role                                         |
+| `read_only_property`       | 400    | PATCH tried to change an immutable property                                            |
+| `unsupported_odata_option` | 400    | OData system query option outside the supported subset                                 |
+| `empty_file`               | 400    | Upload without content                                                                 |
+| `not_found`                | 404    | Unknown resource                                                                       |
+| `conflict`                 | 409    | Conflicting state                                                                      |
+| `precondition_failed`      | 412    | `If-Match` does not match the current version                                          |
+| `payload_too_large`        | 413    | Upload above `FILES_MAX_SIZE_BYTES`, nginx `client_max_body_size` or the servlet limit |
+| `storage_unavailable`      | 502    | The object storage rejected the request                                                |
+| `internal_error`           | 500    | Unexpected failure, details are logged server side                                     |
 
 ## Profile
 
@@ -64,7 +68,7 @@ Returns the profile of the caller. The roles are the roles stored in the applica
 claims of the token.
 
 ```bash
-curl -sk -H "Authorization: Bearer $TOKEN" https://user-kit.ui5.local/api/v1/me
+curl -sk -H "Authorization: Bearer $TOKEN" https://user-kit.local/api/v1/me
 ```
 
 ```json
@@ -88,7 +92,7 @@ Issues a short lived HS256 token for the local issuer `user-kit-dev`. Without `s
 subject is generated, which creates a new account on the first call.
 
 ```bash
-curl -sk "https://user-kit.ui5.local/api/v1/dev/token?role=admin"
+curl -sk "https://user-kit.local/api/v1/dev/token?role=admin"
 ```
 
 ```json
@@ -147,7 +151,7 @@ with the created file.
 ```bash
 curl -sk -H "Authorization: Bearer $TOKEN" \
   -F "file=@report.pdf" -F "description=Q3 numbers" \
-  https://user-kit.ui5.local/api/v1/files
+  https://user-kit.local/api/v1/files
 ```
 
 Rules applied by the service:
@@ -170,31 +174,31 @@ Deletes metadata and content, answers 204. Honours `If-Match`:
 
 ```bash
 curl -sk -X DELETE -H "Authorization: Bearer $TOKEN" -H 'If-Match: W/"3"' \
-  https://user-kit.ui5.local/api/v1/files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
+  https://user-kit.local/api/v1/files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
 ```
 
 ## OData
 
 See [`odata.md`](odata.md) for the supported subset. The endpoints are:
 
-| Method | Path | Notes |
-| --- | --- | --- |
-| `GET` | `/odata/$metadata` | CSDL metadata, requires a token |
-| `GET` | `/odata/Files` | Query options: `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` |
-| `GET` | `/odata/Files/{id}` | Single file, `ETag` in body and header |
-| `GET` | `/odata/Files/{id}/$value` | Binary content of the file |
-| `PATCH` | `/odata/Files/{id}` | `name` and `description`, honours `If-Match` |
-| `DELETE` | `/odata/Files/{id}` | Honours `If-Match`, answers 204 |
-| `GET` | `/odata/Users` | `admin` only |
-| `GET` | `/odata/Users/{id}` | `admin` only |
-| `PATCH` | `/odata/Users/{id}` | `roles` and `enabled`, `admin` only |
+| Method   | Path                       | Notes                                                                      |
+| -------- | -------------------------- | -------------------------------------------------------------------------- |
+| `GET`    | `/api/v1/$metadata`         | CSDL metadata, requires a token                                            |
+| `GET`    | `/api/v1/Files`             | Query options: `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` |
+| `GET`    | `/api/v1/Files/{id}`        | Single file, `ETag` in body and header                                     |
+| `GET`    | `/api/v1/Files/{id}/$value` | Binary content of the file                                                 |
+| `PATCH`  | `/api/v1/Files/{id}`        | `name` and `description`, honours `If-Match`                               |
+| `DELETE` | `/api/v1/Files/{id}`        | Honours `If-Match`, answers 204                                            |
+| `GET`    | `/api/v1/Users`             | `admin` only                                                               |
+| `GET`    | `/api/v1/Users/{id}`        | `admin` only                                                               |
+| `PATCH`  | `/api/v1/Users/{id}`        | `roles` and `enabled`, `admin` only                                        |
 
 Writable properties:
 
-| Entity | Writable | Read-only |
-| --- | --- | --- |
+| Entity  | Writable              | Read-only                                                                                               |
+| ------- | --------------------- | ------------------------------------------------------------------------------------------------------- |
 | `Files` | `name`, `description` | `id`, `storageKey`, `contentType`, `sizeBytes`, `checksum`, `ownerId`, `createdAt`, `updatedAt`, `etag` |
-| `Users` | `roles`, `enabled` | `id`, `subject`, `username`, `email`, `displayName`, `createdAt`, `updatedAt`, `etag` |
+| `Users` | `roles`, `enabled`    | `id`, `subject`, `username`, `email`, `displayName`, `createdAt`, `updatedAt`, `etag`                   |
 
 Sending a read-only property in a PATCH body is answered with `read_only_property` instead of being
 ignored silently. Jackson runs with `spring.jackson.deserialization.fail-on-unknown-properties=true`,
@@ -204,7 +208,7 @@ answered with `bad_request` and the message `Unknown request property: <name>`.
 ```bash
 curl -sk -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -H 'If-Match: W/"0"' -d '{"name":"renamed.pdf","description":"final"}' \
-  https://user-kit.ui5.local/odata/Files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
+  https://user-kit.local/api/v1/Files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
 ```
 
 Roles are normalized: the set must be a non-empty subset of `admin` and `user`, and `admin` is
@@ -225,11 +229,11 @@ always the new version.
 
 ## Documentation endpoints
 
-| Path | Description |
-| --- | --- |
-| `/v3/api-docs` | OpenAPI 3 document, public |
-| `/swagger-ui/index.html` | Swagger UI, public |
-| `/actuator/health` | Health probe used by the container health check |
+| Path                     | Description                                     |
+| ------------------------ | ----------------------------------------------- |
+| `/v3/api-docs`           | OpenAPI 3 document, public                      |
+| `/swagger-ui/index.html` | Swagger UI, public                              |
+| `/actuator/health`       | Health probe used by the container health check |
 
 Both documentation endpoints are public on purpose so that the contract can be inspected without a
 token. Restrict them at the edge if that is not acceptable for your deployment:

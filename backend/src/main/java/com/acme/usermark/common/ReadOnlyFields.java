@@ -1,7 +1,7 @@
 package com.acme.usermark.common;
 
 /**
- * OData patch payloads may only contain writable properties. Properties that are
+ * PATCH payloads may only contain writable properties. Properties that are
  * derived from the identity provider, the object storage or the request itself
  * are rejected explicitly instead of being ignored silently.
  */

@@ -9,16 +9,16 @@ docker compose up -d --build
 docker compose ps
 ```
 
-| Service | Image | Ports | Purpose |
-| --- | --- | --- | --- |
-| `edge` | `nginx:1.27-alpine` | 80, 443 | TLS termination, reverse proxy, headers, the host names of all three domains |
-| `frontend` | built from `frontend/` | internal 80 | static UI5 assets, canonical domain |
-| `frontend-antd` | built from `frontend-antd/` | internal 80 | static Ant Design assets, second domain |
-| `frontend-mui` | built from `frontend-mui/` | internal 80 | static Material UI assets, third domain |
-| `backend` | built from `backend/` | 8080 | REST and OData service |
-| `keycloak` | `quay.io/keycloak/keycloak:26.4` | 8180, internal 8080 | identity provider, realm `user-kit` |
-| `postgres` | `postgres:17-alpine` | internal 5432 | database with Flyway migrations |
-| `object-storage` | `${SILO_IMAGE:-pgsty/silo}:${SILO_VERSION}` | console 9001, internal 9000 | S3 compatible file storage |
+| Service          | Image                                       | Ports                       | Purpose                                                                      |
+| ---------------- | ------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------- |
+| `edge`           | `nginx:1.27-alpine`                         | 80, 443                     | TLS termination, reverse proxy, headers, the host names of all three domains |
+| `frontend`       | built from `frontend/`                      | internal 80                 | static UI5 assets, canonical domain                                          |
+| `frontend-antd`  | built from `frontend-antd/`                 | internal 80                 | static Ant Design assets, second domain                                      |
+| `frontend-mui`   | built from `frontend-mui/`                  | internal 80                 | static Material UI assets, third domain                                      |
+| `backend`        | built from `backend/`                       | 8080                        | REST and OData service                                                       |
+| `keycloak`       | `quay.io/keycloak/keycloak:26.4`            | 8180, internal 8080         | identity provider, realm `user-kit`                                          |
+| `postgres`       | `postgres:17-alpine`                        | internal 5432               | database with Flyway migrations                                              |
+| `object-storage` | `${SILO_IMAGE:-pgsty/silo}:${SILO_VERSION}` | console 9001, internal 9000 | S3 compatible file storage                                                   |
 
 Volumes `postgres-data` and `object-storage-data` keep the state across restarts. `docker compose
 down -v` deletes them. Keycloak uses `dev-file`, so its data lives inside the container and a
@@ -70,55 +70,55 @@ included challenge location, mount the webroot of the certificate client into
 
 ### Compose (`.env`)
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `SERVER_NAME` | `user-kit.ui5.local` | canonical `server_name`, hosts the first frontend and `/auth` |
-| `SERVER_NAME_ALT` | `user-kit.ant.local` | `server_name` of the second frontend, `/auth` redirects to the canonical domain |
-| `SERVER_NAME_MUI` | `user-kit.mui.local` | `server_name` of the third frontend, `/auth` redirects to the canonical domain |
-| `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | published ports of the edge |
-| `MAX_UPLOAD_SIZE` | `26m` | nginx `client_max_body_size` |
-| `DATABASE_NAME` / `DATABASE_USERNAME` / `DATABASE_PASSWORD` | `userkit` | PostgreSQL |
-| `S3_BUCKET` | `user-kit` | bucket name |
-| `S3_REGION` | `us-east-1` | signing region |
-| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | `siloadmin` | storage credentials, also used as `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, change them |
-| `S3_CREATE_BUCKET` | `true` | create the bucket on startup |
-| `SILO_VERSION` | `latest` | image tag of the object storage |
-| `SILO_IMAGE` | `pgsty/silo` | image of the object storage, set it to a mirror when Docker Hub is not reachable |
-| `SILO_CONSOLE_PORT` | `9001` | published port of the Silo console, the S3 API stays internal |
-| `SPRING_PROFILES_ACTIVE` | `dev` | set to something else in production |
-| `DEMO_DATA_ENABLED` | `true` | fill an empty store with sample documents, dev profile only |
-| `BACKEND_PORT` | `8080` | published backend port, remove the mapping for edge only access |
-| `OIDC_ENABLED` | `true` | validate tokens against the identity provider |
-| `OIDC_ISSUER_URI` | `https://user-kit.ui5.local/auth/realms/user-kit` | expected `iss`, also used for JWKS discovery |
-| `OIDC_JWK_SET_URI` | `http://keycloak:8080/...` | optional second URL for the keys, keep it while the issuer is not reachable from the backend |
-| `OIDC_AUDIENCES` | `user-kit-api` | accepted audiences |
-| `OIDC_ROLES_CLAIM` | `roles` | claim that carries the roles |
-| `DEV_AUTH_ENABLED` | `true` | local token issuer, set to `false` in production |
-| `DEV_AUTH_SECRET` | dev-only value | HS256 secret, change it |
-| `KEYCLOAK_VERSION` | `26.4` | image tag of the identity provider |
-| `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` | `admin` | bootstrap admin of the container, change them |
-| `KEYCLOAK_PORT` | `8180` | published port that bypasses the edge |
-| `KEYCLOAK_RELATIVE_PATH` | `/auth` | prefix below `SERVER_NAME`, forwarded by the edge |
-| `KEYCLOAK_HOSTNAME` | `https://user-kit.ui5.local/auth` | public base URL of Keycloak, must match `SERVER_NAME` plus the prefix |
-| `OIDC_CLIENT_ENABLED` | `true` | backend acts as the OAuth client of the browser login |
-| `OIDC_CLIENT_ID` | `user-kit-bff` | confidential client of the realm |
-| `OIDC_CLIENT_SECRET` | dev-only value | client secret, change it for production |
-| `OIDC_CLIENT_ISSUER_URI` | `http://keycloak:8080/auth/realms/user-kit` | URL used for discovery, keep it while the public issuer is not reachable from the backend |
-| `OIDC_CLIENT_REDIRECT_URIS` | the callbacks of all three domains, comma separated | one entry per frontend domain, must be registered for the client |
-| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS` | the frontend roots of all three domains, comma separated | where the provider may return after the logout |
-| `OIDC_CLIENT_REDIRECT_URI` | `https://user-kit.ui5.local/api/v1/auth/callback` | fallback of the callback list |
-| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI` | `https://user-kit.ui5.local/` | fallback of the post logout list |
-| `OIDC_CLIENT_SCOPES` | `openid profile email` | requested scopes |
-| `OIDC_LOGIN_STATE_TTL` | `10m` | how long a started login may take |
-| `OIDC_SESSION_TTL` | `12h` | lifetime of a session without activity |
-| `OIDC_COOKIE_SECURE` | `false` | set to `true` for every HTTPS deployment |
-| `OIDC_COOKIE_DOMAIN` | empty | optional cookie domain, empty scopes them to the host |
-| `OIDC_REFRESH_WINDOW` | `90s` | renew the access token this long before it expires |
-| `VITE_DEV_ROLE` | `admin` | build argument, role used by the local dev login |
-| `VITE_UI5_THEME` | `sap_horizon` | build argument, initial theme before the user switches it |
-| `VITE_ANTD_THEME` | `light` | build argument of the second frontend |
-| `VITE_MUI_THEME` | `light` | build argument of the third frontend |
-| `VITE_DEFAULT_LOCALE` | `ru` | build argument, `ru` or `en`; the user can switch the language |
+| Variable                                                    | Default                                                  | Purpose                                                                                      |
+| ----------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `SERVER_NAME`                                               | `user-kit.local`                                     | canonical `server_name`, hosts the first frontend and `/auth`                                |
+| `SERVER_NAME_ALT`                                           | `user-kit.local`                                     | `server_name` of the second frontend, `/auth` redirects to the canonical domain              |
+| `SERVER_NAME_MUI`                                           | `user-kit.mui.local`                                     | `server_name` of the third frontend, `/auth` redirects to the canonical domain               |
+| `HTTP_PORT` / `HTTPS_PORT`                                  | `80` / `443`                                             | published ports of the edge                                                                  |
+| `MAX_UPLOAD_SIZE`                                           | `26m`                                                    | nginx `client_max_body_size`                                                                 |
+| `DATABASE_NAME` / `DATABASE_USERNAME` / `DATABASE_PASSWORD` | `userkit`                                                | PostgreSQL                                                                                   |
+| `S3_BUCKET`                                                 | `user-kit`                                               | bucket name                                                                                  |
+| `S3_REGION`                                                 | `us-east-1`                                              | signing region                                                                               |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY`                           | `siloadmin`                                              | storage credentials, also used as `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, change them       |
+| `S3_CREATE_BUCKET`                                          | `true`                                                   | create the bucket on startup                                                                 |
+| `SILO_VERSION`                                              | `latest`                                                 | image tag of the object storage                                                              |
+| `SILO_IMAGE`                                                | `pgsty/silo`                                             | image of the object storage, set it to a mirror when Docker Hub is not reachable             |
+| `SILO_CONSOLE_PORT`                                         | `9001`                                                   | published port of the Silo console, the S3 API stays internal                                |
+| `SPRING_PROFILES_ACTIVE`                                    | `dev`                                                    | set to something else in production                                                          |
+| `DEMO_DATA_ENABLED`                                         | `true`                                                   | fill an empty store with sample documents, dev profile only                                  |
+| `BACKEND_PORT`                                              | `8080`                                                   | published backend port, remove the mapping for edge only access                              |
+| `OIDC_ENABLED`                                              | `true`                                                   | validate tokens against the identity provider                                                |
+| `OIDC_ISSUER_URI`                                           | `https://user-kit.local/auth/realms/user-kit`        | expected `iss`, also used for JWKS discovery                                                 |
+| `OIDC_JWK_SET_URI`                                          | `http://keycloak:8080/...`                               | optional second URL for the keys, keep it while the issuer is not reachable from the backend |
+| `OIDC_AUDIENCES`                                            | `user-kit-api`                                           | accepted audiences                                                                           |
+| `OIDC_ROLES_CLAIM`                                          | `roles`                                                  | claim that carries the roles                                                                 |
+| `DEV_AUTH_ENABLED`                                          | `true`                                                   | local token issuer, set to `false` in production                                             |
+| `DEV_AUTH_SECRET`                                           | dev-only value                                           | HS256 secret, change it                                                                      |
+| `KEYCLOAK_VERSION`                                          | `26.4`                                                   | image tag of the identity provider                                                           |
+| `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD`                | `admin`                                                  | bootstrap admin of the container, change them                                                |
+| `KEYCLOAK_PORT`                                             | `8180`                                                   | published port that bypasses the edge                                                        |
+| `KEYCLOAK_RELATIVE_PATH`                                    | `/auth`                                                  | prefix below `SERVER_NAME`, forwarded by the edge                                            |
+| `KEYCLOAK_HOSTNAME`                                         | `https://user-kit.local/auth`                        | public base URL of Keycloak, must match `SERVER_NAME` plus the prefix                        |
+| `OIDC_CLIENT_ENABLED`                                       | `true`                                                   | backend acts as the OAuth client of the browser login                                        |
+| `OIDC_CLIENT_ID`                                            | `user-kit-bff`                                           | confidential client of the realm                                                             |
+| `OIDC_CLIENT_SECRET`                                        | dev-only value                                           | client secret, change it for production                                                      |
+| `OIDC_CLIENT_ISSUER_URI`                                    | `http://keycloak:8080/auth/realms/user-kit`              | URL used for discovery, keep it while the public issuer is not reachable from the backend    |
+| `OIDC_CLIENT_REDIRECT_URIS`                                 | the callbacks of all three domains, comma separated      | one entry per frontend domain, must be registered for the client                             |
+| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS`                     | the frontend roots of all three domains, comma separated | where the provider may return after the logout                                               |
+| `OIDC_CLIENT_REDIRECT_URI`                                  | `https://user-kit.local/api/v1/auth/callback`        | fallback of the callback list                                                                |
+| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI`                      | `https://user-kit.local/`                            | fallback of the post logout list                                                             |
+| `OIDC_CLIENT_SCOPES`                                        | `openid profile email`                                   | requested scopes                                                                             |
+| `OIDC_LOGIN_STATE_TTL`                                      | `10m`                                                    | how long a started login may take                                                            |
+| `OIDC_SESSION_TTL`                                          | `12h`                                                    | lifetime of a session without activity                                                       |
+| `OIDC_COOKIE_SECURE`                                        | `false`                                                  | set to `true` for every HTTPS deployment                                                     |
+| `OIDC_COOKIE_DOMAIN`                                        | empty                                                    | optional cookie domain, empty scopes them to the host                                        |
+| `OIDC_REFRESH_WINDOW`                                       | `90s`                                                    | renew the access token this long before it expires                                           |
+| `VITE_DEV_ROLE`                                             | `admin`                                                  | build argument, role used by the local dev login                                             |
+| `VITE_UI5_THEME`                                            | `sap_horizon`                                            | build argument, initial theme before the user switches it                                    |
+| `VITE_ANTD_THEME`                                           | `light`                                                  | build argument of the second frontend                                                        |
+| `VITE_MUI_THEME`                                            | `light`                                                  | build argument of the third frontend                                                         |
+| `VITE_DEFAULT_LOCALE`                                       | `ru`                                                     | build argument, `ru` or `en`; the user can switch the language                               |
 
 The `VITE_*` variables are build time configuration: Vite inlines them into the bundle and Compose
 forwards them as build arguments to the `frontend`, `frontend-antd` and `frontend-mui` images. A change

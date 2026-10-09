@@ -5,13 +5,13 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
-public record AppProperties(Security security, Storage storage, Files files, OData odata, Cors cors, DemoData demoData) {
+public record AppProperties(Security security, Storage storage, Files files, Rest rest, Cors cors, DemoData demoData) {
 
     public AppProperties {
         security = security == null ? new Security(null, null, null) : security;
         storage = storage == null ? new Storage(null, null, null, null, null, false, false) : storage;
         files = files == null ? new Files(0) : files;
-        odata = odata == null ? new OData(0, 0) : odata;
+        rest = rest == null ? new Rest(0) : rest;
         cors = cors == null ? new Cors(null, null, null, null) : cors;
         demoData = demoData == null ? new DemoData(false) : demoData;
     }
@@ -219,11 +219,8 @@ public record AppProperties(Security security, Storage storage, Files files, ODa
     public record DemoData(boolean enabled) {
     }
 
-    public record OData(int defaultPageSize, int maxPageSize) {
-        public OData {
-            if (defaultPageSize <= 0) {
-                defaultPageSize = 50;
-            }
+    public record Rest(int maxPageSize) {
+        public Rest {
             if (maxPageSize <= 0) {
                 maxPageSize = 200;
             }

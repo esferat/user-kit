@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { listUsers, refreshUsers, selectUsers, updateUserRole, usersReducer } from './usersSlice';
 
 import type { Role, UserApi, UserDto } from '@/entities/user';
+import type { PageResponse } from '@/shared/api';
 
 import { i18n } from '@/shared/i18n';
 
@@ -39,7 +40,9 @@ function createUserApi(users: UserDto[] = [ADMIN, PLAIN]): UserApi {
       roles: ADMIN.roles,
       enabled: ADMIN.enabled,
     })),
-    list: vi.fn(async () => ({ value: list, count: list.length })),
+    list: vi.fn(async (): Promise<PageResponse<UserDto>> => {
+      return { items: list, total: list.length, page: 0, size: 100 };
+    }),
     updateRoles: vi.fn(async (id: string, roles: readonly Role[]) => {
       list = list.map((user) => (user.id === id ? { ...user, roles: [...roles] } : user));
       return list.find((user) => user.id === id) ?? ADMIN;
@@ -66,7 +69,7 @@ describe('usersSlice', () => {
 
     await store.dispatch(listUsers());
 
-    expect(userApi.list).toHaveBeenCalledWith({ orderBy: [{ property: 'email' }], top: 100, count: true });
+    expect(userApi.list).toHaveBeenCalledWith({ sort: 'email', size: 100 });
     expect(selectUsers(store.getState()).users).toEqual([ADMIN, PLAIN]);
   });
 

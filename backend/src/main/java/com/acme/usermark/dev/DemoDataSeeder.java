@@ -111,7 +111,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                         "Released versions of the service",
                         lines(
                                 "version,released_at,summary",
-                                "2.4.0,2026-08-18,OData projection and expanded metadata",
+                                "2.4.0,2026-08-18,REST JSON API projections",
                                 "2.3.1,2026-07-02,Optimistic locking on user roles",
                                 "2.3.0,2026-06-11,File upload with content type detection")),
                 new DemoDocument(

@@ -4,29 +4,29 @@
 
 The application knows exactly two roles:
 
-| Role | Spring authority | Capabilities |
-| --- | --- | --- |
-| `user` | `ROLE_USER` | own files: list, upload, download, delete, rename |
-| `admin` | `ROLE_ADMIN` | everything a user can do, plus all files and `/odata/Users` |
+| Role    | Spring authority | Capabilities                                                |
+| ------- | ---------------- | ----------------------------------------------------------- |
+| `user`  | `ROLE_USER`      | own files: list, upload, download, delete, rename           |
+| `admin` | `ROLE_ADMIN`     | everything a user can do, plus all files and `/api/v1/Users` |
 
 `admin` implies full access, so the frontend treats an administrator as a user as well. When roles
-are written through `PATCH /odata/Users/{id}` the set is normalized: it must be a non-empty subset
+are written through `PATCH /api/v1/Users/{id}` the set is normalized: it must be a non-empty subset
 of `{admin, user}` and `admin` is exclusive, so `["admin","user"]` is stored as `["admin"]`.
 
 ## Authorization matrix
 
-| Endpoint | Anonymous | `user` | `admin` |
-| --- | --- | --- | --- |
-| `/healthz`, `/actuator/health`, `/actuator/info` | allowed | allowed | allowed |
-| `/v3/api-docs`, `/swagger-ui/**` | allowed | allowed | allowed |
-| `/api/v1/dev/**` | allowed when `DEV_AUTH_ENABLED=true` | allowed | allowed |
-| `/api/v1/auth/config`, `/api/v1/auth/login`, `/api/v1/auth/callback` | allowed | allowed | allowed |
-| `/api/v1/auth/dev-login`, `/api/v1/auth/logout` | allowed with a CSRF token | allowed | allowed |
-| `/api/v1/me` | 401 | own profile | own profile |
-| `/api/v1/files`, `/api/v1/files/{id}/content` | 401 | own files | all files |
-| `/api/v1/files/{id}` (DELETE) | 401 | own files | all files |
-| `/odata/$metadata`, `/odata/Files*` | 401 | own files | all files |
-| `/odata/Users`, `/odata/Users/{id}` | 401 | 403 | allowed |
+| Endpoint                                                             | Anonymous                            | `user`      | `admin`     |
+| -------------------------------------------------------------------- | ------------------------------------ | ----------- | ----------- |
+| `/healthz`, `/actuator/health`, `/actuator/info`                     | allowed                              | allowed     | allowed     |
+| `/v3/api-docs`, `/swagger-ui/**`                                     | allowed                              | allowed     | allowed     |
+| `/api/v1/dev/**`                                                     | allowed when `DEV_AUTH_ENABLED=true` | allowed     | allowed     |
+| `/api/v1/auth/config`, `/api/v1/auth/login`, `/api/v1/auth/callback` | allowed                              | allowed     | allowed     |
+| `/api/v1/auth/dev-login`, `/api/v1/auth/logout`                      | allowed with a CSRF token            | allowed     | allowed     |
+| `/api/v1/me`                                                         | 401                                  | own profile | own profile |
+| `/api/v1/files`, `/api/v1/files/{id}/content`                        | 401                                  | own files   | all files   |
+| `/api/v1/files/{id}` (DELETE)                                        | 401                                  | own files   | all files   |
+| `/api/v1/$metadata`, `/api/v1/Files*`                                  | 401                                  | own files   | all files   |
+| `/api/v1/Users`, `/api/v1/Users/{id}`                                  | 401                                  | 403         | allowed     |
 
 Authorization is enforced on the server. The frontend only hides navigation entries for users
 without the `admin` role, which is a usability feature and never a security boundary.
@@ -47,11 +47,11 @@ token is readable by JavaScript:
    `auth_session`, keyed by the SHA-256 hash of a random session id.
 4. The callback sets the session cookies and redirects to the application:
 
-   | Cookie | Contents | Lifetime |
-   | --- | --- | --- |
-   | `UK_SESSION` | session id, only its hash is stored | `OIDC_SESSION_TTL` |
-   | `UK_TOKEN` | current access token, read back by the backend on every request | until the token expires |
-   | `UK_DEV_TOKEN` | local dev token, dev profile only | `DEV_AUTH_TOKEN_TTL` |
+   | Cookie         | Contents                                                        | Lifetime                |
+   | -------------- | --------------------------------------------------------------- | ----------------------- |
+   | `UK_SESSION`   | session id, only its hash is stored                             | `OIDC_SESSION_TTL`      |
+   | `UK_TOKEN`     | current access token, read back by the backend on every request | until the token expires |
+   | `UK_DEV_TOKEN` | local dev token, dev profile only                               | `DEV_AUTH_TOKEN_TTL`    |
 
    All three are `HttpOnly`, `Path=/`, `SameSite=Lax`, and `Secure` when `OIDC_COOKIE_SECURE=true`.
 
@@ -101,13 +101,13 @@ When `OIDC_ENABLED=true` and `OIDC_ISSUER_URI` is set, tokens are validated as f
 `security/RoleClaims` inspects the claims in this order and stops at the first source that carries a
 supported role:
 
-| Order | Claim | Example |
-| --- | --- | --- |
-| 1 | `OIDC_ROLES_CLAIM` | `"roles": ["admin"]` |
-| 2 | `roles` | `"roles": ["admin"]` |
-| 3 | `groups` | `"groups": ["admin", "sales"]` |
-| 4 | `realm_access.roles` | `"realm_access": {"roles": ["admin"]}` |
-| 5 | `resource_access.<audience>.roles` | `"resource_access": {"user-kit-api": {"roles": ["admin"]}}` |
+| Order | Claim                              | Example                                                     |
+| ----- | ---------------------------------- | ----------------------------------------------------------- |
+| 1     | `OIDC_ROLES_CLAIM`                 | `"roles": ["admin"]`                                        |
+| 2     | `roles`                            | `"roles": ["admin"]`                                        |
+| 3     | `groups`                           | `"groups": ["admin", "sales"]`                              |
+| 4     | `realm_access.roles`               | `"realm_access": {"roles": ["admin"]}`                      |
+| 5     | `resource_access.<audience>.roles` | `"resource_access": {"user-kit-api": {"roles": ["admin"]}}` |
 
 The audiences in step 5 are the values of `OIDC_AUDIENCES`, and the roles of every matching audience are
 merged in that order. Entries are lower cased and trimmed, unknown values are ignored, and `admin`
@@ -123,17 +123,17 @@ Docker compose starts a local Keycloak, so nothing has to be created by hand. Th
 [`keycloak/realm/user-kit-realm.json`](../keycloak/realm/user-kit-realm.json) and is imported on
 every start of a fresh container:
 
-| Object | Value |
-| --- | --- |
-| Realm | `user-kit`, served below `/auth` of the canonical host |
-| Issuer | `https://user-kit.ui5.local/auth/realms/user-kit` |
-| Client `user-kit-bff` | confidential, the backend performs Authorization Code + PKCE (`S256`), redirects `/api/v1/auth/callback` of all application domains |
-| Client `user-kit-web` | legacy public client, no longer used by the frontend |
-| Client `user-kit-api` | audience of the access token, no interactive login |
-| Client scope `user-kit-api-audience` | adds `aud=user-kit-api` to the access token |
-| Client scopes `openid`, `profile`, `email`, `roles` | `sub`, name, email and `realm_access.roles` |
-| Realm roles | `admin`, `user` |
-| Accounts | `admin-user`/`admin` (roles `admin,user`), `user-user`/`user`, `disabled-user`/`disabled` |
+| Object                                              | Value                                                                                                                               |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Realm                                               | `user-kit`, served below `/auth` of the canonical host                                                                              |
+| Issuer                                              | `https://user-kit.local/auth/realms/user-kit`                                                                                   |
+| Client `user-kit-bff`                               | confidential, the backend performs Authorization Code + PKCE (`S256`), redirects `/api/v1/auth/callback` of all application domains |
+| Client `user-kit-web`                               | legacy public client, no longer used by the frontend                                                                                |
+| Client `user-kit-api`                               | audience of the access token, no interactive login                                                                                  |
+| Client scope `user-kit-api-audience`                | adds `aud=user-kit-api` to the access token                                                                                         |
+| Client scopes `openid`, `profile`, `email`, `roles` | `sub`, name, email and `realm_access.roles`                                                                                         |
+| Realm roles                                         | `admin`, `user`                                                                                                                     |
+| Accounts                                            | `admin-user`/`admin` (roles `admin,user`), `user-user`/`user`, `disabled-user`/`disabled`                                           |
 
 `directAccessGrantsEnabled` is on for `user-kit-web` only so that `scripts/smoke.ps1` can fetch
 tokens without a browser. Turn it off once the smoke test is not needed anymore; the browser flow
@@ -205,13 +205,13 @@ Keycloak builds the issuer from `KC_HOSTNAME`, while the reverse proxy decides w
 actually uses. Both have to contain the same host and path prefix, otherwise the tokens carry an
 issuer that no client can reach:
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `SERVER_NAME` | `user-kit.ui5.local` | canonical public host of the edge container, the one that serves `/auth` |
-| `SERVER_NAME_ALT` | `user-kit.ant.local` | second public host, its `/auth` redirects to the canonical domain |
-| `SERVER_NAME_MUI` | `user-kit.mui.local` | third public host, its `/auth` redirects to the canonical domain |
-| `KEYCLOAK_RELATIVE_PATH` | `/auth` | prefix below `SERVER_NAME` |
-| `KEYCLOAK_HOSTNAME` | `https://user-kit.ui5.local/auth` | public base URL of Keycloak, **including** the prefix |
+| Variable                 | Default                           | Meaning                                                                  |
+| ------------------------ | --------------------------------- | ------------------------------------------------------------------------ |
+| `SERVER_NAME`            | `user-kit.local`              | canonical public host of the edge container, the one that serves `/auth` |
+| `SERVER_NAME_ALT`        | `user-kit.local`              | second public host, its `/auth` redirects to the canonical domain        |
+| `SERVER_NAME_MUI`        | `user-kit.mui.local`              | third public host, its `/auth` redirects to the canonical domain         |
+| `KEYCLOAK_RELATIVE_PATH` | `/auth`                           | prefix below `SERVER_NAME`                                               |
+| `KEYCLOAK_HOSTNAME`      | `https://user-kit.local/auth` | public base URL of Keycloak, **including** the prefix                    |
 
 The provider is served by one domain only. That is what keeps a single `iss` for all applications and
 avoids the same provider answering under several hostnames. The other domains reach it through the
@@ -231,11 +231,11 @@ changing the file delete the realm through the admin console and restart Keycloa
 
 `OIDC_JWK_SET_URI` and `OIDC_CLIENT_ISSUER_URI` are optional and only needed when the public URL is
 not reachable from the backend. Docker compose uses both, because the public URL is
-`https://user-kit.ui5.local/...` with a self signed certificate while the container reaches Keycloak over
+`https://user-kit.local/...` with a self signed certificate while the container reaches Keycloak over
 plain HTTP:
 
 ```bash
-OIDC_ISSUER_URI=https://user-kit.ui5.local/auth/realms/user-kit
+OIDC_ISSUER_URI=https://user-kit.local/auth/realms/user-kit
 OIDC_JWK_SET_URI=http://keycloak:8080/auth/realms/user-kit/protocol/openid-connect/certs
 OIDC_CLIENT_ISSUER_URI=http://keycloak:8080/auth/realms/user-kit
 ```
@@ -251,8 +251,8 @@ backend can additionally publish a second, local issuer (`user-kit-dev`, HS256) 
 `DEV_AUTH_ENABLED=true`:
 
 ```bash
-curl -sk "https://user-kit.ui5.local/api/v1/dev/token?role=admin"
-curl -sk "https://user-kit.ui5.local/api/v1/dev/token?role=user&subject=jane@example.com"
+curl -sk "https://user-kit.local/api/v1/dev/token?role=admin"
+curl -sk "https://user-kit.local/api/v1/dev/token?role=user&subject=jane@example.com"
 ```
 
 The browser uses `POST /api/v1/auth/dev-login` instead: the response body carries the profile but no
@@ -298,7 +298,7 @@ repository.
 - `enabled = false` blocks every API call for that account, regardless of the token.
 
 The first login decides the initial role, so an IdP must be able to deliver `admin` for at least the
-first administrator. Afterwards roles can be maintained through `PATCH /odata/Users/{id}`.
+first administrator. Afterwards roles can be maintained through `PATCH /api/v1/Users/{id}`.
 
 ## Frontend behaviour
 

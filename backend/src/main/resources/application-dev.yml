@@ -14,8 +14,8 @@ logging:
 
 app:
   cors:
-    # `npm run dev` serves the frontend on port 5173 and proxies /api and /odata to
-    # the backend, so the browser sends an Origin header and a preflight for every
+    # `npm run dev` serves the frontend on port 5173 and proxies /api to the
+    # backend, so the browser sends an Origin header and a preflight for every
     # write. The nginx deployment shares one origin and keeps this empty.
     # CORS_ALLOWED_ORIGINS still overrides the default.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

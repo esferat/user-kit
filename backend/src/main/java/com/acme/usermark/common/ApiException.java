@@ -48,11 +48,4 @@ public class ApiException extends RuntimeException {
     public static ApiException badGateway(String message) {
         return new ApiException(HttpStatus.BAD_GATEWAY, "identity_provider_error", message);
     }
-
-    public static ApiException unsupportedODataOption(String option) {
-        return new ApiException(
-                HttpStatus.BAD_REQUEST,
-                "unsupported_odata_option",
-                "OData system query option is not supported: " + option);
-    }
 }

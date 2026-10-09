@@ -2,26 +2,26 @@
 
 ## Stack
 
-| Package | Version | Purpose |
-| --- | --- | --- |
-| `vite`, `@vitejs/plugin-react` | 8.x / 6.x | build, dev server, JSX transform |
-| `react`, `react-dom` | 19.x | UI runtime, `createRoot`, `StrictMode` |
-| `mobx`, `mobx-react-lite` | 6.x / 4.x | application state and the `observer` binding to React |
-| `typescript` | 5.9 | strict type checking, no emit |
-| `vitest`, `happy-dom` | 5.x / 20.x | unit tests with a DOM |
-| `@testing-library/react`, `@testing-library/user-event`, `@testing-library/dom` | 16.x / 14.x / 10.x | rendering and interaction of components |
-| `@ui5/webcomponents`, `@ui5/webcomponents-fiori` | 2.27 | Fiori 3 web components |
-| `@ui5/webcomponents-react` | 2.27 | React wrappers of those components |
-| `@ui5/webcomponents-base`, `@ui5/webcomponents-icons` | 2.27 | `setTheme()`, icon collections |
-| `eslint`, `typescript-eslint`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, `eslint-plugin-import-x`, `eslint-plugin-sonarjs` | 9.x / 8.x / 7.x / 7.x / 4.x / 3.x | linting, hooks rules, import rules, SonarJS rules |
-| `prettier`, `eslint-plugin-prettier` | 3.x / 5.x | formatting, enforced through ESLint |
+| Package                                                                                                                              | Version                           | Purpose                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ----------------------------------------------------- |
+| `vite`, `@vitejs/plugin-react`                                                                                                       | 8.x / 6.x                         | build, dev server, JSX transform                      |
+| `react`, `react-dom`                                                                                                                 | 19.x                              | UI runtime, `createRoot`, `StrictMode`                |
+| `mobx`, `mobx-react-lite`                                                                                                            | 6.x / 4.x                         | application state and the `observer` binding to React |
+| `typescript`                                                                                                                         | 5.9                               | strict type checking, no emit                         |
+| `vitest`, `happy-dom`                                                                                                                | 5.x / 20.x                        | unit tests with a DOM                                 |
+| `@testing-library/react`, `@testing-library/user-event`, `@testing-library/dom`                                                      | 16.x / 14.x / 10.x                | rendering and interaction of components               |
+| `@ui5/webcomponents`, `@ui5/webcomponents-fiori`                                                                                     | 2.27                              | Fiori 3 web components                                |
+| `@ui5/webcomponents-react`                                                                                                           | 2.27                              | React wrappers of those components                    |
+| `@ui5/webcomponents-base`, `@ui5/webcomponents-icons`                                                                                | 2.27                              | `setTheme()`, icon collections                        |
+| `eslint`, `typescript-eslint`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, `eslint-plugin-import-x`, `eslint-plugin-sonarjs` | 9.x / 8.x / 7.x / 7.x / 4.x / 3.x | linting, hooks rules, import rules, SonarJS rules     |
+| `prettier`, `eslint-plugin-prettier`                                                                                                 | 3.x / 5.x                         | formatting, enforced through ESLint                   |
 
 The interface is bilingual, Russian (`ru`) and English (`en`), see [Localization](#localization). The
 code, comments, API and documentation are English.
 
-## Why React on UI5 Web Components and not XML views
+## Why React on Ant Design/MUI Web Components and not XML views
 
-SAPUI5 applications are built with the [UI5 CLI](https://ui5.github.io/cli/v4), which compiles
+SAPAnt Design/MUI applications are built with the [Ant Design/MUI CLI](https://ui5.github.io/cli/v4), which compiles
 `*.view.xml` into JavaScript and resolves views through a module loader at runtime. Reproducing that
 pipeline inside a plain Vite build is not supported, and mixing both toolchains in one repository is
 a known source of build issues.
@@ -30,22 +30,22 @@ The application therefore renders the same Fiori 3 components from `@ui5/webcomp
 `SideNavigation`, `Table`, `Dialog`, `FileUploader`, `MessageStrip`, `Toolbar`, `Input`, `Select` and
 others — through the React wrappers of `@ui5/webcomponents-react`. React owns the state, the
 composition and the lifecycle; the web components stay the rendering and the styling layer, which
-keeps the visual result that SAPUI5 users expect while the project remains a standard Vite and
+keeps the visual result that SAPAnt Design/MUI users expect while the project remains a standard Vite and
 TypeScript application.
 
-If a real SAPUI5 runtime is required, keep the backend as it is and replace the `frontend/` folder
-with a UI5 CLI project that consumes the same OData and REST endpoints.
+If a real SAPAnt Design/MUI runtime is required, keep the backend as it is and replace the `frontend-antd/ and frontend-mui/` folder
+with a Ant Design/MUI CLI project that consumes the same OData and REST endpoints.
 
 ## Three frontends
 
-`frontend/`, `frontend-antd/` and `frontend-mui/` implement the same screens and use the same
+`frontend-antd/ and frontend-mui/`, `frontend-antd/` and `frontend-mui/` implement the same screens and use the same
 endpoints, but render with different component libraries:
 
-| Folder | Library | Domain | Theme variable |
-| --- | --- | --- | --- |
-| `frontend/` | `@ui5/webcomponents-react` | `user-kit.ui5.local` | `VITE_UI5_THEME` |
-| `frontend-antd/` | `antd` 6 | `user-kit.ant.local` | `VITE_ANTD_THEME` |
-| `frontend-mui/` | `@mui/material` 7 | `user-kit.mui.local` | `VITE_MUI_THEME` |
+| Folder           | Library                    | Domain               | Theme variable    |
+| ---------------- | -------------------------- | -------------------- | ----------------- |
+| `frontend-antd/ and frontend-mui/`      | `@ui5/webcomponents-react` | `user-kit.local` | `VITE_Ant Design/MUI_THEME`  |
+| `frontend-antd/` | `antd` 6                   | `user-kit.local` | `VITE_ANTD_THEME` |
+| `frontend-mui/`  | `@mui/material` 7          | `user-kit.mui.local` | `VITE_MUI_THEME`  |
 
 All of them keep the same layering (Feature Sliced Design), the same `shared/api` transport and the
 same cookie session contract, so a change to the API contract has to be done in every folder. The
@@ -62,7 +62,7 @@ slice (`@/shared/api`, never `@/shared/api/http`). ESLint enforces both rules, s
 [Code quality](#code-quality).
 
 ```
-frontend/src/
+frontend-antd/ and frontend-mui/src/
 ├── main.tsx                   createRoot, StrictMode, icons, error boundary
 ├── app/                       composition root: services, shell, startup error
 │   ├── App.tsx                reads the session and renders login or shell
@@ -108,8 +108,8 @@ src/widgets/app-shell/
 A slice exports named symbols, not `export *`, so the public API of a slice stays visible in one file:
 
 ```ts
-export { DocumentsTable } from './ui/DocumentsTable';
-export type { DocumentAction, DocumentsTableProps } from './ui/DocumentsTable';
+export { DocumentsTable } from "./ui/DocumentsTable";
+export type { DocumentAction, DocumentsTableProps } from "./ui/DocumentsTable";
 ```
 
 Consequences worth keeping in mind:
@@ -146,14 +146,14 @@ export const DocumentsPage = observer(function DocumentsPage() {
 });
 ```
 
-| Concern | Where |
-| --- | --- |
-| session | `SessionStore` of `features/auth`, reached through `useAuthSession()`, started by `AuthSessionProvider` |
-| page data | `FilesStore` / `UsersStore` under `pages/<page>/model`, see [Asynchronous work](#asynchronous-work) |
-| route | `useRouteId(router)` |
-| interface language | `useTranslate()` / `useLocale()` |
-| theme | `ThemeStore` of `features/theme-switch`, read by an `observer` component |
-| ephemeral dialog state | `useState` inside the component that owns the dialog |
+| Concern                | Where                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| session                | `SessionStore` of `features/auth`, reached through `useAuthSession()`, started by `AuthSessionProvider` |
+| page data              | `FilesStore` / `UsersStore` under `pages/<page>/model`, see [Asynchronous work](#asynchronous-work)     |
+| route                  | `useRouteId(router)`                                                                                    |
+| interface language     | `useTranslate()` / `useLocale()`                                                                        |
+| theme                  | `ThemeStore` of `features/theme-switch`, read by an `observer` component                                |
+| ephemeral dialog state | `useState` inside the component that owns the dialog                                                    |
 
 Two external stores stay outside of MobX on purpose: the i18n store and the hash router. Both are
 read with `useSyncExternalStore`, so they need no lifecycle of their own and stay testable without
@@ -175,10 +175,15 @@ class FilesStore {
   files: FileObjectDto[] = [];
   query: FileQuery = NEWEST_FIRST;
 
-  private readonly list = new AsyncResource(() => this.fileApi.list(this.query));
+  private readonly list = new AsyncResource(() =>
+    this.fileApi.list(this.query),
+  );
 
   start(): () => void {
-    return reaction(() => this.query, () => void this.list.fetch());
+    return reaction(
+      () => this.query,
+      () => void this.list.fetch(),
+    );
   }
 
   async refresh(): Promise<void> {
@@ -203,25 +208,25 @@ useEffect(() => store.start(), [store]);
 Everything after an `await` is applied with `runInAction`, and `fetch()` never rejects: the reason of
 a failure reaches the store through `resource.error`.
 
-### UI5 components in React
+### Ant Design/MUI components in React
 
 `@ui5/webcomponents-react` renders the web components, and the web components keep their own API.
 Four rules cover most of the surprises:
 
-| Rule | Why |
-| --- | --- |
-| pass UI5 values as properties, not attributes | `Select`, `Table` and `MessageStrip` reflect booleans and enums onto properties (`value`, `loading`, `design`), a string attribute is ignored |
-| wrap search fields in `ToolbarItem` | a `Button` or a `Select` inside a `ui5-toolbar` without its item wrapper logs a UI5 warning and is not slotted correctly |
-| use `ToolbarSelect` and `ToolbarButton` for the actions of a toolbar | they carry the toolbar specific behaviour and styling |
-| treat `ui5-file-uploader.files` as read only | the element owns the `FileList`; React must not write it, and tests shadow it with `Object.defineProperty` |
+| Rule                                                                 | Why                                                                                                                                           |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| pass Ant Design/MUI values as properties, not attributes                        | `Select`, `Table` and `MessageStrip` reflect booleans and enums onto properties (`value`, `loading`, `design`), a string attribute is ignored |
+| wrap search fields in `ToolbarItem`                                  | a `Button` or a `Select` inside a `ui5-toolbar` without its item wrapper logs a Ant Design/MUI warning and is not slotted correctly                      |
+| use `ToolbarSelect` and `ToolbarButton` for the actions of a toolbar | they carry the toolbar specific behaviour and styling                                                                                         |
+| treat `ui5-file-uploader.files` as read only                         | the element owns the `FileList`; React must not write it, and tests shadow it with `Object.defineProperty`                                    |
 
-A component listens to the `change` event of UI5 through the wrapper:
+A component listens to the `change` event of Ant Design/MUI through the wrapper:
 
 ```tsx
 <Select
   value={role}
   onChange={(event) => {
-    // UI5 also fires `change` when the value did not change.
+    // Ant Design/MUI also fires `change` when the value did not change.
     if (event.target.value !== role) {
       onChange(event.target.value as Role);
     }
@@ -233,10 +238,10 @@ A component listens to the `change` event of UI5 through the wrapper:
 
 The router is hash based and dependency free (`src/shared/lib/router/hashRouter.ts`):
 
-| Route | Page | Access |
-| --- | --- | --- |
-| `#/documents` | file list, upload, download, delete | `user`, `admin` |
-| `#/admin-users` | account administration, roles | `admin` |
+| Route           | Page                                | Access          |
+| --------------- | ----------------------------------- | --------------- |
+| `#/documents`   | file list, upload, download, delete | `user`, `admin` |
+| `#/admin-users` | account administration, roles       | `admin`         |
 
 The navigation entries are filtered by role, and the shell resolves every hash against the routes the
 current user may open. An unknown or forbidden hash falls back to the first allowed route, so a
@@ -254,12 +259,12 @@ The API is split per entity, which is what the FSD layers want: `entities/file` 
 `createFileApi()` and `entities/user` exports `createUserApi()`, and both take the shared
 `ODataClient`.
 
-| Factory | Operations |
-| --- | --- |
+| Factory           | Operations                                                                             |
+| ----------------- | -------------------------------------------------------------------------------------- |
 | `createFileApi()` | `list(query)`, `upload(file, description)`, `downloadContent(id)`, `remove(id, etag?)` |
-| `createUserApi()` | `me()`, `list(query)`, `updateRoles(id, roles, etag?)` |
+| `createUserApi()` | `me()`, `list(query)`, `updateRoles(id, roles, etag?)`                                 |
 
-`ODataClient` (`src/shared/api/odata/`) builds the URLs and maps the responses, and both clients add
+`ODataClient` (`src/shared/api/api/v1/`) builds the URLs and maps the responses, and both clients add
 what their endpoint needs on top: `multipart/form-data` for an upload, a blob for a download, an
 `If-Match` header for a delete. Every call shares the fetch wrapper (`src/shared/api/http.ts`), which
 
@@ -270,7 +275,7 @@ what their endpoint needs on top: `multipart/form-data` for an upload, a blob fo
 - maps error responses to `ApiError` with `status`, `code` and `message`,
 - aborts after a configurable timeout.
 
-`src/shared/api/odata/query.ts` never concatenates raw strings: property names are checked against an
+`src/shared/api/api/v1/query.ts` never concatenates raw strings: property names are checked against an
 allow list — `FILE_QUERYABLE_PROPERTIES` and `USER_QUERYABLE_PROPERTIES` — and literal values are
 encoded, so a filter can only be built from known properties.
 
@@ -285,19 +290,19 @@ dotted keys, `{placeholder}` interpolation and CLDR plural forms. Components rea
 ```tsx
 const t = useTranslate();
 
-return <Title>{t('documents.title')}</Title>;
+return <Title>{t("documents.title")}</Title>;
 ```
 
-| Part | Purpose |
-| --- | --- |
-| `locales/ru.ts`, `locales/en.ts` | the dictionaries, one flat object per language |
-| `i18n.ts` | `createI18n()` with `t`, `locale`, `availableLocales`, `setLocale` |
-| `store.ts` | the singleton, the stored choice of the user, `applyLanguage()` |
-| `react.tsx` | `useLocale()` and `useTranslate()` |
+| Part                             | Purpose                                                            |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `locales/ru.ts`, `locales/en.ts` | the dictionaries, one flat object per language                     |
+| `i18n.ts`                        | `createI18n()` with `t`, `locale`, `availableLocales`, `setLocale` |
+| `store.ts`                       | the singleton, the stored choice of the user, `applyLanguage()`    |
+| `react.tsx`                      | `useLocale()` and `useTranslate()`                                 |
 
 - The initial locale comes from `VITE_DEFAULT_LOCALE`, the choice of the user is stored in
   `localStorage` under `user-kit:locale` and wins over it.
-- Every lookup sets `document.documentElement.lang`, so the UI5 components format dates and numbers in
+- Every lookup sets `document.documentElement.lang`, so the Ant Design/MUI components format dates and numbers in
   the same language.
 - Plural forms use the `one`, `few`, `many` and `other` categories of the language: Russian needs all
   four, English only `one` and `other`.
@@ -311,11 +316,11 @@ return <Title>{t('documents.title')}</Title>;
 There is exactly one provider, `CookieAuthProvider`. The backend is the OAuth client, so the frontend
 never sees a client secret, an access token or a refresh token:
 
-| Backend `GET /api/v1/auth/config` | Behaviour of the login screen |
-| --- | --- |
-| `oidc` | Button navigates to `/api/v1/auth/login`, the provider shows its form, the callback sets the cookies |
-| `dev` | Button calls `POST /api/v1/auth/dev-login` with `VITE_DEV_ROLE`, the token goes into a cookie |
-| `none` | The screen shows a configuration error instead of a login button |
+| Backend `GET /api/v1/auth/config` | Behaviour of the login screen                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `oidc`                            | Button navigates to `/api/v1/auth/login`, the provider shows its form, the callback sets the cookies |
+| `dev`                             | Button calls `POST /api/v1/auth/dev-login` with `VITE_DEV_ROLE`, the token goes into a cookie        |
+| `none`                            | The screen shows a configuration error instead of a login button                                     |
 
 There is no build time mode, so a bundle cannot get out of sync with the provider configuration. The
 first call of the login screen already tells which button to show, and the answer is cached for the
@@ -339,7 +344,7 @@ because the provider has already dropped the local session at that point.
 ## Build time configuration
 
 Vite inlines every `VITE_*` variable into the bundle, so the configuration is fixed when the image is
-built. `frontend/Dockerfile` declares the variables as `ARG`s and `docker-compose.yml` forwards them
+built. `frontend-antd/ and frontend-mui/Dockerfile` declares the variables as `ARG`s and `docker-compose.yml` forwards them
 from the root `.env`:
 
 ```yaml
@@ -347,7 +352,7 @@ frontend:
   build:
     context: ./frontend
     args:
-      VITE_UI5_THEME: ${VITE_UI5_THEME:-sap_horizon}
+      VITE_Ant Design/MUI_THEME: ${VITE_Ant Design/MUI_THEME:-sap_horizon}
 ```
 
 Consequences worth keeping in mind:
@@ -382,8 +387,8 @@ first time an icon renders. To slim the application down, replace the `AllIcons.
 icons actually used:
 
 ```ts
-import '@ui5/webcomponents-icons/dist/folder.js';
-import '@ui5/webcomponents-icons/dist/group.js';
+import "@ui5/webcomponents-icons/dist/folder.js";
+import "@ui5/webcomponents-icons/dist/group.js";
 ```
 
 That variant only works when every icon a component needs is imported too, which is why the template
@@ -407,16 +412,16 @@ node -e "const j=require('./node_modules/@ui5/webcomponents-icons/dist/generated
 console.log(Object.keys(j.data).filter((n) => n.includes('log')).join(', '))"
 ```
 
-| Purpose           | Name          |
-| ----------------- | ------------- |
-| Login             | `key`         |
-| Logout            | `away`        |
-| Light theme       | `light-mode`  |
-| Dark theme        | `dark-mode`   |
-| Documents / users | `folder`, `group` |
-| Refresh           | `refresh`     |
+| Purpose           | Name                 |
+| ----------------- | -------------------- |
+| Login             | `key`                |
+| Logout            | `away`               |
+| Light theme       | `light-mode`         |
+| Dark theme        | `dark-mode`          |
+| Documents / users | `folder`, `group`    |
+| Refresh           | `refresh`            |
 | Upload / download | `upload`, `download` |
-| Delete            | `delete`      |
+| Delete            | `delete`             |
 
 ## Build and container
 
@@ -429,7 +434,7 @@ serves the result with `nginx:1.27-alpine`:
 - a `HEALTHCHECK` verifies that the server answers.
 
 Vite prints a warning because the entry chunk exceeds the default 500 kB chunk limit: it contains
-React, the UI5 React wrappers and the components the shell uses. The icon collections are already
+React, the Ant Design/MUI React wrappers and the components the shell uses. The icon collections are already
 split into lazy chunks. Raise `build.chunkSizeWarningLimit` in `vite.config.ts` if the warning is
 noise for your pipeline.
 
@@ -449,24 +454,24 @@ npm run check        # format:check + lint + typecheck + test
 specific rules on top of `js.configs.recommended`, `typescript-eslint`, `sonarjs/recommended` and
 `eslint-plugin-prettier/recommended`:
 
-| Rule group | What it protects |
-| --- | --- |
-| `no-restricted-imports` per FSD layer | no import into a higher or equal layer, no deep import into a slice |
-| `no-restricted-imports` with `../../*` | a slice stays self contained, relative imports reach one level up at most |
-| `import-x/order`, `import-x/no-cycle` | stable import order, no cycles between slices |
-| `import-x/resolver-next` | resolution through `tsconfig.json`, so the `@/*` alias is understood |
-| `react.configs.flat.recommended`, `jsx-runtime` | component rules without the obsolete `prop-types` |
-| `react-hooks` recommended latest | hook dependencies, the rules of the compiler |
-| `sonarjs/recommended` | duplication, complexity, common bug patterns |
+| Rule group                                      | What it protects                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------------- |
+| `no-restricted-imports` per FSD layer           | no import into a higher or equal layer, no deep import into a slice       |
+| `no-restricted-imports` with `../../*`          | a slice stays self contained, relative imports reach one level up at most |
+| `import-x/order`, `import-x/no-cycle`           | stable import order, no cycles between slices                             |
+| `import-x/resolver-next`                        | resolution through `tsconfig.json`, so the `@/*` alias is understood      |
+| `react.configs.flat.recommended`, `jsx-runtime` | component rules without the obsolete `prop-types`                         |
+| `react-hooks` recommended latest                | hook dependencies, the rules of the compiler                              |
+| `sonarjs/recommended`                           | duplication, complexity, common bug patterns                              |
 
 Rules that are switched off on purpose:
 
-| Rule | Reason |
-| --- | --- |
-| `sonarjs/void-use` | `void somePromise()` is how this code base marks a deliberately un-awaited promise |
-| `sonarjs/no-clear-text-protocols` in tests | the tests talk to `http://localhost` style URLs |
-| `@typescript-eslint/explicit-function-return-type` in `.tsx` | a component returns JSX, which the annotation would only repeat; it stays on for plain `.ts` |
-| `react-hooks/refs`, `react-hooks/purity`, `react-hooks/set-state-in-effect` | the UI5 wrappers are imperative by nature: refs, the external stores and the effects that subscribe to them are deliberate |
+| Rule                                                                        | Reason                                                                                                                     |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `sonarjs/void-use`                                                          | `void somePromise()` is how this code base marks a deliberately un-awaited promise                                         |
+| `sonarjs/no-clear-text-protocols` in tests                                  | the tests talk to `http://localhost` style URLs                                                                            |
+| `@typescript-eslint/explicit-function-return-type` in `.tsx`                | a component returns JSX, which the annotation would only repeat; it stays on for plain `.ts`                               |
+| `react-hooks/refs`, `react-hooks/purity`, `react-hooks/set-state-in-effect` | the Ant Design/MUI wrappers are imperative by nature: refs, the external stores and the effects that subscribe to them are deliberate |
 
 `sonar-project.properties` points SonarQube at `src/`, excludes `**/index.ts` (re-exports only) and
 reads `coverage/lcov.info`.
@@ -479,48 +484,48 @@ npm run test:coverage # V8 coverage, writes text, html and lcov reports
 ```
 
 Components are tested with Testing Library: render the component, query by role or by test id, and
-fire the events UI5 emits. Nothing reaches into a `ref` of a component, and no test asserts on the
-internal state of a UI5 element beyond the properties the application sets.
+fire the events Ant Design/MUI emits. Nothing reaches into a `ref` of a component, and no test asserts on the
+internal state of a Ant Design/MUI element beyond the properties the application sets.
 
-| File | Focus |
-| --- | --- |
-| `src/app/App.test.tsx` | login screen, shell, routing and the role based navigation of a running application |
-| `src/app/model/useAppServices.test.ts` | services of a configuration, reused while it stays the same |
-| `src/app/ui/ErrorBoundary.test.tsx`, `src/app/ui/StartupError.test.tsx` | failure of the first render |
-| `src/entities/user/model/roles.test.ts` | claim layouts, case handling, unknown roles |
-| `src/entities/user/api/userApi.test.ts` | `$select`, `$filter`, `$orderby`, paging |
-| `src/entities/file/api/fileApi.test.ts` | upload, download, delete |
-| `src/features/auth/model/createAuthProvider.test.ts` | provider creation from the configuration |
-| `src/features/auth/cookie/cookieAuthProvider.test.ts` | mode detection, login navigation, dev login, logout redirect |
-| `src/features/auth/model/sessionStore.test.ts` | restore once, mode request, login, logout, failure messages |
-| `src/features/auth/ui/AuthSession.test.tsx` | the context starts the store, repaints on a change and unsubscribes on unmount |
-| `src/features/file-download/model/downloadBlob.test.ts` | object URL and revocation |
-| `src/features/file-upload/ui/UploadDialog.test.tsx` | fields, disabled confirm button, reset |
-| `src/features/user-role/ui/RoleSelect.test.tsx` | role change without a duplicated event |
-| `src/features/theme-switch` | theme store and the shell bar item |
-| `src/features/locale-switch/ui/LocaleSwitchButton.test.tsx` | language switch |
-| `src/shared/api/http.test.ts` | headers, error mapping, timeout |
-| `src/shared/api/odata/query.test.ts` | option building, encoding, property allow list |
-| `src/shared/api/odata/odataClient.test.ts` | URLs, value wrapping, `$expand` |
-| `src/shared/config/config.test.ts` | environment parsing |
-| `src/shared/i18n/i18n.test.ts` | interpolation, plurals, fallback to `ru` and to the key |
-| `src/shared/lib/store/asyncResource.test.ts` | loading, result, failure, discarded runs |
-| `src/pages/documents/model/filesStore.test.ts` | query changes, upload, download, delete, failure messages |
-| `src/pages/users/model/usersStore.test.ts` | list, role change, reload after a rejected change |
-| `src/shared/lib/format/format.test.ts` | byte size, dates, initials |
-| `src/shared/lib/message` and `src/shared/ui/Message.test.tsx` | design of a message |
-| `src/shared/lib/router/hashRouter.test.ts`, `useRoute.test.tsx` | hash parsing, navigation, subscription |
-| `src/shared/ui/icons/icons.test.ts` | every application icon exists in the v4 and v5 collections |
-| `src/widgets/app-shell` | navigation entries, shell bar, profile menu |
-| `src/widgets/documents-table/ui/DocumentsTable.test.tsx` | rows, empty state, download and delete |
-| `src/widgets/users-table/ui/UsersTable.test.tsx` | rows, empty state, role change |
-| `src/pages/documents/ui/DocumentsPage.test.tsx` | search, sorting, upload, delete |
-| `src/pages/login/ui/LoginPage.test.tsx` | sign in, failure, dev mode warning |
-| `src/pages/users/ui/UsersPage.test.tsx` | role update and its message |
+| File                                                                    | Focus                                                                               |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `src/app/App.test.tsx`                                                  | login screen, shell, routing and the role based navigation of a running application |
+| `src/app/model/useAppServices.test.ts`                                  | services of a configuration, reused while it stays the same                         |
+| `src/app/ui/ErrorBoundary.test.tsx`, `src/app/ui/StartupError.test.tsx` | failure of the first render                                                         |
+| `src/entities/user/model/roles.test.ts`                                 | claim layouts, case handling, unknown roles                                         |
+| `src/entities/user/api/userApi.test.ts`                                 | `$select`, `$filter`, `$orderby`, paging                                            |
+| `src/entities/file/api/fileApi.test.ts`                                 | upload, download, delete                                                            |
+| `src/features/auth/model/createAuthProvider.test.ts`                    | provider creation from the configuration                                            |
+| `src/features/auth/cookie/cookieAuthProvider.test.ts`                   | mode detection, login navigation, dev login, logout redirect                        |
+| `src/features/auth/model/sessionStore.test.ts`                          | restore once, mode request, login, logout, failure messages                         |
+| `src/features/auth/ui/AuthSession.test.tsx`                             | the context starts the store, repaints on a change and unsubscribes on unmount      |
+| `src/features/file-download/model/downloadBlob.test.ts`                 | object URL and revocation                                                           |
+| `src/features/file-upload/ui/UploadDialog.test.tsx`                     | fields, disabled confirm button, reset                                              |
+| `src/features/user-role/ui/RoleSelect.test.tsx`                         | role change without a duplicated event                                              |
+| `src/features/theme-switch`                                             | theme store and the shell bar item                                                  |
+| `src/features/locale-switch/ui/LocaleSwitchButton.test.tsx`             | language switch                                                                     |
+| `src/shared/api/http.test.ts`                                           | headers, error mapping, timeout                                                     |
+| `src/shared/api/api/v1/query.test.ts`                                    | option building, encoding, property allow list                                      |
+| `src/shared/api/api/v1/odataClient.test.ts`                              | URLs, value wrapping, `$expand`                                                     |
+| `src/shared/config/config.test.ts`                                      | environment parsing                                                                 |
+| `src/shared/i18n/i18n.test.ts`                                          | interpolation, plurals, fallback to `ru` and to the key                             |
+| `src/shared/lib/store/asyncResource.test.ts`                            | loading, result, failure, discarded runs                                            |
+| `src/pages/documents/model/filesStore.test.ts`                          | query changes, upload, download, delete, failure messages                           |
+| `src/pages/users/model/usersStore.test.ts`                              | list, role change, reload after a rejected change                                   |
+| `src/shared/lib/format/format.test.ts`                                  | byte size, dates, initials                                                          |
+| `src/shared/lib/message` and `src/shared/ui/Message.test.tsx`           | design of a message                                                                 |
+| `src/shared/lib/router/hashRouter.test.ts`, `useRoute.test.tsx`         | hash parsing, navigation, subscription                                              |
+| `src/shared/ui/icons/icons.test.ts`                                     | every application icon exists in the v4 and v5 collections                          |
+| `src/widgets/app-shell`                                                 | navigation entries, shell bar, profile menu                                         |
+| `src/widgets/documents-table/ui/DocumentsTable.test.tsx`                | rows, empty state, download and delete                                              |
+| `src/widgets/users-table/ui/UsersTable.test.tsx`                        | rows, empty state, role change                                                      |
+| `src/pages/documents/ui/DocumentsPage.test.tsx`                         | search, sorting, upload, delete                                                     |
+| `src/pages/login/ui/LoginPage.test.tsx`                                 | sign in, failure, dev mode warning                                                  |
+| `src/pages/users/ui/UsersPage.test.tsx`                                 | role update and its message                                                         |
 
-### Testing UI5 components
+### Testing Ant Design/MUI components
 
-`vitest.setup.ts` carries everything the UI5 web components need under `happy-dom`:
+`vitest.setup.ts` carries everything the Ant Design/MUI web components need under `happy-dom`:
 
 - it imports the icon collections, otherwise every icon logs a missing loader,
 - it patches `_scrollElementIntoView` of `ui5-table`, because the component calls it while a cell
@@ -531,7 +536,7 @@ internal state of a UI5 element beyond the properties the application sets.
 
 Two more rules keep the suite quiet and deterministic:
 
-- every UI5 package is inlined into Vite (`server.deps.inline` in `vite.config.ts`). Node would
+- every Ant Design/MUI package is inlined into Vite (`server.deps.inline` in `vite.config.ts`). Node would
   otherwise load a second copy of the icon registry and fail to load the JSON of the collections,
-- a test that needs to *set* a UI5 value dispatches the event UI5 itself would dispatch
+- a test that needs to _set_ a Ant Design/MUI value dispatches the event Ant Design/MUI itself would dispatch
   (`new CustomEvent('change', { bubbles: true, detail })`) instead of poking the element.

@@ -1,7 +1,7 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
-import type { FileApi, FileObjectDto } from '@/entities/file';
-import type { FilterNode, ODataListResponse, ODataQuery, OrderByItem } from '@/shared/api';
+import type { FileApi, FileListQuery, FileObjectDto } from '@/entities/file';
+import type { PageResponse } from '@/shared/api';
 import type { AppMessage } from '@/shared/lib';
 
 import { downloadBlob } from '@/features/file-download';
@@ -13,20 +13,19 @@ export const FILES_SORTS = ['createdAt-desc', 'createdAt-asc', 'name-asc', 'size
 
 export type FilesSort = (typeof FILES_SORTS)[number];
 
-const SORT_TO_ORDER_BY: Record<FilesSort, OrderByItem[]> = {
-  'createdAt-desc': [{ property: 'createdAt', descending: true }],
-  'createdAt-asc': [{ property: 'createdAt' }],
-  'name-asc': [{ property: 'name' }],
-  'sizeBytes-desc': [{ property: 'sizeBytes', descending: true }],
+/** Переводит вариант сортировки страницы в параметр спискового REST-ресурса. */
+const SORT_TO_PARAM: Record<FilesSort, string> = {
+  'createdAt-desc': '-createdAt',
+  'createdAt-asc': 'createdAt',
+  'name-asc': 'name',
+  'sizeBytes-desc': '-sizeBytes',
 };
 
 const PAGE_SIZE = 50;
 
-export function buildFilesQuery(search: string, sort: FilesSort): ODataQuery {
+export function buildFilesQuery(search: string, sort: FilesSort): FileListQuery {
   const term = search.trim();
-  const filter: FilterNode | undefined =
-    term === '' ? undefined : { kind: 'function', name: 'contains', property: 'name', value: term };
-  return { filter, orderBy: SORT_TO_ORDER_BY[sort], top: PAGE_SIZE, count: true };
+  return { search: term, sort: SORT_TO_PARAM[sort], size: PAGE_SIZE };
 }
 
 export interface DocumentsState {
@@ -60,7 +59,7 @@ function failedMessage(error: unknown): string {
 }
 
 /** Загружает список файлов по текущим поиску и сортировке. */
-export const listDocuments = createAsyncThunk<ODataListResponse<FileObjectDto>, void, { rejectValue: string }>(
+export const listDocuments = createAsyncThunk<PageResponse<FileObjectDto>, void, { rejectValue: string }>(
   'documents/list',
   async (_arg, thunkAPI) => {
     const { services } = thunkAPI.extra as DocumentsServices;
@@ -202,7 +201,7 @@ export const documentsSlice = createSlice({
       .addCase(listDocuments.fulfilled, (state, action) => {
         state.loading = false;
         state.error = undefined;
-        state.files = action.payload.value;
+        state.files = action.payload.items;
       })
       .addCase(listDocuments.rejected, (state, action) => {
         const text = action.payload ?? t('common.unknownError');

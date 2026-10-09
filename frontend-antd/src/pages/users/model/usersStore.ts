@@ -1,14 +1,14 @@
 import { makeAutoObservable, reaction, runInAction } from 'mobx';
 
-import type { Role, UserApi, UserDto } from '@/entities/user';
-import type { ODataListResponse, ODataQuery } from '@/shared/api';
+import type { Role, UserApi, UserDto, UserListQuery } from '@/entities/user';
+import type { PageResponse } from '@/shared/api';
 import type { AppMessage } from '@/shared/lib';
 
 import { roleLabel } from '@/entities/user';
 import { t } from '@/shared/i18n';
 import { AsyncResource, messageOfError } from '@/shared/lib';
 
-const LIST_QUERY: ODataQuery = { orderBy: [{ property: 'email' }], top: 100, count: true };
+const LIST_QUERY: UserListQuery = { sort: 'email', size: 100 };
 
 /**
  * Состояние страницы администрирования: пользователи backend и назначение
@@ -19,7 +19,7 @@ export class UsersStore {
   message: AppMessage | undefined = undefined;
 
   private readonly userApi: UserApi;
-  private readonly list: AsyncResource<ODataListResponse<UserDto>>;
+  private readonly list: AsyncResource<PageResponse<UserDto>>;
   private dispose: (() => void) | null = null;
 
   constructor(userApi: UserApi) {
@@ -33,7 +33,7 @@ export class UsersStore {
   }
 
   get users(): readonly UserDto[] {
-    return this.list.data?.value ?? [];
+    return this.list.data?.items ?? [];
   }
 
   get loading(): boolean {

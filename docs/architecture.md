@@ -7,16 +7,16 @@ This document describes how the components fit together, which decisions were ta
 ```
                     ┌────────────────────────────────────────────────────────┐
    browser  ───────► │ edge (nginx, 80 + 443)                                 │
-                    │  user-kit.ui5.local  /            → frontend (static)    │
-                    │  user-kit.ui5.local  /api/        → backend:8080         │
-                    │  user-kit.ui5.local  /auth/       → keycloak:8080        │
-                    │  user-kit.ant.local  /            → frontend-antd        │
-                    │  user-kit.ant.local  /api/        → backend:8080         │
-                    │  user-kit.ant.local  /auth/       → 308 to the canonical │
+                    │  user-kit.local  /            → frontend (static)    │
+                    │  user-kit.local  /api/        → backend:8080         │
+                    │  user-kit.local  /auth/       → keycloak:8080        │
+                    │  user-kit.local  /            → frontend-antd        │
+                    │  user-kit.local  /api/        → backend:8080         │
+                    │  user-kit.local  /auth/       → 308 to the canonical │
                     │  user-kit.mui.local  /            → frontend-mui         │
                     │  user-kit.mui.local  /api/        → backend:8080         │
                     │  user-kit.mui.local  /auth/       → 308 to the canonical │
-                    │  /odata/, /v3/api-docs, /swagger-ui → backend:8080      │
+                    │  /api/v1/, /v3/api-docs, /swagger-ui → backend:8080      │
                     │  /healthz                         → answered by nginx    │
                     └────────────────────┬───────────────────────────────────────┘
                                          │ HTTP inside the compose network
@@ -45,17 +45,17 @@ applications see the same `iss`.
 
 ## Layers
 
-| Layer | Package / folder | Responsibility |
-| --- | --- | --- |
-| Edge | `nginx/` | TLS, security headers, routing, request size limit, gzip, three server names |
-| UI | `frontend/src/app`, `.../pages`, `.../widgets` | Composition root, shell, pages and tables, no business rules |
-| Domain | `frontend/src/features`, `.../entities` | Use cases, user and file operations, role extraction |
-| Transport | `frontend/src/shared/api` | Typed HTTP client, OData query building, error mapping |
-| Shared | `frontend/src/shared/{config,i18n,lib,ui}` | Environment configuration, translations, React hooks, formatting, router |
-| API | `backend/.../file`, `.../odata`, `.../user` | Endpoints, authorization checks, DTO mapping |
-| Domain services | `backend/.../file/FileService`, `.../user/UserAdminService` | Use cases, transactions, validation |
-| Persistence | `backend/.../repository`, `db/migration` | JPA entities, Flyway DDL |
-| Infrastructure | `backend/.../config` | Security, JWT, S3 client, OpenAPI, properties |
+| Layer           | Package / folder                                            | Responsibility                                                               |
+| --------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Edge            | `nginx/`                                                    | TLS, security headers, routing, request size limit, gzip, three server names |
+| UI              | `frontend/src/app`, `.../pages`, `.../widgets`              | Composition root, shell, pages and tables, no business rules                 |
+| Domain          | `frontend/src/features`, `.../entities`                     | Use cases, user and file operations, role extraction                         |
+| Transport       | `frontend/src/shared/api`                                   | Typed HTTP client, OData query building, error mapping                       |
+| Shared          | `frontend/src/shared/{config,i18n,lib,ui}`                  | Environment configuration, translations, React hooks, formatting, router     |
+| API             | `backend/.../file`, `.../odata`, `.../user`                 | Endpoints, authorization checks, DTO mapping                                 |
+| Domain services | `backend/.../file/FileService`, `.../user/UserAdminService` | Use cases, transactions, validation                                          |
+| Persistence     | `backend/.../repository`, `db/migration`                    | JPA entities, Flyway DDL                                                     |
+| Infrastructure  | `backend/.../config`                                        | Security, JWT, S3 client, OpenAPI, properties                                |
 
 ## Decisions
 

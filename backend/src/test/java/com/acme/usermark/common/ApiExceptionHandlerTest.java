@@ -32,7 +32,7 @@ class ApiExceptionHandlerTest {
         assertThat(response.getBody().code()).isEqualTo("bad_request");
         assertThat(response.getBody().message()).isEqualTo("Unknown request property: typo");
         assertThat(response.getBody().message()).doesNotContain("com.fasterxml");
-        assertThat(response.getBody().path()).isEqualTo("/odata/Files/1");
+        assertThat(response.getBody().path()).isEqualTo("/api/v1/files/1");
         assertThat(response.getBody().violations()).isEmpty();
     }
 
@@ -46,8 +46,8 @@ class ApiExceptionHandlerTest {
     }
 
     private static MockHttpServletRequest request() {
-        MockHttpServletRequest request = new MockHttpServletRequest("PATCH", "/odata/Files/1");
-        request.setRequestURI("/odata/Files/1");
+        MockHttpServletRequest request = new MockHttpServletRequest("PATCH", "/api/v1/files/1");
+        request.setRequestURI("/api/v1/files/1");
         return request;
     }
 

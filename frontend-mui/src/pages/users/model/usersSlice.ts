@@ -1,14 +1,14 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
-import type { Role, UserApi, UserDto } from '@/entities/user';
-import type { ODataListResponse, ODataQuery } from '@/shared/api';
+import type { Role, UserApi, UserDto, UserListQuery } from '@/entities/user';
+import type { PageResponse } from '@/shared/api';
 import type { AppMessage } from '@/shared/lib';
 
 import { roleLabel } from '@/entities/user';
 import { t } from '@/shared/i18n';
 import { messageOfError } from '@/shared/lib';
 
-const LIST_QUERY: ODataQuery = { orderBy: [{ property: 'email' }], top: 100, count: true };
+const LIST_QUERY: UserListQuery = { sort: 'email', size: 100 };
 
 export interface UsersState {
   users: readonly UserDto[];
@@ -33,7 +33,7 @@ function failedMessage(error: unknown): string {
 }
 
 /** Загружает всех пользователей backend в порядке email. */
-export const listUsers = createAsyncThunk<ODataListResponse<UserDto>, void, { rejectValue: string }>(
+export const listUsers = createAsyncThunk<PageResponse<UserDto>, void, { rejectValue: string }>(
   'users/list',
   async (_arg, thunkAPI) => {
     const { services } = thunkAPI.extra as UsersServices;
@@ -99,7 +99,7 @@ export const usersSlice = createSlice({
       .addCase(listUsers.fulfilled, (state, action) => {
         state.loading = false;
         state.error = undefined;
-        state.users = action.payload.value;
+        state.users = action.payload.items;
       })
       .addCase(listUsers.rejected, (state, action) => {
         const text = action.payload ?? t('common.unknownError');

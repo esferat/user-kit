@@ -255,17 +255,23 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
-      "rootUrl": "https://user-kit.ui5.local",
+      "rootUrl": "https://user-kit.local",
       "baseUrl": "/",
-      "redirectUris": ["https://user-kit.ui5.local/*"],
-      "webOrigins": ["https://user-kit.ui5.local"],
+      "redirectUris": ["https://user-kit.local/*"],
+      "webOrigins": ["https://user-kit.local"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://user-kit.ui5.local/*",
+        "post.logout.redirect.uris": "https://user-kit.local/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.session.required": "true"
       },
-      "defaultClientScopes": ["openid", "profile", "email", "roles", "user-kit-api-audience"],
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "user-kit-api-audience"
+      ],
       "optionalClientScopes": ["offline_access"]
     },
     {
@@ -280,30 +286,36 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "rootUrl": "https://user-kit.ui5.local",
+      "rootUrl": "https://user-kit.local",
       "baseUrl": "/",
       "redirectUris": [
-        "https://user-kit.ui5.local/api/v1/auth/callback",
-        "https://user-kit.ant.local/api/v1/auth/callback",
+        "https://user-kit.local/api/v1/auth/callback",
+        "https://user-kit.local/api/v1/auth/callback",
         "https://user-kit.mui.local/api/v1/auth/callback",
-        "http://localhost:5173/api/v1/auth/callback",
+        "http://localhost:5174/api/v1/auth/callback",
         "http://localhost:5174/api/v1/auth/callback",
         "http://localhost:5175/api/v1/auth/callback"
       ],
       "webOrigins": [
-        "https://user-kit.ui5.local",
-        "https://user-kit.ant.local",
+        "https://user-kit.local",
+        "https://user-kit.local",
         "https://user-kit.mui.local",
-        "http://localhost:5173",
+        "http://localhost:5174",
         "http://localhost:5174",
         "http://localhost:5175"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "https://user-kit.ui5.local/*##https://user-kit.ant.local/*##https://user-kit.mui.local/*##http://localhost:5173/*##http://localhost:5174/*##http://localhost:5175/*",
+        "post.logout.redirect.uris": "https://user-kit.local/*##https://user-kit.local/*##https://user-kit.mui.local/*##http://localhost:5174/*##http://localhost:5174/*##http://localhost:5175/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.session.required": "true"
       },
-      "defaultClientScopes": ["openid", "profile", "email", "roles", "user-kit-api-audience"]
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "user-kit-api-audience"
+      ]
     }
   ],
   "users": [

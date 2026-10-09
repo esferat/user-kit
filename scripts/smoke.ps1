@@ -1,6 +1,6 @@
 param(
-    [string]$ServerName = $(if ($env:SERVER_NAME) { $env:SERVER_NAME } else { 'user-kit.ui5.local' }),
-    [string]$AltServerName = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.ant.local' }),
+    [string]$ServerName = $(if ($env:SERVER_NAME) { $env:SERVER_NAME } else { 'user-kit.local' }),
+    [string]$AltServerName = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.local' }),
     [string]$MuiServerName = $(if ($env:SERVER_NAME_MUI) { $env:SERVER_NAME_MUI } else { 'user-kit.mui.local' }),
     [string]$Address = '127.0.0.1',
     [switch]$SkipCertificateCheck,

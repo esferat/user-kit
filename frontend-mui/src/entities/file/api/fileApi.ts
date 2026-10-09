@@ -1,11 +1,18 @@
 import type { FileObjectDto } from '../model/types';
 
-import type { ODataClient } from '@/shared/api';
+import { joinUrl, request, requestJson, type PageResponse } from '@/shared/api';
 
-import { joinUrl, request, requestJson, type ODataListResponse, type ODataQuery } from '@/shared/api';
+/** Параметры списка: поиск по имени, описанию и владельцу, сортировка, страница. */
+export interface FileListQuery {
+  search?: string;
+  /** Свойство с необязательным ведущим минусом для убывания, например `-createdAt`. */
+  sort?: string;
+  page?: number;
+  size?: number;
+}
 
 export interface FileApi {
-  list(query: ODataQuery, signal?: AbortSignal): Promise<ODataListResponse<FileObjectDto>>;
+  list(query?: FileListQuery, signal?: AbortSignal): Promise<PageResponse<FileObjectDto>>;
   upload(file: File, description: string | undefined, signal?: AbortSignal): Promise<FileObjectDto>;
   downloadContent(id: string, signal?: AbortSignal): Promise<Blob>;
   remove(id: string, etag?: string, signal?: AbortSignal): Promise<void>;
@@ -13,14 +20,33 @@ export interface FileApi {
 
 export interface FileApiOptions {
   baseUrl: string;
-  odata: ODataClient;
+}
+
+function fileListUrl(baseUrl: string, query: FileListQuery = {}): string {
+  const url = joinUrl(baseUrl, '/api/v1/files');
+  const params = new URLSearchParams();
+  const search = query.search?.trim();
+  if (search !== undefined && search !== '') {
+    params.set('search', search);
+  }
+  if (query.sort !== undefined && query.sort !== '') {
+    params.set('sort', query.sort);
+  }
+  if (query.page !== undefined) {
+    params.set('page', String(query.page));
+  }
+  if (query.size !== undefined) {
+    params.set('size', String(query.size));
+  }
+  const encoded = params.toString();
+  return encoded === '' ? url : url + '?' + encoded;
 }
 
 export function createFileApi(options: FileApiOptions): FileApi {
-  const { baseUrl, odata } = options;
+  const { baseUrl } = options;
 
   return {
-    list: (query, signal) => odata.list<FileObjectDto>('Files', query, signal),
+    list: (query, signal) => requestJson<PageResponse<FileObjectDto>>(fileListUrl(baseUrl, query), { signal }),
     upload: async (file, description, signal) => {
       const form = new FormData();
       form.append('file', file);
@@ -41,6 +67,12 @@ export function createFileApi(options: FileApiOptions): FileApi {
       });
       return response.blob();
     },
-    remove: (id, etag, signal) => odata.remove('Files', id, etag, signal),
+    remove: async (id, etag, signal) => {
+      await request(joinUrl(baseUrl, `/api/v1/files/${encodeURIComponent(id)}`), {
+        method: 'DELETE',
+        signal,
+        headers: etag === undefined ? {} : { 'If-Match': etag },
+      });
+    },
   };
 }

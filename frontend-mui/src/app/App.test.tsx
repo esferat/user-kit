@@ -46,14 +46,14 @@ const fakes = vi.hoisted(() => {
       }),
     },
     fileApi: {
-      list: vi.fn(async () => ({ value: [], count: 0 })),
+      list: vi.fn(async () => ({ items: [], total: 0, page: 0, size: 50 })),
       upload: vi.fn(async () => undefined),
       downloadContent: vi.fn(async () => new Blob()),
       remove: vi.fn(async () => undefined),
     },
     userApi: {
       me: vi.fn(async () => ({})),
-      list: vi.fn(async () => ({ value: [], count: 0 })),
+      list: vi.fn(async () => ({ items: [], total: 0, page: 0, size: 100 })),
       updateRoles: vi.fn(async () => ({})),
     },
   };

@@ -5,9 +5,8 @@ import { defineConfig } from 'vitest/config';
 const srcPath = fileURLToPath(new URL('./src', import.meta.url));
 
 /**
- * Dev-сервер работает на :5175, чтобы UI5-оболочка осталась на :5173, а
- * Ant Design-версия — на :5174. Все три настроены через proxy на один и тот же
- * backend на :8080.
+ * Dev-сервер работает на :5175, а Ant Design-версия — на :5174. Обе
+ * проксируются в один и тот же backend на :8080.
  */
 export default defineConfig({
   plugins: [react()],
@@ -21,7 +20,6 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': { target: 'http://localhost:8080', changeOrigin: true },
-      '/odata': { target: 'http://localhost:8080', changeOrigin: true },
     },
   },
   build: {

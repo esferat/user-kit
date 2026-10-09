@@ -1,6 +1,6 @@
 param(
-    [string]$Domain = $(if ($env:SERVER_NAME) { $env:SERVER_NAME } else { 'user-kit.ui5.local' }),
-    [string]$AltDomain = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.ant.local' }),
+    [string]$Domain = $(if ($env:SERVER_NAME) { $env:SERVER_NAME } else { 'user-kit.local' }),
+    [string]$AltDomain = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.local' }),
     [string]$MuiDomain = $(if ($env:SERVER_NAME_MUI) { $env:SERVER_NAME_MUI } else { 'user-kit.mui.local' }),
     [int]$Days = 825
 )

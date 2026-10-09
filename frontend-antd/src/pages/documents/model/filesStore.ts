@@ -1,7 +1,7 @@
 import { makeAutoObservable, reaction, runInAction } from 'mobx';
 
-import type { FileApi, FileObjectDto } from '@/entities/file';
-import type { FilterNode, OrderByItem, ODataListResponse, ODataQuery } from '@/shared/api';
+import type { FileApi, FileListQuery, FileObjectDto } from '@/entities/file';
+import type { PageResponse } from '@/shared/api';
 import type { AppMessage } from '@/shared/lib';
 
 import { downloadBlob } from '@/features/file-download';
@@ -13,11 +13,12 @@ export const FILES_SORTS = ['createdAt-desc', 'createdAt-asc', 'name-asc', 'size
 
 export type FilesSort = (typeof FILES_SORTS)[number];
 
-const SORT_TO_ORDER_BY: Record<FilesSort, OrderByItem[]> = {
-  'createdAt-desc': [{ property: 'createdAt', descending: true }],
-  'createdAt-asc': [{ property: 'createdAt' }],
-  'name-asc': [{ property: 'name' }],
-  'sizeBytes-desc': [{ property: 'sizeBytes', descending: true }],
+/** Переводит вариант сортировки страницы в параметр спискового REST-ресурса. */
+const SORT_TO_PARAM: Record<FilesSort, string> = {
+  'createdAt-desc': '-createdAt',
+  'createdAt-asc': 'createdAt',
+  'name-asc': 'name',
+  'sizeBytes-desc': '-sizeBytes',
 };
 
 const PAGE_SIZE = 50;
@@ -39,7 +40,7 @@ export class FilesStore {
   submitting = false;
 
   private readonly fileApi: FileApi;
-  private readonly list: AsyncResource<ODataListResponse<FileObjectDto>>;
+  private readonly list: AsyncResource<PageResponse<FileObjectDto>>;
   private dispose: (() => void) | null = null;
 
   constructor(fileApi: FileApi) {
@@ -53,7 +54,7 @@ export class FilesStore {
   }
 
   get files(): readonly FileObjectDto[] {
-    return this.list.data?.value ?? [];
+    return this.list.data?.items ?? [];
   }
 
   get loading(): boolean {
@@ -64,11 +65,9 @@ export class FilesStore {
     return this.list.error;
   }
 
-  get query(): ODataQuery {
+  get query(): FileListQuery {
     const term = this.search.trim();
-    const filter: FilterNode | undefined =
-      term === '' ? undefined : { kind: 'function', name: 'contains', property: 'name', value: term };
-    return { filter, orderBy: SORT_TO_ORDER_BY[this.sort], top: PAGE_SIZE, count: true };
+    return { search: term, sort: SORT_TO_PARAM[this.sort], size: PAGE_SIZE };
   }
 
   /** Ключ запроса, чтобы reaction реагировал на значения, а не на сам объект. */

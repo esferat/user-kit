@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createFileApi } from './fileApi';
-import { FILE_QUERYABLE_PROPERTIES } from './fileQueries';
-
-import { ODataClient } from '@/shared/api';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -11,10 +8,7 @@ function jsonResponse(body: unknown): Response {
 
 function api(options: { baseUrl?: string } = {}) {
   const baseUrl = options.baseUrl ?? '';
-  return createFileApi({
-    baseUrl,
-    odata: new ODataClient({ baseUrl, queryableProperties: { Files: FILE_QUERYABLE_PROPERTIES } }),
-  });
+  return createFileApi({ baseUrl });
 }
 
 afterEach(() => {
@@ -22,14 +16,24 @@ afterEach(() => {
 });
 
 describe('createFileApi', () => {
-  it('lists the files of the entity set', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ value: [{ id: 'f-1' }] }));
+  it('lists the files as a page of the REST resource', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ items: [{ id: 'f-1' }], total: 1, page: 0, size: 50 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const response = await api({ baseUrl: 'http://api:8080' }).list({ top: 50, count: true });
+    const response = await api({ baseUrl: 'http://api:8080' }).list({ size: 50 });
 
-    expect(response.value).toHaveLength(1);
-    expect(fetchMock.mock.calls[0][0]).toContain('http://api:8080/odata/Files?');
+    expect(response).toEqual({ items: [{ id: 'f-1' }], total: 1, page: 0, size: 50 });
+    expect(fetchMock.mock.calls[0][0]).toBe('http://api:8080/api/v1/files?size=50');
+  });
+
+  it('passes search, sort and pagination as query parameters', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ items: [], total: 0, page: 0, size: 50 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api({ baseUrl: 'http://api:8080' }).list({ search: '  report  ', sort: '-createdAt', page: 1, size: 50 });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [string];
+    expect(url).toBe('http://api:8080/api/v1/files?search=report&sort=-createdAt&page=1&size=50');
   });
 
   it('sends multipart payloads for uploads', async () => {
@@ -73,7 +77,7 @@ describe('createFileApi', () => {
     await api().remove('f-1', 'W/"1"');
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('/odata/Files/f-1');
+    expect(url).toBe('/api/v1/files/f-1');
     expect(init.method).toBe('DELETE');
     expect((init.headers as Record<string, string>)['If-Match']).toBe('W/"1"');
   });

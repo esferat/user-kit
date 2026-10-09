@@ -31,7 +31,7 @@ function createUserApi(users: UserDto[] = [ADMIN, PLAIN]): UserApi {
   let list = users;
   return {
     me: vi.fn(async () => ({ ...ADMIN, roles: ADMIN.roles })),
-    list: vi.fn(async () => ({ value: list, count: list.length })),
+    list: vi.fn(async () => ({ items: list, total: list.length, page: 0, size: 100 })),
     updateRoles: vi.fn(async (id: string, roles: readonly Role[]) => {
       list = list.map((user) => (user.id === id ? { ...user, roles: [...roles] } : user));
       return list.find((user) => user.id === id) ?? ADMIN;
@@ -51,7 +51,7 @@ describe('UsersStore', () => {
     const stop = store.start();
 
     await vi.waitFor(() => expect(store.users).toHaveLength(2));
-    expect(userApi.list).toHaveBeenCalledWith({ orderBy: [{ property: 'email' }], top: 100, count: true });
+    expect(userApi.list).toHaveBeenCalledWith({ sort: 'email', size: 100 });
     stop();
   });
 

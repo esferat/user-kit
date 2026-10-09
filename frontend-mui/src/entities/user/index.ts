@@ -1,6 +1,5 @@
 export { createUserApi } from './api/userApi';
-export type { UserApi, UserApiOptions } from './api/userApi';
-export { USER_QUERYABLE_PROPERTIES } from './api/userQueries';
+export type { UserApi, UserApiOptions, UserListQuery } from './api/userApi';
 export {
   collectRoles,
   extractRoles,

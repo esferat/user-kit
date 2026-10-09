@@ -33,7 +33,7 @@ const { downloadBlob } = vi.mocked(await import('@/features/file-download'));
 function createFileApi(files: FileObjectDto[] = [FILE]): FileApi {
   let list = files;
   return {
-    list: vi.fn(async () => ({ value: list, count: list.length })),
+    list: vi.fn(async () => ({ items: list, total: list.length, page: 0, size: 50 })),
     upload: vi.fn(async () => ({ ...FILE, id: 'file-2', name: 'next.txt' })),
     downloadContent: vi.fn(async () => new Blob(['payload'])),
     remove: vi.fn(async () => {
@@ -129,12 +129,7 @@ describe('DocumentsPage', () => {
 
     await waitFor(() => expect(rows(container)).toHaveLength(1));
     expect(container.querySelector('.page-title')?.textContent).toBe(i18n.t('documents.title'));
-    expect(fileApi.list).toHaveBeenCalledWith({
-      filter: undefined,
-      orderBy: [{ property: 'createdAt', descending: true }],
-      top: 50,
-      count: true,
-    });
+    expect(fileApi.list).toHaveBeenCalledWith({ search: '', sort: '-createdAt', size: 50 });
   });
 
   it('offers search, sorting, refresh and upload', async () => {
@@ -156,11 +151,7 @@ describe('DocumentsPage', () => {
     fireEvent.change(searchInput(container), { target: { value: 'report' } });
 
     await waitFor(() => expect(fileApi.list).toHaveBeenCalledTimes(2));
-    expect(fileApi.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        filter: { kind: 'function', name: 'contains', property: 'name', value: 'report' },
-      }),
-    );
+    expect(fileApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'report' }));
   });
 
   it('ignores a search term of blank characters', async () => {
@@ -183,7 +174,7 @@ describe('DocumentsPage', () => {
     chooseSort(container, 'name');
 
     await waitFor(() => expect(fileApi.list).toHaveBeenCalledTimes(2));
-    expect(fileApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ orderBy: [{ property: 'name' }] }));
+    expect(fileApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'name' }));
   });
 
   it('reports a failed reload', async () => {
@@ -319,7 +310,7 @@ describe('DocumentsPage', () => {
         failed = true;
         throw new Error('backend is down');
       }
-      return { value: [FILE], count: 1 };
+      return { items: [FILE], total: 1, page: 0, size: 50 };
     });
     const { container } = renderPage(fileApi);
 

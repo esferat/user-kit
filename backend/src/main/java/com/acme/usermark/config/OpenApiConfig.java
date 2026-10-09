@@ -20,8 +20,9 @@ public class OpenApiConfig {
                         .title("user-kit API")
                         .version("v1")
                         .description("""
-                                REST API of user-kit. The OData V4 subset lives under /odata and shares the same
-                                security model: an OAuth2/OIDC access token issued by the identity provider.
+                                REST JSON API of user-kit. All endpoints share the same security model: an
+                                OAuth2/OIDC access token issued by the identity provider, or the httpOnly
+                                session cookie of a backend for frontend login.
                                 """)
                         .license(new License().name("Apache-2.0")))
                 .components(new Components().addSecuritySchemes(

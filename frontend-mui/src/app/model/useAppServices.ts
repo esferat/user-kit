@@ -5,10 +5,9 @@ import type { UserApi } from '@/entities/user';
 import type { AuthProvider } from '@/features/auth';
 import type { Router } from '@/shared/lib';
 
-import { createFileApi, FILE_QUERYABLE_PROPERTIES } from '@/entities/file';
-import { createUserApi, USER_QUERYABLE_PROPERTIES } from '@/entities/user';
+import { createFileApi } from '@/entities/file';
+import { createUserApi } from '@/entities/user';
 import { createAuthProvider } from '@/features/auth';
-import { ODataClient } from '@/shared/api';
 import { config as appConfig, type AppConfig } from '@/shared/config';
 import { createRouter } from '@/shared/lib';
 
@@ -27,15 +26,8 @@ export interface AppServices {
 export function useAppServices(config: AppConfig = appConfig): AppServices {
   return useMemo<AppServices>(() => {
     const auth = createAuthProvider(config);
-    const odata = new ODataClient({
-      baseUrl: config.apiBaseUrl,
-      queryableProperties: {
-        Files: FILE_QUERYABLE_PROPERTIES,
-        Users: USER_QUERYABLE_PROPERTIES,
-      },
-    });
-    const fileApi = createFileApi({ baseUrl: config.apiBaseUrl, odata });
-    const userApi = createUserApi({ baseUrl: config.apiBaseUrl, odata });
+    const fileApi = createFileApi({ baseUrl: config.apiBaseUrl });
+    const userApi = createUserApi({ baseUrl: config.apiBaseUrl });
 
     return {
       auth,

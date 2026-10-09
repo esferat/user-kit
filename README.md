@@ -2,8 +2,8 @@
 
 Reference implementation of a small but production-shaped web application:
 
-- **Frontend** – Vite + React 19 + TypeScript + MobX + UI5 Web Components (`sap_horizon` theme).
-- **Backend** – Spring Boot 3.5 / Java 21 REST + OData V4 (subset) service.
+- **Frontend** – Vite + React 19 + TypeScript + MobX + Ant Design/Material UI (`sap_horizon` theme).
+- **Backend** – Spring Boot 3.5 / Java 21 REST + REST JSON API (subset) service.
 - **Database** – PostgreSQL 17 with Flyway migrations.
 - **Object storage** – any S3 compatible storage; the compose file ships Silo.
 - **Identity** – OpenID Connect against the Keycloak of the Compose stack, with the backend acting as the OAuth client (cookie based, no token in the browser) and a local dev login as an alternative.
@@ -31,16 +31,16 @@ administrators additionally manage all files and the role assignment of all acco
 
 ## Features
 
-| Area | Details |
-| --- | --- |
-| Authentication | OIDC Authorization Code + PKCE, optional local HS256 dev issuer, JWT resource server on the backend |
-| Authorization | Two roles only: `admin` and `user`; every API call is authorized on the server, the frontend only hides UI |
-| Files | Upload (`multipart/form-data`), download, delete, SHA-256 checksum, size and type limits, sanitized file names |
-| OData | `$metadata`, `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count`, concurrency via `If-Match`/`ETag` |
-| Administration | List accounts, change `roles` and `enabled`, reject unsupported roles |
-| API documentation | OpenAPI 3 at `/v3/api-docs`, Swagger UI at `/swagger-ui/index.html` |
-| Edge | TLS 1.2/1.3, HSTS, security headers, request size limit, gzip, ACME challenge location |
-| Operations | Health endpoint, structured startup validation, Docker Compose stack with persistent volumes |
+| Area              | Details                                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| Authentication    | OIDC Authorization Code + PKCE, optional local HS256 dev issuer, JWT resource server on the backend            |
+| Authorization     | Two roles only: `admin` and `user`; every API call is authorized on the server, the frontend only hides UI     |
+| Files             | Upload (`multipart/form-data`), download, delete, SHA-256 checksum, size and type limits, sanitized file names |
+| OData             | `$metadata`, `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count`, concurrency via `If-Match`/`ETag`    |
+| Administration    | List accounts, change `roles` and `enabled`, reject unsupported roles                                          |
+| API documentation | OpenAPI 3 at `/v3/api-docs`, Swagger UI at `/swagger-ui/index.html`                                            |
+| Edge              | TLS 1.2/1.3, HSTS, security headers, request size limit, gzip, ACME challenge location                         |
+| Operations        | Health endpoint, structured startup validation, Docker Compose stack with persistent volumes                   |
 
 ## Architecture
 
@@ -49,7 +49,7 @@ administrators additionally manage all files and the role assignment of all acco
    browser  ───────► │ edge (nginx :443/:80)                    │
                     │  /            → frontend (nginx, static) │
                     │  /api/        → backend :8080             │
-                    │  /odata/      → backend :8080             │
+                    │  REST API      → backend :8080             │
                     │  /swagger-ui  → backend :8080             │
                     │  /auth/       → keycloak :8080            │
                     └──────┬────────────────┬──────────────────┘
@@ -77,28 +77,28 @@ pwsh ./scripts/generate-dev-cert.ps1 # creates a self-signed certificate for all
 docker compose up -d --build
 ```
 
-The stack serves three independent applications: `SERVER_NAME` (default `user-kit.ui5.local`, UI5),
-`SERVER_NAME_ALT` (default `user-kit.ant.local`, Ant Design) and `SERVER_NAME_MUI` (default
+The stack serves three independent applications: `SERVER_NAME` (default `user-kit.local`, UI5),
+`SERVER_NAME_ALT` (default `user-kit.local`, Ant Design) and `SERVER_NAME_MUI` (default
 `user-kit.mui.local`, Material UI). They all talk to the same backend but keep their own sessions,
 because the cookies are scoped to the host. Add all three names to
 `C:\Windows\System32\drivers\etc\hosts` (Windows) or `/etc/hosts` (Linux/macOS):
 
 ```
-127.0.0.1 user-kit.ui5.local user-kit.ant.local user-kit.mui.local
+127.0.0.1 user-kit.local user-kit.local user-kit.mui.local
 ```
 
-Open <https://user-kit.ui5.local>, <https://user-kit.ant.local> or <https://user-kit.mui.local> and
+Open <https://user-kit.local>, <https://user-kit.local> or <https://user-kit.mui.local> and
 accept the self-signed certificate. Because the development certificate is not issued by a trusted CA,
 every `curl` example in this repository uses `-k`.
 
 Sign in at the Keycloak login dialog that the application opens:
 
-| Account | Password | Roles |
-| --- | --- | --- |
-| `admin-user` | `admin` | `admin`, `user` |
-| `user-user` | `user` | `user` |
+| Account      | Password | Roles           |
+| ------------ | -------- | --------------- |
+| `admin-user` | `admin`  | `admin`, `user` |
+| `user-user`  | `user`   | `user`          |
 
-The Keycloak admin console is at <https://user-kit.ui5.local/auth/admin/> (`admin`/`admin`) for local
+The Keycloak admin console is at <https://user-kit.local/auth/admin/> (`admin`/`admin`) for local
 troubleshooting. Both accounts come from
 [`keycloak/realm/user-kit-realm.json`](keycloak/realm/user-kit-realm.json), which is imported when
 the container starts without a database.
@@ -117,27 +117,27 @@ For the local login the backend offers a second method next to the dialog. With 
 the login page also shows a role button, which calls `POST /api/v1/auth/dev-login` and stores a local
 token in a cookie, no password involved.
 
-| URL | Description |
-| --- | --- |
-| <https://user-kit.ui5.local/> | UI5 Web Components application, the canonical domain |
-| <https://user-kit.ant.local/> | Ant Design application, the second domain |
-| <https://user-kit.mui.local/> | Material UI application, the third domain |
-| <https://user-kit.ui5.local/auth/> | Keycloak, the identity provider of the stack, only on the canonical domain |
-| <https://user-kit.ui5.local/swagger-ui/index.html> | Swagger UI |
-| <https://user-kit.ui5.local/healthz> | Edge health probe (`ok`) |
-| <https://localhost:8080/healthz> | Backend health probe (bypasses nginx) |
+| URL                                                | Description                                                                |
+| -------------------------------------------------- | -------------------------------------------------------------------------- |
+| <https://user-kit.local/>                      | Ant Design/Material UI application, the canonical domain                       |
+| <https://user-kit.local/>                      | Ant Design application, the second domain                                  |
+| <https://user-kit.mui.local/>                      | Material UI application, the third domain                                  |
+| <https://user-kit.local/auth/>                 | Keycloak, the identity provider of the stack, only on the canonical domain |
+| <https://user-kit.local/swagger-ui/index.html> | Swagger UI                                                                 |
+| <https://user-kit.local/healthz>               | Edge health probe (`ok`)                                                   |
+| <https://localhost:8080/healthz>                   | Backend health probe (bypasses nginx)                                      |
 
 Get a token and call the API:
 
 ```bash
-TOKEN=$(curl -sk -X POST https://user-kit.ui5.local/auth/realms/user-kit/protocol/openid-connect/token \
+TOKEN=$(curl -sk -X POST https://user-kit.local/auth/realms/user-kit/protocol/openid-connect/token \
   -d grant_type=password -d client_id=user-kit-web -d username=admin-user -d password=admin \
   -d 'scope=openid profile email' | jq -r .access_token)
 
-curl -sk -H "Authorization: Bearer $TOKEN" https://user-kit.ui5.local/api/v1/me
-curl -sk -H "Authorization: Bearer $TOKEN" 'https://user-kit.ui5.local/odata/Files?$count=true'
+curl -sk -H "Authorization: Bearer $TOKEN" https://user-kit.local/api/v1/me
+curl -sk -H "Authorization: Bearer $TOKEN" 'https://user-kit.localREST APIFiles?$count=true'
 curl -sk -H "Authorization: Bearer $TOKEN" -F "file=@report.pdf" -F "description=Q3 numbers" \
-  https://user-kit.ui5.local/api/v1/files
+  https://user-kit.local/api/v1/files
 ```
 
 Shut the stack down with `docker compose down`; add `-v` to delete the PostgreSQL and Silo volumes.
@@ -184,17 +184,17 @@ round trip goes through the backend, so `OIDC_CLIENT_REDIRECT_URI` must contain
 `http://localhost:5173/api/v1/auth/callback` in that setup, otherwise the provider rejects the
 redirect after the login form.
 
-| Script | Purpose |
-| --- | --- |
-| `npm run dev` | Vite dev server with hot reload |
-| `npm run lint` / `npm run lint:fix` | ESLint 9 flat config, includes the Feature Sliced Design boundaries |
-| `npm run format` / `npm run format:check` | Prettier |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run build` | typecheck + production build into `dist/` |
-| `npm test` | Vitest single run |
-| `npm run test:watch` | Vitest in watch mode |
-| `npm run test:coverage` | Vitest with V8 coverage, writes `coverage/lcov.info` |
-| `npm run check` | lint + format:check + typecheck + test |
+| Script                                    | Purpose                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| `npm run dev`                             | Vite dev server with hot reload                                     |
+| `npm run lint` / `npm run lint:fix`       | ESLint 9 flat config, includes the Feature Sliced Design boundaries |
+| `npm run format` / `npm run format:check` | Prettier                                                            |
+| `npm run typecheck`                       | `tsc --noEmit`                                                      |
+| `npm run build`                           | typecheck + production build into `dist/`                           |
+| `npm test`                                | Vitest single run                                                   |
+| `npm run test:watch`                      | Vitest in watch mode                                                |
+| `npm run test:coverage`                   | Vitest with V8 coverage, writes `coverage/lcov.info`                |
+| `npm run check`                           | lint + format:check + typecheck + test                              |
 
 The sources follow [Feature Sliced Design](https://feature-sliced.design) (`src/app`, `src/pages`,
 `src/widgets`, `src/features`, `src/entities`, `src/shared`), the state lives in MobX stores, one per
@@ -234,56 +234,56 @@ export DEV_AUTH_SECRET=dev-only-secret-change-me-0123456789abcdef
 
 ### Backend environment
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `SPRING_PROFILES_ACTIVE` | `dev` | `dev` enables SQL logging and the local token issuer |
-| `DATABASE_URL` | – | JDBC URL of PostgreSQL |
-| `DATABASE_USERNAME` / `DATABASE_PASSWORD` | – | Database credentials |
-| `S3_ENDPOINT` | `http://localhost:9000` | S3 compatible endpoint |
-| `S3_REGION` | `us-east-1` | Signing region |
-| `S3_BUCKET` | `user-kit` | Bucket name |
-| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | – | Storage credentials |
-| `S3_PATH_STYLE` | `true` | Required for most self-hosted storages |
-| `S3_CREATE_BUCKET` | `true` | Create the bucket on startup when it does not exist |
-| `FILES_MAX_SIZE_BYTES` | `26214400` | Upload limit enforced by the application |
-| `OIDC_ENABLED` | `true` | Validate incoming tokens against the identity provider |
-| `OIDC_ISSUER_URI` | `https://user-kit.ui5.local/auth/realms/user-kit` | Expected `iss`, also used for JWKS discovery |
-| `OIDC_JWK_SET_URI` | empty | Optional second URL for the keys when the issuer is not reachable from the backend |
-| `OIDC_AUDIENCES` | `user-kit-api` | Accepted `aud` values |
-| `OIDC_ROLES_CLAIM` | `roles` | Claim that carries the roles |
-| `DEV_AUTH_ENABLED` | `false` | Expose the local login and `/api/v1/dev/token` (dev profile only) |
-| `DEV_AUTH_SECRET` | dev-only value | HS256 secret of the dev issuer, minimum 32 characters |
-| `OIDC_CLIENT_ENABLED` | `false` | Backend performs the browser login as OAuth client |
-| `OIDC_CLIENT_ID` | empty | Confidential client id of the realm, for example `user-kit-bff` |
-| `OIDC_CLIENT_SECRET` | empty | Secret of that client |
-| `OIDC_CLIENT_ISSUER_URI` | empty | Optional URL for discovery when the public issuer is not reachable |
-| `OIDC_CLIENT_REDIRECT_URIS` | empty | Comma separated callbacks, one per frontend domain; falls back to the singular variable |
-| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS` | empty | Comma separated frontend roots the provider may redirect to; falls back to the singular variable |
-| `OIDC_CLIENT_REDIRECT_URI` | `https://user-kit.ui5.local/api/v1/auth/callback` | Must be registered for the client, used when the lists are empty |
-| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI` | `https://user-kit.ui5.local/` | Where the provider returns after the logout |
-| `OIDC_CLIENT_SCOPES` | `openid profile email` | Requested scopes |
-| `OIDC_LOGIN_STATE_TTL` | `10m` | How long a started login may take |
-| `OIDC_SESSION_TTL` | `12h` | Lifetime of a session without activity |
-| `OIDC_COOKIE_SECURE` | `true` | `Secure` flag of the session cookies; set `false` for plain HTTP |
-| `OIDC_COOKIE_DOMAIN` | empty | Optional cookie domain |
-| `OIDC_REFRESH_WINDOW` | `90s` | Renew the access token this long before it expires |
-| `CORS_ALLOWED_ORIGINS` | empty | Comma separated browser origins; empty keeps the API same origin only |
-| `CORS_ALLOWED_HEADERS` | `Authorization, Content-Type, If-Match, Accept, X-XSRF-TOKEN` | Allowed request headers |
-| `CORS_EXPOSED_HEADERS` | `ETag, Location, Content-Disposition` | Headers readable by the browser |
-| `CORS_MAX_AGE` | `30m` | Preflight cache duration |
-| `ODATA_DEFAULT_PAGE_SIZE` | `50` | Page size when `$top` is absent |
-| `ODATA_MAX_PAGE_SIZE` | `200` | Upper bound for `$top` |
+| Variable                                  | Default                                                       | Description                                                                                      |
+| ----------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `SPRING_PROFILES_ACTIVE`                  | `dev`                                                         | `dev` enables SQL logging and the local token issuer                                             |
+| `DATABASE_URL`                            | –                                                             | JDBC URL of PostgreSQL                                                                           |
+| `DATABASE_USERNAME` / `DATABASE_PASSWORD` | –                                                             | Database credentials                                                                             |
+| `S3_ENDPOINT`                             | `http://localhost:9000`                                       | S3 compatible endpoint                                                                           |
+| `S3_REGION`                               | `us-east-1`                                                   | Signing region                                                                                   |
+| `S3_BUCKET`                               | `user-kit`                                                    | Bucket name                                                                                      |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY`         | –                                                             | Storage credentials                                                                              |
+| `S3_PATH_STYLE`                           | `true`                                                        | Required for most self-hosted storages                                                           |
+| `S3_CREATE_BUCKET`                        | `true`                                                        | Create the bucket on startup when it does not exist                                              |
+| `FILES_MAX_SIZE_BYTES`                    | `26214400`                                                    | Upload limit enforced by the application                                                         |
+| `OIDC_ENABLED`                            | `true`                                                        | Validate incoming tokens against the identity provider                                           |
+| `OIDC_ISSUER_URI`                         | `https://user-kit.local/auth/realms/user-kit`             | Expected `iss`, also used for JWKS discovery                                                     |
+| `OIDC_JWK_SET_URI`                        | empty                                                         | Optional second URL for the keys when the issuer is not reachable from the backend               |
+| `OIDC_AUDIENCES`                          | `user-kit-api`                                                | Accepted `aud` values                                                                            |
+| `OIDC_ROLES_CLAIM`                        | `roles`                                                       | Claim that carries the roles                                                                     |
+| `DEV_AUTH_ENABLED`                        | `false`                                                       | Expose the local login and `/api/v1/dev/token` (dev profile only)                                |
+| `DEV_AUTH_SECRET`                         | dev-only value                                                | HS256 secret of the dev issuer, minimum 32 characters                                            |
+| `OIDC_CLIENT_ENABLED`                     | `false`                                                       | Backend performs the browser login as OAuth client                                               |
+| `OIDC_CLIENT_ID`                          | empty                                                         | Confidential client id of the realm, for example `user-kit-bff`                                  |
+| `OIDC_CLIENT_SECRET`                      | empty                                                         | Secret of that client                                                                            |
+| `OIDC_CLIENT_ISSUER_URI`                  | empty                                                         | Optional URL for discovery when the public issuer is not reachable                               |
+| `OIDC_CLIENT_REDIRECT_URIS`               | empty                                                         | Comma separated callbacks, one per frontend domain; falls back to the singular variable          |
+| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS`   | empty                                                         | Comma separated frontend roots the provider may redirect to; falls back to the singular variable |
+| `OIDC_CLIENT_REDIRECT_URI`                | `https://user-kit.local/api/v1/auth/callback`             | Must be registered for the client, used when the lists are empty                                 |
+| `OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI`    | `https://user-kit.local/`                                 | Where the provider returns after the logout                                                      |
+| `OIDC_CLIENT_SCOPES`                      | `openid profile email`                                        | Requested scopes                                                                                 |
+| `OIDC_LOGIN_STATE_TTL`                    | `10m`                                                         | How long a started login may take                                                                |
+| `OIDC_SESSION_TTL`                        | `12h`                                                         | Lifetime of a session without activity                                                           |
+| `OIDC_COOKIE_SECURE`                      | `true`                                                        | `Secure` flag of the session cookies; set `false` for plain HTTP                                 |
+| `OIDC_COOKIE_DOMAIN`                      | empty                                                         | Optional cookie domain                                                                           |
+| `OIDC_REFRESH_WINDOW`                     | `90s`                                                         | Renew the access token this long before it expires                                               |
+| `CORS_ALLOWED_ORIGINS`                    | empty                                                         | Comma separated browser origins; empty keeps the API same origin only                            |
+| `CORS_ALLOWED_HEADERS`                    | `Authorization, Content-Type, If-Match, Accept, X-XSRF-TOKEN` | Allowed request headers                                                                          |
+| `CORS_EXPOSED_HEADERS`                    | `ETag, Location, Content-Disposition`                         | Headers readable by the browser                                                                  |
+| `CORS_MAX_AGE`                            | `30m`                                                         | Preflight cache duration                                                                         |
+| `ODATA_DEFAULT_PAGE_SIZE`                 | `50`                                                          | Page size when `$top` is absent                                                                  |
+| `ODATA_MAX_PAGE_SIZE`                     | `200`                                                         | Upper bound for `$top`                                                                           |
 
 ### Frontend environment
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `VITE_API_BASE_URL` | empty | Empty means same origin; used for split deployments |
-| `VITE_UI5_THEME` | `sap_horizon` | UI5 theme name |
-| `VITE_ANTD_THEME` | `light` | Ant Design theme alias of the second frontend |
-| `VITE_MUI_THEME` | `light` | Material UI theme alias of the third frontend |
-| `VITE_DEFAULT_LOCALE` | `ru` | `ru` or `en`, the user can switch the language |
-| `VITE_DEV_ROLE` | `user` | Role requested by the local login of the dev profile |
+| Variable              | Default       | Description                                          |
+| --------------------- | ------------- | ---------------------------------------------------- |
+| `VITE_API_BASE_URL`   | empty         | Empty means same origin; used for split deployments  |
+| `VITE_UI5_THEME`      | `sap_horizon` | UI5 theme name                                       |
+| `VITE_ANTD_THEME`     | `light`       | Ant Design theme alias of the second frontend        |
+| `VITE_MUI_THEME`      | `light`       | Material UI theme alias of the third frontend        |
+| `VITE_DEFAULT_LOCALE` | `ru`          | `ru` or `en`, the user can switch the language       |
+| `VITE_DEV_ROLE`       | `user`        | Role requested by the local login of the dev profile |
 
 The frontend has no identity provider configuration: the backend reports the available login methods
 through `GET /api/v1/auth/config`. Because Vite inlines these variables, a change requires
@@ -291,29 +291,29 @@ through `GET /api/v1/auth/config`. Because Vite inlines these variables, a chang
 
 ## API overview
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/v1/me` | Profile and roles of the caller |
-| `GET` | `/api/v1/auth/config` | Available login methods: `oidc`, `dev` or `none` |
-| `GET` | `/api/v1/auth/login?returnUrl=%23/route` | Starts the login, answers `302` to the provider |
-| `GET` | `/api/v1/auth/callback` | Redirect target of the provider, sets the cookies |
-| `POST` | `/api/v1/auth/dev-login` | Local login into a cookie, dev profile only, needs CSRF |
-| `POST` | `/api/v1/auth/logout` | Drops the session and ends the provider session, needs CSRF |
-| `GET` | `/api/v1/dev/token?role=admin\|user` | Local token issuer for scripts, dev profile only |
-| `GET` | `/api/v1/dev/roles` | Roles supported by the dev issuer |
-| `GET` | `/api/v1/files?page=&size=` | REST list of visible files |
-| `POST` | `/api/v1/files` | `multipart/form-data` upload (`file`, optional `description`) |
-| `GET` | `/api/v1/files/{id}/content` | Binary download |
-| `DELETE` | `/api/v1/files/{id}` | Delete, honours `If-Match` |
-| `GET` | `/odata/$metadata` | CSDL metadata document |
-| `GET` | `/odata/Files` | Query with `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` |
-| `GET` | `/odata/Files/{id}` | Single file |
-| `GET` | `/odata/Files/{id}/$value` | Binary download as OData media entity |
-| `PATCH` | `/odata/Files/{id}` | Update `name` and `description`, honours `If-Match` |
-| `DELETE` | `/odata/Files/{id}` | Delete, honours `If-Match` |
-| `GET` | `/odata/Users` | Accounts, `admin` only |
-| `GET` | `/odata/Users/{id}` | Single account, `admin` only |
-| `PATCH` | `/odata/Users/{id}` | Update `roles` and `enabled`, `admin` only |
+| Method   | Path                                     | Purpose                                                                |
+| -------- | ---------------------------------------- | ---------------------------------------------------------------------- |
+| `GET`    | `/api/v1/me`                             | Profile and roles of the caller                                        |
+| `GET`    | `/api/v1/auth/config`                    | Available login methods: `oidc`, `dev` or `none`                       |
+| `GET`    | `/api/v1/auth/login?returnUrl=%23/route` | Starts the login, answers `302` to the provider                        |
+| `GET`    | `/api/v1/auth/callback`                  | Redirect target of the provider, sets the cookies                      |
+| `POST`   | `/api/v1/auth/dev-login`                 | Local login into a cookie, dev profile only, needs CSRF                |
+| `POST`   | `/api/v1/auth/logout`                    | Drops the session and ends the provider session, needs CSRF            |
+| `GET`    | `/api/v1/dev/token?role=admin\|user`     | Local token issuer for scripts, dev profile only                       |
+| `GET`    | `/api/v1/dev/roles`                      | Roles supported by the dev issuer                                      |
+| `GET`    | `/api/v1/files?page=&size=`              | REST list of visible files                                             |
+| `POST`   | `/api/v1/files`                          | `multipart/form-data` upload (`file`, optional `description`)          |
+| `GET`    | `/api/v1/files/{id}/content`             | Binary download                                                        |
+| `DELETE` | `/api/v1/files/{id}`                     | Delete, honours `If-Match`                                             |
+| `GET`    | `REST API$metadata`                       | CSDL metadata document                                                 |
+| `GET`    | `REST APIFiles`                           | Query with `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` |
+| `GET`    | `REST APIFiles/{id}`                      | Single file                                                            |
+| `GET`    | `REST APIFiles/{id}/$value`               | Binary download as OData media entity                                  |
+| `PATCH`  | `REST APIFiles/{id}`                      | Update `name` and `description`, honours `If-Match`                    |
+| `DELETE` | `REST APIFiles/{id}`                      | Delete, honours `If-Match`                                             |
+| `GET`    | `REST APIUsers`                           | Accounts, `admin` only                                                 |
+| `GET`    | `REST APIUsers/{id}`                      | Single account, `admin` only                                           |
+| `PATCH`  | `REST APIUsers/{id}`                      | Update `roles` and `enabled`, `admin` only                             |
 
 Errors use one JSON shape:
 
@@ -323,7 +323,7 @@ Errors use one JSON shape:
   "status": 412,
   "code": "precondition_failed",
   "message": "The resource was modified by another request",
-  "path": "/odata/Files/6f1c...",
+  "path": "REST APIFiles/6f1c...",
   "violations": []
 }
 ```
@@ -357,7 +357,7 @@ user-kit/
 │       ├── odata/          parser, query engine, mappings, controllers
 │       ├── security/       role extraction from JWT claims
 │       └── user/           account entity, profile, administration
-├── frontend/               Vite + React 19 + TypeScript + UI5 Web Components
+├── frontend/               Vite + React 19 + TypeScript + Ant Design/Material UI
 │   └── src/                Feature Sliced Design
 │       ├── app/            composition root, services, error boundary
 │       ├── pages/          documents, login, users
@@ -377,20 +377,20 @@ user-kit/
 
 ## Documentation
 
-| Document | Content |
-| --- | --- |
-| [`docs/architecture.md`](docs/architecture.md) | Components, request flow, decisions and trade-offs |
-| [`docs/api.md`](docs/api.md) | REST endpoints, error format, concurrency |
-| [`docs/odata.md`](docs/odata.md) | Supported OData subset, parser rules, limitations |
-| [`docs/auth.md`](docs/auth.md) | Keycloak setup, role model, dev issuer, authorization matrix |
-| [`docs/frontend.md`](docs/frontend.md) | React and UI5 Web Components integration, FSD structure, localization, routing, linting |
-| [`docs/deployment.md`](docs/deployment.md) | TLS, Compose reference, two-domain setup, production checklist |
+| Document                                       | Content                                                                                 |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`docs/architecture.md`](docs/architecture.md) | Components, request flow, decisions and trade-offs                                      |
+| [`docs/api.md`](docs/api.md)                   | REST endpoints, error format, concurrency                                               |
+| [`docs/odata.md`](docs/odata.md)               | Supported OData subset, parser rules, limitations                                       |
+| [`docs/auth.md`](docs/auth.md)                 | Keycloak setup, role model, dev issuer, authorization matrix                            |
+| [`docs/frontend.md`](docs/frontend.md)         | React and Ant Design/Material UI integration, FSD structure, localization, routing, linting |
+| [`docs/deployment.md`](docs/deployment.md)     | TLS, Compose reference, two-domain setup, production checklist                          |
 
 ## Limitations
 
 - The OData implementation covers a documented subset; `$expand`, `$search`, `$apply`, `$batch` and
   change sets are rejected with HTTP 400. Filtering and sorting happen in memory after the JPA query.
-- The UI is React 19 on UI5 Web Components instead of XML views. The official SAPUI5 toolchain is
+- The UI is React 19 on Ant Design/Material UI instead of XML views. The official SAPUI5 toolchain is
   [UI5 CLI](https://ui5.github.io/cli/v4) based and cannot be reproduced with a plain Vite build.
 - The generated TLS certificate is self-signed. Production deployments must supply a certificate
   from a trusted CA; see [`docs/deployment.md`](docs/deployment.md).

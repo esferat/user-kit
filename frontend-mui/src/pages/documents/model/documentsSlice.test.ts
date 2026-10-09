@@ -16,6 +16,7 @@ import {
 } from './documentsSlice';
 
 import type { FileApi, FileObjectDto } from '@/entities/file';
+import type { PageResponse } from '@/shared/api';
 
 import { i18n } from '@/shared/i18n';
 
@@ -36,10 +37,14 @@ const FILE: FileObjectDto = {
   etag: 'W/"1"',
 };
 
+function pageOf(files: FileObjectDto[]): PageResponse<FileObjectDto> {
+  return { items: files, total: files.length, page: 0, size: 50 };
+}
+
 function createFileApi(files: FileObjectDto[] = [FILE]): FileApi {
   let list = files;
   return {
-    list: vi.fn(async () => ({ value: list, count: list.length })),
+    list: vi.fn(async () => pageOf(list)),
     upload: vi.fn(async () => ({ ...FILE, id: 'file-2', name: 'next.txt' })),
     downloadContent: vi.fn(async () => new Blob(['payload'])),
     remove: vi.fn(async () => {
@@ -61,26 +66,16 @@ beforeEach(() => {
 });
 
 describe('buildFilesQuery', () => {
-  it('lists without a filter for an empty search', () => {
-    expect(buildFilesQuery('', 'createdAt-desc')).toEqual({
-      filter: undefined,
-      orderBy: [{ property: 'createdAt', descending: true }],
-      top: 50,
-      count: true,
-    });
+  it('uses the default size and a descending creation sort', () => {
+    expect(buildFilesQuery('', 'createdAt-desc')).toEqual({ search: '', sort: '-createdAt', size: 50 });
   });
 
   it('orders by name when the sort asks for it', () => {
-    expect(buildFilesQuery('', 'name-asc').orderBy).toEqual([{ property: 'name' }]);
+    expect(buildFilesQuery('', 'name-asc').sort).toBe('name');
   });
 
   it('searches the name ignoring the wrapping whitespace', () => {
-    expect(buildFilesQuery('  report  ', 'createdAt-desc').filter).toEqual({
-      kind: 'function',
-      name: 'contains',
-      property: 'name',
-      value: 'report',
-    });
+    expect(buildFilesQuery('  report  ', 'createdAt-desc').search).toBe('report');
   });
 });
 
@@ -118,11 +113,7 @@ describe('documentsSlice', () => {
 
     await store.dispatch(searchDocuments('report'));
 
-    expect(fileApi.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        filter: { kind: 'function', name: 'contains', property: 'name', value: 'report' },
-      }),
-    );
+    expect(fileApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'report' }));
   });
 
   it('skips a reload for a blank search', async () => {
@@ -143,7 +134,7 @@ describe('documentsSlice', () => {
 
     await store.dispatch(sortDocuments('name-asc'));
 
-    expect(fileApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ orderBy: [{ property: 'name' }] }));
+    expect(fileApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'name' }));
     expect(selectDocuments(store.getState()).sort).toBe('name-asc');
   });
 

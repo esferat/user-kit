@@ -82,7 +82,7 @@ describe('request', () => {
 
   it('returns undefined for 204 responses', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
-    await expect(requestJson('/odata/Files/1', { method: 'DELETE' })).resolves.toBeUndefined();
+    await expect(requestJson('/api/v1/files/1', { method: 'DELETE' })).resolves.toBeUndefined();
   });
 
   it('throws ApiError with the server message', async () => {

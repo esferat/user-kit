@@ -29,7 +29,7 @@ const { downloadBlob } = vi.mocked(await import('@/features/file-download'));
 function createFileApi(files: FileObjectDto[] = [FILE]): FileApi {
   let list = files;
   return {
-    list: vi.fn(async () => ({ value: list, count: list.length })),
+    list: vi.fn(async () => ({ items: list, total: list.length, page: 0, size: 50 })),
     upload: vi.fn(async () => ({ ...FILE, id: 'file-2', name: 'next.txt' })),
     downloadContent: vi.fn(async () => new Blob(['payload'])),
     remove: vi.fn(async () => {
@@ -46,12 +46,7 @@ describe('FilesStore', () => {
   it('asks for the newest documents first', () => {
     const store = new FilesStore(createFileApi());
 
-    expect(store.query).toEqual({
-      filter: undefined,
-      orderBy: [{ property: 'createdAt', descending: true }],
-      top: 50,
-      count: true,
-    });
+    expect(store.query).toEqual({ search: '', sort: '-createdAt', size: 50 });
     expect(store.files).toEqual([]);
     expect(store.loading).toBe(false);
   });
@@ -61,7 +56,7 @@ describe('FilesStore', () => {
 
     store.setSearch('  report  ');
 
-    expect(store.query.filter).toEqual({ kind: 'function', name: 'contains', property: 'name', value: 'report' });
+    expect(store.query).toEqual({ search: 'report', sort: '-createdAt', size: 50 });
   });
 
   it('ignores a search term of blank characters', () => {
@@ -69,17 +64,17 @@ describe('FilesStore', () => {
 
     store.setSearch('   ');
 
-    expect(store.query.filter).toBeUndefined();
+    expect(store.query).toEqual({ search: '', sort: '-createdAt', size: 50 });
   });
 
-  it('maps every ordering onto an order by clause', () => {
+  it('maps every ordering onto a sort parameter', () => {
     const store = new FilesStore(createFileApi());
 
     store.setSort('name-asc');
-    expect(store.query.orderBy).toEqual([{ property: 'name' }]);
+    expect(store.query.sort).toBe('name');
 
     store.setSort('sizeBytes-desc');
-    expect(store.query.orderBy).toEqual([{ property: 'sizeBytes', descending: true }]);
+    expect(store.query.sort).toBe('-sizeBytes');
   });
 
   it('keeps the ordering when the same one is chosen again', async () => {

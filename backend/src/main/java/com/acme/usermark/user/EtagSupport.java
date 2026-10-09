@@ -3,7 +3,7 @@ package com.acme.usermark.user;
 import com.acme.usermark.common.ApiException;
 import org.springframework.http.HttpStatus;
 
-/** Optimistic concurrency support for OData style `If-Match` headers. */
+/** Optimistic concurrency support for `If-Match` ETag headers. */
 public final class EtagSupport {
 
     private EtagSupport() {

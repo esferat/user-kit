@@ -5,8 +5,8 @@ import { defineConfig } from 'vitest/config';
 const srcPath = fileURLToPath(new URL('./src', import.meta.url));
 
 /**
- * Dev-сервер работает на :5174, чтобы UI5-оболочка того же репозитория могла
- * остаться на :5173. Оба настроены через proxy на один и тот же backend на :8080.
+ * Dev-сервер работает на :5174, а Material UI-версия — на :5175. Обе
+ * проксируются в один и тот же backend на :8080.
  */
 export default defineConfig({
   plugins: [react()],
@@ -20,7 +20,6 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': { target: 'http://localhost:8080', changeOrigin: true },
-      '/odata': { target: 'http://localhost:8080', changeOrigin: true },
     },
   },
   build: {

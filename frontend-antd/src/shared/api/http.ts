@@ -108,3 +108,18 @@ export async function requestJson<T>(url: string, options: RequestOptions = {}):
   }
   return (await response.json()) as T;
 }
+
+/** Склеивает базовый URL и путь без задвоения слэшей. */
+export function joinUrl(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}
+
+/** Ответ списочного REST-ресурса: элементы текущей страницы и общее число совпадений. */
+export interface PageResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+}

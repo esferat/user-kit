@@ -10,7 +10,11 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-userkit} -d ${DATABASE_NAME:-userkit}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DATABASE_USERNAME:-userkit} -d ${DATABASE_NAME:-userkit}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -50,9 +54,9 @@ services:
       KC_DB: dev-file
       # Keycloak serves the realm under /auth, nginx forwards that prefix, so the
       # issuer stays on the origin of the application:
-      # https://${SERVER_NAME:-user-kit.ui5.local}/auth/realms/user-kit
+      # https://${SERVER_NAME:-user-kit.local}/auth/realms/user-kit
       KC_HTTP_RELATIVE_PATH: ${KEYCLOAK_RELATIVE_PATH:-/auth}
-      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-https://user-kit.ui5.local/auth}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-https://user-kit.local/auth}
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KC_LOG_LEVEL: ${KEYCLOAK_LOG_LEVEL:-info}
@@ -88,7 +92,7 @@ services:
       DATABASE_USERNAME: ${DATABASE_USERNAME:-userkit}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-userkit}
       OIDC_ENABLED: ${OIDC_ENABLED:-true}
-      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI:-https://user-kit.ui5.local/auth/realms/user-kit}
+      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI:-https://user-kit.local/auth/realms/user-kit}
       # Keys are fetched from the container network, the issuer above stays the
       # external URL, so the backend validates iss without trusting the dev CA.
       OIDC_JWK_SET_URI: ${OIDC_JWK_SET_URI:-http://keycloak:8080/auth/realms/user-kit/protocol/openid-connect/certs}
@@ -103,12 +107,12 @@ services:
       # One callback per frontend. A login always comes back to the domain it was
       # started on, because the cookies of the other domain stay unknown to the
       # browser and the state row keeps the exact callback of that login.
-      OIDC_CLIENT_REDIRECT_URIS: ${OIDC_CLIENT_REDIRECT_URIS:-https://user-kit.ui5.local/api/v1/auth/callback,https://user-kit.ant.local/api/v1/auth/callback,https://user-kit.mui.local/api/v1/auth/callback}
-      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS:-https://user-kit.ui5.local/,https://user-kit.ant.local/,https://user-kit.mui.local/}
+      OIDC_CLIENT_REDIRECT_URIS: 
+      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS: 
       # Singular values stay as the fallback of the lists above, they are what a
       # login state without a callback of its own falls back to.
-      OIDC_CLIENT_REDIRECT_URI: ${OIDC_CLIENT_REDIRECT_URI:-https://user-kit.ui5.local/api/v1/auth/callback}
-      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI:-https://user-kit.ui5.local/}
+      OIDC_CLIENT_REDIRECT_URI: ${OIDC_CLIENT_REDIRECT_URI:-https://user-kit.local/api/v1/auth/callback}
+      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URI:-https://user-kit.local/}
       OIDC_CLIENT_SCOPES: ${OIDC_CLIENT_SCOPES:-openid profile email}
       OIDC_LOGIN_STATE_TTL: ${OIDC_LOGIN_STATE_TTL:-10m}
       OIDC_SESSION_TTL: ${OIDC_SESSION_TTL:-12h}
@@ -138,20 +142,6 @@ services:
       - "${BACKEND_PORT:-8080}:8080"
     restart: unless-stopped
 
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
-        VITE_UI5_THEME: ${VITE_UI5_THEME:-sap_horizon}
-        VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-ru}
-        VITE_DEV_ROLE: ${VITE_DEV_ROLE:-admin}
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-  # Second frontend on its own domain. All of them talk to the same backend, but
-  # the login stays on the domain it started on: the session cookies are host only.
   frontend-antd:
     build:
       context: ./frontend-antd
@@ -180,7 +170,6 @@ services:
   edge:
     image: nginx:1.27-alpine
     depends_on:
-      - frontend
       - frontend-antd
       - frontend-mui
       - backend
@@ -188,11 +177,10 @@ services:
     environment:
       # Canonical domain: serves the identity provider under /auth, so the issuer
       # of the tokens is a single origin for all frontends.
-      SERVER_NAME: ${SERVER_NAME:-user-kit.ui5.local}
-      SERVER_NAME_ALT: ${SERVER_NAME_ALT:-user-kit.ant.local}
+      SERVER_NAME: ${SERVER_NAME:-user-kit.local}
+      SERVER_NAME_ALT: ${SERVER_NAME_ALT:-user-kit.local}
       SERVER_NAME_MUI: ${SERVER_NAME_MUI:-user-kit.mui.local}
-      UPSTREAM_FRONTEND: frontend:80
-      UPSTREAM_FRONTEND_ALT: frontend-antd:80
+      UPSTREAM_FRONTEND_ANTD: frontend-antd:80
       UPSTREAM_FRONTEND_MUI: frontend-mui:80
       UPSTREAM_BACKEND: backend:8080
       UPSTREAM_KEYCLOAK: keycloak:8080

@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createUserApi } from './userApi';
-import { USER_QUERYABLE_PROPERTIES } from './userQueries';
-
-import { ODataClient } from '@/shared/api';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -11,10 +8,7 @@ function jsonResponse(body: unknown): Response {
 
 function api(options: { baseUrl?: string } = {}) {
   const baseUrl = options.baseUrl ?? '';
-  return createUserApi({
-    baseUrl,
-    odata: new ODataClient({ baseUrl, queryableProperties: { Users: USER_QUERYABLE_PROPERTIES } }),
-  });
+  return createUserApi({ baseUrl });
 }
 
 afterEach(() => {
@@ -30,16 +24,24 @@ describe('createUserApi', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('http://api:8080/api/v1/me');
   });
 
-  it('lists the users ordered by email', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ value: [{ id: 'u-1' }] }));
+  it('lists the users as a page of the REST resource', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ items: [{ id: 'u-1' }], total: 1, page: 0, size: 100 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const response = await api().list({ orderBy: [{ property: 'email' }], top: 100, count: true });
+    const response = await api({ baseUrl: 'http://api:8080' }).list({ size: 100 });
 
-    expect(response.value).toHaveLength(1);
+    expect(response.items).toHaveLength(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('http://api:8080/api/v1/users?size=100');
+  });
+
+  it('sorts by email via the sort parameter', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ items: [], total: 0, page: 0, size: 100 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api().list({ sort: 'email', size: 100 });
+
     const [url] = fetchMock.mock.calls[0] as unknown as [string];
-    expect(url).toContain('/odata/Users?');
-    expect(decodeURIComponent(url.replaceAll('+', '%20'))).toContain('$orderby=email asc');
+    expect(url).toContain('sort=email');
   });
 
   it('patches the roles of a user', async () => {
@@ -49,7 +51,7 @@ describe('createUserApi', () => {
     await api().updateRoles('u-1', ['admin']);
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('/odata/Users/u-1');
+    expect(url).toBe('/api/v1/users/u-1');
     expect(init.method).toBe('PATCH');
     expect(init.body).toBe(JSON.stringify({ roles: ['admin'] }));
   });
