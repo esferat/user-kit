@@ -7,10 +7,10 @@ The application knows exactly two roles:
 | Role    | Spring authority | Capabilities                                                |
 | ------- | ---------------- | ----------------------------------------------------------- |
 | `user`  | `ROLE_USER`      | own files: list, upload, download, delete, rename           |
-| `admin` | `ROLE_ADMIN`     | everything a user can do, plus all files and `/api/v1/Users` |
+| `admin` | `ROLE_ADMIN`     | everything a user can do, plus all files and `/api/v1/users` |
 
 `admin` implies full access, so the frontend treats an administrator as a user as well. When roles
-are written through `PATCH /api/v1/Users/{id}` the set is normalized: it must be a non-empty subset
+are written through `PATCH /api/v1/users/{id}` the set is normalized: it must be a non-empty subset
 of `{admin, user}` and `admin` is exclusive, so `["admin","user"]` is stored as `["admin"]`.
 
 ## Authorization matrix
@@ -20,7 +20,7 @@ of `{admin, user}` and `admin` is exclusive, so `["admin","user"]` is stored as 
 | `/healthz`, `/actuator/health`, `/actuator/info`                     | allowed                              | allowed     | allowed     |
 | `/v3/api-docs`, `/swagger-ui/**`                                     | allowed                              | allowed     | allowed     |
 | `/api/v1/dev/**`                                                     | allowed when `DEV_AUTH_ENABLED=true` | allowed     | allowed     |
-| `/api/v1/auth/config`, `/api/v1/auth/login`, `/api/v1/auth/callback` | allowed                              | allowed     | allowed     |
+| `/api/v1/auth/config`, `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/callback` | allowed                              | allowed     | allowed     |
 | `/api/v1/auth/dev-login`, `/api/v1/auth/logout`                      | allowed with a CSRF token            | allowed     | allowed     |
 | `/api/v1/me`                                                         | 401                                  | own profile | own profile |
 | `/api/v1/files`, `/api/v1/files/{id}/content`                        | 401                                  | own files   | all files   |
@@ -37,7 +37,8 @@ The backend is both the OAuth client and the JWT resource server. The browser ne
 authorization code flow on its own, no identity provider library runs in the frontend bundle and no
 token is readable by JavaScript:
 
-1. `GET /api/v1/auth/config` tells the frontend which methods exist: `oidc`, `dev` or `none`.
+1. `GET /api/v1/auth/config` tells the frontend which methods exist: `oidc`, `dev` or `none`, and
+   whether self registration is offered (`registrationEnabled`).
 2. `GET /api/v1/auth/login` stores a hashed `state` and a PKCE `code_verifier` in `auth_login_state`
    and answers `302` to the authorization endpoint of the provider. `?returnUrl=%23/documents` keeps
    the router route after the round trip; only a local fragment is accepted, everything else falls
@@ -67,6 +68,20 @@ therefore reads the `Authorization` header and the dev token cookie only.
 
 `POST /api/v1/auth/logout` deletes the session row, revokes the refresh token and returns the URL that
 ends the session of the provider, which is why the next login shows the credentials form again.
+
+### Self registration
+
+`GET /api/v1/auth/register` works like the login: it stores a hashed `state` and a PKCE
+`code_verifier` and answers `302`, but to the registration page of the provider
+(`<authorization_endpoint>` with its `/auth` tail replaced by `/registrations`). The provider then
+uses the same `GET /api/v1/auth/callback`, so a freshly registered account ends up logged in with the
+session cookies. The route accepts the same `?returnUrl=%23/route` fragment as the login.
+
+Registration is a provider feature, so it needs two switches on. `registrationAllowed=true` in the
+realm and `OIDC_REGISTRATION_ENABLED=true` in the backend. With either one off, `registrationEnabled`
+in `/api/v1/auth/config` is `false` and `GET /api/v1/auth/register` answers `400`
+(`oidc_disabled` or `registration_disabled`). Newly registered accounts receive the default roles of
+the realm, which include the `user` role.
 
 ### CSRF
 
@@ -114,7 +129,7 @@ merged in that order. Entries are lower cased and trimmed, unknown values are ig
 collapses to `["admin"]`. A token without any recognised role receives the base `user` role, so a wrong
 claim mapping can never lock a user out completely and can never escalate privileges.
 
-`frontend/src/entities/user/model/roles.ts` implements the same order for the UI, so the navigation and the API
+`frontend-antd/src/entities/user/model/roles.ts` implements the same order for the UI, so the navigation and the API
 agree on the role of the session.
 
 ### Provider setup (Keycloak)
@@ -167,6 +182,7 @@ DEV_AUTH_ENABLED=false
 OIDC_CLIENT_ENABLED=true
 OIDC_CLIENT_ID=user-kit-bff
 OIDC_CLIENT_SECRET=the-secret-of-that-client
+OIDC_REGISTRATION_ENABLED=true
 OIDC_CLIENT_REDIRECT_URIS=https://app.example.com/api/v1/auth/callback,https://app2.example.com/api/v1/auth/callback
 OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS=https://app.example.com/,https://app2.example.com/
 OIDC_CLIENT_SCOPES=openid profile email
@@ -208,8 +224,8 @@ issuer that no client can reach:
 | Variable                 | Default                           | Meaning                                                                  |
 | ------------------------ | --------------------------------- | ------------------------------------------------------------------------ |
 | `SERVER_NAME`            | `user-kit.local`              | canonical public host of the edge container, the one that serves `/auth` |
-| `SERVER_NAME_ALT`        | `user-kit.local`              | second public host, its `/auth` redirects to the canonical domain        |
-| `SERVER_NAME_MUI`        | `user-kit.mui.local`              | third public host, its `/auth` redirects to the canonical domain         |
+| `SERVER_NAME_MUI`        | `user-kit.mui.local`              | second public host, its `/auth` redirects to the canonical domain        |
+| `SERVER_NAME_NEXT`       | `user-kit.next.local`             | third public host, its `/auth` redirects to the canonical domain         |
 | `KEYCLOAK_RELATIVE_PATH` | `/auth`                           | prefix below `SERVER_NAME`                                               |
 | `KEYCLOAK_HOSTNAME`      | `https://user-kit.local/auth` | public base URL of Keycloak, **including** the prefix                    |
 
@@ -298,16 +314,17 @@ repository.
 - `enabled = false` blocks every API call for that account, regardless of the token.
 
 The first login decides the initial role, so an IdP must be able to deliver `admin` for at least the
-first administrator. Afterwards roles can be maintained through `PATCH /api/v1/Users/{id}`.
+first administrator. Afterwards roles can be maintained through `PATCH /api/v1/users/{id}`.
 
 ## Frontend behaviour
 
-- `frontend/src/features/auth/cookie/cookieAuthProvider.ts` is the only provider: it reads
-  `/api/v1/auth/config`, navigates to `/api/v1/auth/login` and calls `/api/v1/auth/dev-login` when the
-  backend offers the local login.
-- `frontend/src/shared/api/http.ts` sends every request with `credentials: 'include'` and adds
+- `frontend-antd/src/features/auth/cookie/cookieAuthProvider.ts` is the only provider: it reads
+  `/api/v1/auth/config`, navigates to `/api/v1/auth/login` (or `/api/v1/auth/register` for the
+  registration button) and calls `/api/v1/auth/dev-login` when the backend offers the local login.
+  `frontend-mui` mirrors it.
+- `frontend-*/src/shared/api/http.ts` sends every request with `credentials: 'include'` and adds
   `X-XSRF-TOKEN` for unsafe methods. It never attaches an `Authorization` header.
-- `frontend/src/entities/user/model/roles.ts` maps claims to the two roles, mirroring the backend, so both sides
+- `frontend-*/src/entities/user/model/roles.ts` maps claims to the two roles, mirroring the backend, so both sides
   agree on what `admin` means.
 - There is no silent renew in the frontend: the backend refreshes before the token expires. A rejected
   refresh makes `/api/v1/me` answer `401`, which brings the login screen back.

@@ -122,6 +122,22 @@ export const login = createAsyncThunk<AuthenticatedUser | null, LoginRequest, { 
   },
 );
 
+/**
+ * Открывает саморегистрацию у провайдера. Браузер уходит со страницы, поэтому
+ * promise здесь не завершится; ошибка настройки показывается сообщением.
+ */
+export const register = createAsyncThunk<void, LoginRequest, { rejectValue: string }>(
+  'session/register',
+  async (request, thunkAPI) => {
+    const { services } = thunkAPI.extra as SessionServices;
+    try {
+      await services.auth.register({ returnUrl: request.returnUrl });
+    } catch (error) {
+      return thunkAPI.rejectWithValue(messageOfError(error, t('login.failed')));
+    }
+  },
+);
+
 /** Завершает сессию; сам пользователь обнуляется уведомлением провайдера. */
 export const logout = createAsyncThunk<void, void>('session/logout', async (_arg, thunkAPI) => {
   const { services } = thunkAPI.extra as SessionServices;
@@ -191,6 +207,17 @@ export const sessionSlice = createSlice({
         applyUser(state, action.payload);
       })
       .addCase(login.rejected, (state, action) => {
+        state.pending = false;
+        state.failure = action.payload ?? t('login.failed');
+      })
+      .addCase(register.pending, (state) => {
+        state.pending = true;
+        state.failure = undefined;
+      })
+      .addCase(register.fulfilled, (state) => {
+        state.pending = false;
+      })
+      .addCase(register.rejected, (state, action) => {
         state.pending = false;
         state.failure = action.payload ?? t('login.failed');
       });

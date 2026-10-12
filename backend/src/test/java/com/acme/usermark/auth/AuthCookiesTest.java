@@ -22,6 +22,7 @@ class AuthCookiesTest {
                         new AppProperties.Dev(true, "user-kit-dev", "secret", Duration.ofHours(1)),
                         new AppProperties.OAuth(
                                 true,
+                                true,
                                 "user-kit-bff",
                                 "s3cret",
                                 "",

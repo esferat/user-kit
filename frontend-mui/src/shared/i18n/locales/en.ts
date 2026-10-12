@@ -85,5 +85,6 @@ export const en: Messages = {
   'login.role.admin': 'Administrator',
   'login.role.user': 'User',
   'login.submit': 'Sign in',
+  'login.register': 'Create account',
   'login.failed': 'Sign in failed',
 };

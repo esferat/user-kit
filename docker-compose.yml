@@ -131,6 +131,13 @@ services:
       S3_CREATE_BUCKET: ${S3_CREATE_BUCKET:-true}
       # Demo documents for an empty store, dev profile only
       DEMO_DATA_ENABLED: ${DEMO_DATA_ENABLED:-true}
+      # Application log file that the Logstash container tails. The pattern is
+      # "[level]-[date]- message". Set the variable empty to log to the console
+      # only, for example when the backend runs outside of this compose stack.
+      LOG_FILE: ${LOG_FILE-/var/log/user-kit/backend.log}
+    volumes:
+      # Shared with Logstash, which reads the file read only
+      - backend-logs:/var/log/user-kit
     depends_on:
       postgres:
         condition: service_healthy
@@ -165,6 +172,80 @@ services:
         VITE_DEV_ROLE: ${VITE_DEV_ROLE:-admin}
     depends_on:
       - backend
+
+  # Fourth frontend: a Next.js full stack SPA on its own domain.
+  fullstack-next:
+    build:
+      context: ./fullstack-next
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Central log store. Logstash tails the backend log file and indexes one
+  # document per "[level]-[date]- message" line into this cluster, Kibana reads
+  # the user-kit-backend-* indices.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.15.3}
+    environment:
+      discovery.type: single-node
+      # Local development only: the dev stack runs without TLS and without a
+      # password, a production deployment has to enable security here.
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      ES_JAVA_OPTS: ${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      # Optional direct access for curl and the API, Kibana reaches it internally
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    healthcheck:
+      # Only checks that the API answers. A single-node cluster turns yellow as
+      # soon as an index has a replica, so requiring "green" would keep Logstash
+      # and Kibana from ever starting after the first index exists.
+      test: ["CMD-SHELL", "curl -s -f http://localhost:9200 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    restart: unless-stopped
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${ELASTIC_VERSION:-8.15.3}
+    environment:
+      # The pipeline lives in ./logstash/pipeline, ECS output keeps the
+      # standard field names of the Elastic stack.
+      LS_JAVA_OPTS: ${LOGSTASH_JAVA_OPTS:--Xms256m -Xmx256m}
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      # Persists the sincedb so a restart continues where the last run stopped
+      - logstash-data:/usr/share/logstash/data
+      # The same volume the backend writes its log file into, read only here
+      - backend-logs:/var/log/user-kit:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION:-8.15.3}
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
     restart: unless-stopped
 
   edge:
@@ -172,18 +253,25 @@ services:
     depends_on:
       - frontend-antd
       - frontend-mui
+      - fullstack-next
       - backend
       - keycloak
+      - kibana
     environment:
       # Canonical domain: serves the identity provider under /auth, so the issuer
       # of the tokens is a single origin for all frontends.
       SERVER_NAME: ${SERVER_NAME:-user-kit.local}
-      SERVER_NAME_ALT: ${SERVER_NAME_ALT:-user-kit.local}
       SERVER_NAME_MUI: ${SERVER_NAME_MUI:-user-kit.mui.local}
+      SERVER_NAME_NEXT: ${SERVER_NAME_NEXT:-user-kit.next.local}
+      # Reverse proxy in front of Kibana, so the log UI is reachable over the
+      # same TLS edge as the applications instead of the published 5601 port.
+      SERVER_NAME_KIBANA: ${SERVER_NAME_KIBANA:-user-kit.kibana.local}
       UPSTREAM_FRONTEND_ANTD: frontend-antd:80
       UPSTREAM_FRONTEND_MUI: frontend-mui:80
+      UPSTREAM_FULLSTACK_NEXT: fullstack-next:3000
       UPSTREAM_BACKEND: backend:8080
       UPSTREAM_KEYCLOAK: keycloak:8080
+      UPSTREAM_KIBANA: kibana:5601
       MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-26m}
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
@@ -197,3 +285,6 @@ services:
 volumes:
   postgres-data:
   object-storage-data:
+  backend-logs:
+  elasticsearch-data:
+  logstash-data:

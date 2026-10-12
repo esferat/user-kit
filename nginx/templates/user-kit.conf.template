@@ -8,6 +8,11 @@ upstream frontend_mui_upstream {
     keepalive 16;
 }
 
+upstream frontend_next_upstream {
+    server ${UPSTREAM_FULLSTACK_NEXT};
+    keepalive 16;
+}
+
 upstream backend_upstream {
     server ${UPSTREAM_BACKEND};
     keepalive 16;
@@ -18,10 +23,15 @@ upstream keycloak_upstream {
     keepalive 8;
 }
 
+upstream kibana_upstream {
+    server ${UPSTREAM_KIBANA};
+    keepalive 8;
+}
+
 server {
     listen 80;
     listen [::]:80;
-    server_name ${SERVER_NAME} ${SERVER_NAME_MUI};
+    server_name ${SERVER_NAME} ${SERVER_NAME_MUI} ${SERVER_NAME_NEXT} ${SERVER_NAME_KIBANA};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -69,16 +79,6 @@ server {
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header Connection "";
         proxy_read_timeout 120s;
-    }
-
-    location /odata/ {
-        proxy_pass http://backend_upstream;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header Connection "";
     }
 
     location = /v3/api-docs {
@@ -167,16 +167,6 @@ server {
         proxy_read_timeout 120s;
     }
 
-    location /odata/ {
-        proxy_pass http://backend_upstream;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header Connection "";
-    }
-
     location = /v3/api-docs {
         proxy_pass http://backend_upstream;
         proxy_set_header Host $host;
@@ -211,6 +201,122 @@ server {
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+    }
+}
+
+# Fourth application domain: a Next.js full stack application. Same API and the
+# same redirect of /auth to the canonical domain, but the asset and page requests
+# are served by the Node server of the standalone build.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME_NEXT};
+
+    ssl_certificate /etc/nginx/certs/server.crt;
+    ssl_certificate_key /etc/nginx/certs/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_stapling off;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    client_max_body_size ${MAX_UPLOAD_SIZE};
+    charset utf-8;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml application/xml;
+
+    location /api/ {
+        proxy_pass http://backend_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Connection "";
+        proxy_read_timeout 120s;
+    }
+
+    location = /v3/api-docs {
+        proxy_pass http://backend_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    location /swagger-ui {
+        proxy_pass http://backend_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+    }
+
+    # The provider lives on the canonical domain only, see the Material UI block.
+    location /auth/ {
+        return 308 https://${SERVER_NAME}$request_uri;
+    }
+
+    location / {
+        proxy_pass http://frontend_next_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+
+# Kibana, the log exploration UI of the logging stack. It has no application
+# routes of its own, so everything below / is proxied to the Kibana server and
+# the browser keeps the same TLS origin as the rest of the stack. Buffering is
+# off, because some Kibana APIs stream their responses.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME_KIBANA};
+
+    ssl_certificate /etc/nginx/certs/server.crt;
+    ssl_certificate_key /etc/nginx/certs/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_stapling off;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    charset utf-8;
+
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+    }
+
+    location / {
+        proxy_pass http://kibana_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Connection "";
+        proxy_read_timeout 300s;
+        proxy_buffering off;
     }
 }
 

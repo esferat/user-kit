@@ -57,6 +57,17 @@ function LoginPageView({ config }: LoginPageProps) {
           >
             {t('login.submit')}
           </Button>
+          {mode === 'oidc' && (
+            <Button
+              type="link"
+              disabled={session.pending}
+              onClick={() => {
+                void session.register(window.location.hash);
+              }}
+            >
+              {t('login.register')}
+            </Button>
+          )}
         </div>
       </Card>
     </div>

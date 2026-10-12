@@ -21,7 +21,7 @@ public record AppProperties(Security security, Storage storage, Files files, Res
             oidc = oidc == null ? new Oidc(false, "", "", List.of(), "roles") : oidc;
             dev = dev == null ? new Dev(false, "user-kit-dev", "", Duration.ofHours(1)) : dev;
             oauth = oauth == null
-                    ? new OAuth(false, "", "", "", "", "", "", Duration.ofMinutes(10), Duration.ofHours(12), Duration.ofSeconds(90), true, "", "", "")
+                    ? new OAuth(false, true, "", "", "", "", "", "", Duration.ofMinutes(10), Duration.ofHours(12), Duration.ofSeconds(90), true, "", "", "")
                     : oauth;
         }
     }
@@ -61,6 +61,7 @@ public record AppProperties(Security security, Storage storage, Files files, Res
      */
     public record OAuth(
             boolean enabled,
+            boolean registrationEnabled,
             String clientId,
             String clientSecret,
             String issuerUri,

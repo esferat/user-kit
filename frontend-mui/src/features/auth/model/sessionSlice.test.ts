@@ -5,6 +5,7 @@ import {
   loadLoginMode,
   login,
   logout,
+  register,
   restoreSession,
   selectSession,
   sessionReducer,
@@ -31,6 +32,7 @@ function createAuth(restored: AuthenticatedUser | null = null): AuthProvider {
     mode: vi.fn(async (): Promise<AuthMode> => 'oidc'),
     restore: vi.fn(async () => current),
     login: vi.fn(async () => undefined),
+    register: vi.fn(async () => undefined),
     logout: vi.fn(async () => {
       current = null;
     }),
@@ -167,6 +169,31 @@ describe('sessionSlice', () => {
     const state = selectSession(store.getState());
     expect(state.failure).toBe('authorization server unreachable');
     expect(state.user).toBeNull();
+    expect(state.pending).toBe(false);
+  });
+
+  it('opens the self registration with the return url', async () => {
+    const auth = createAuth(null);
+    const store = createStore(auth);
+
+    await store.dispatch(register({ returnUrl: '#/documents' }));
+
+    expect(auth.register).toHaveBeenCalledWith({ returnUrl: '#/documents' } satisfies LoginOptions);
+    expect(selectSession(store.getState()).pending).toBe(false);
+    expect(selectSession(store.getState()).failure).toBeUndefined();
+  });
+
+  it('reports a registration that the backend refused', async () => {
+    const auth = createAuth(null);
+    auth.register = vi.fn(async () => {
+      throw new Error('self registration disabled');
+    });
+    const store = createStore(auth);
+
+    await store.dispatch(register({}));
+
+    const state = selectSession(store.getState());
+    expect(state.failure).toBe('self registration disabled');
     expect(state.pending).toBe(false);
   });
 

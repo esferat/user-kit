@@ -48,6 +48,7 @@ class AuthSessionServiceTest {
                         new AppProperties.Dev(false, "user-kit-dev", "secret", Duration.ofHours(1)),
                         new AppProperties.OAuth(
                                 true,
+                                true,
                                 "user-kit-bff",
                                 "s3cret",
                                 "",
@@ -89,6 +90,21 @@ class AuthSessionServiceTest {
         assertThat(saved.getValue().getCallbackUri()).isEqualTo("https://app/api/v1/auth/callback");
         assertThat(saved.getValue().isUsable(Instant.now().plusSeconds(60))).isTrue();
         assertThat(saved.getValue().isUsable(Instant.now().plusSeconds(601))).isFalse();
+        verify(loginStates).deleteExpired(any(Instant.class));
+    }
+
+    @Test
+    @DisplayName("starts the self registration and stores the same login state")
+    void startsRegistration() {
+        when(tokenClient.registrationUrl(anyString(), anyString(), anyString())).thenReturn("https://idp/registrations?state=x");
+
+        String url = service.startRegistration(null, "https://app");
+
+        assertThat(url).isEqualTo("https://idp/registrations?state=x");
+        ArgumentCaptor<AuthLoginState> saved = ArgumentCaptor.forClass(AuthLoginState.class);
+        verify(loginStates).save(saved.capture());
+        assertThat(saved.getValue().getStateHash()).hasSize(64);
+        assertThat(saved.getValue().getCallbackUri()).isEqualTo("https://app/api/v1/auth/callback");
         verify(loginStates).deleteExpired(any(Instant.class));
     }
 

@@ -54,10 +54,12 @@ public class AuthController {
     @Operation(summary = "Tells the frontend which login methods are available")
     public AuthConfig config() {
         boolean dev = properties.security().dev().enabled();
+        boolean oidc = sessions.oauthEnabled();
         return new AuthConfig(
                 sessions.oauthEnabled() ? "oidc" : dev ? "dev" : "none",
                 dev,
-                properties.security().oauth().enabled());
+                properties.security().oauth().enabled(),
+                oidc && properties.security().oauth().registrationEnabled());
     }
 
     @GetMapping("/login")
@@ -70,6 +72,22 @@ public class AuthController {
         String origin = RequestOrigin.of(request);
         return ResponseEntity.status(302)
                 .header(HttpHeaders.LOCATION, sessions.startLogin(returnUrl, origin))
+                .build();
+    }
+
+    @GetMapping("/register")
+    @Operation(summary = "Starts the self registration in the identity provider")
+    public ResponseEntity<Void> register(
+            @RequestParam(required = false) String returnUrl, HttpServletRequest request) {
+        if (!sessions.oauthEnabled()) {
+            throw ApiException.badRequest("oidc_disabled", "The OAuth login is disabled on the server");
+        }
+        if (!properties.security().oauth().registrationEnabled()) {
+            throw ApiException.badRequest("registration_disabled", "The self registration is disabled on the server");
+        }
+        String origin = RequestOrigin.of(request);
+        return ResponseEntity.status(302)
+                .header(HttpHeaders.LOCATION, sessions.startRegistration(returnUrl, origin))
                 .build();
     }
 
@@ -125,7 +143,7 @@ public class AuthController {
         return new LogoutResponse(sessions.endSessionUrl(session, RequestOrigin.of(request)).orElse(null));
     }
 
-    public record AuthConfig(String mode, boolean devEnabled, boolean oidcConfigured) {
+    public record AuthConfig(String mode, boolean devEnabled, boolean oidcConfigured, boolean registrationEnabled) {
     }
 
     public record DevLoginRequest(String role, String subject) {

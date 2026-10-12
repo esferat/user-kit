@@ -62,6 +62,16 @@ public class AuthSessionService {
     /** Starts a login and returns the provider URL the browser has to visit. */
     @Transactional
     public String startLogin(String returnUrl, String origin) {
+        return start(returnUrl, origin, false);
+    }
+
+    /** Starts a self registration in the provider, the callback is the one of a login. */
+    @Transactional
+    public String startRegistration(String returnUrl, String origin) {
+        return start(returnUrl, origin, true);
+    }
+
+    private String start(String returnUrl, String origin, boolean registration) {
         OAuthTokenClient client = requireTokenClient();
         Instant now = Instant.now();
         loginStates.deleteExpired(now);
@@ -74,7 +84,9 @@ public class AuthSessionService {
                 callbackUri,
                 codeVerifier,
                 now.plus(properties.security().oauth().loginStateTtl())));
-        return client.authorizationUrl(state, codeChallenge(codeVerifier), callbackUri);
+        return registration
+                ? client.registrationUrl(state, codeChallenge(codeVerifier), callbackUri)
+                : client.authorizationUrl(state, codeChallenge(codeVerifier), callbackUri);
     }
 
     /**

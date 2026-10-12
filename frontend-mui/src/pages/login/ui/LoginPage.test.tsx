@@ -20,6 +20,7 @@ function createAuth(mode: AuthMode = 'oidc', overrides: Partial<AuthProvider> = 
     mode: vi.fn(async () => mode),
     restore: vi.fn(async () => null),
     login: vi.fn(async () => undefined),
+    register: vi.fn(async () => undefined),
     logout: vi.fn(async () => undefined),
     onAuthenticated: () => () => undefined,
     ...overrides,
@@ -47,6 +48,10 @@ function cardTitle(container: HTMLElement): string | undefined {
 
 function submit(container: HTMLElement): HTMLButtonElement {
   return container.querySelector('.login-card-body button') as HTMLButtonElement;
+}
+
+function registerButton(container: HTMLElement): HTMLButtonElement | null {
+  return container.querySelector('.login-card-body button.MuiButton-text');
 }
 
 function roleSelect(container: HTMLElement): HTMLElement | null {
@@ -133,6 +138,23 @@ describe('LoginPage', () => {
     fireEvent.click(submit(container));
 
     await waitFor(() => expect(auth.login).toHaveBeenCalledWith({ returnUrl: '#/admin-users', role: 'user' }));
+  });
+
+  it('offers a self registration link for a provider login', async () => {
+    const auth = createAuth();
+    const { container } = await renderPage(auth);
+    await ready(container);
+
+    fireEvent.click(registerButton(container) as HTMLButtonElement);
+
+    await waitFor(() => expect(auth.register).toHaveBeenCalledWith({ returnUrl: '#/admin-users' }));
+  });
+
+  it('offers no self registration without a provider', async () => {
+    const { container } = await renderPage(createAuth('dev'), DEV_CONFIG);
+
+    await waitFor(() => expect(roleSelect(container)).not.toBeNull());
+    expect(registerButton(container)).toBeNull();
   });
 
   it('passes the chosen dev role to the login', async () => {

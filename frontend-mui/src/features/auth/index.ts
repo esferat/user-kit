@@ -6,6 +6,7 @@ export {
   loadLoginMode,
   login,
   logout,
+  register,
   restoreSession,
   selectSession,
   sessionReducer,

@@ -21,6 +21,8 @@ export interface AuthProvider {
   mode(): Promise<AuthMode>;
   restore(): Promise<AuthenticatedUser | null>;
   login(options?: LoginOptions): Promise<void>;
+  /** Начинает саморегистрацию у провайдера, если она включена. */
+  register(options?: LoginOptions): Promise<void>;
   logout(): Promise<void>;
   onAuthenticated(listener: (user: AuthenticatedUser | null) => void): () => void;
 }

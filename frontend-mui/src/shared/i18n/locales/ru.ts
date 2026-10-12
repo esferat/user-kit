@@ -90,5 +90,6 @@ export const ru: Messages = {
   'login.role.admin': 'Администратор',
   'login.role.user': 'Пользователь',
   'login.submit': 'Войти',
+  'login.register': 'Создать аккаунт',
   'login.failed': 'Не удалось выполнить вход',
 };

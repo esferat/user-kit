@@ -33,6 +33,7 @@ const fakes = vi.hoisted(() => {
       mode: vi.fn(async (): Promise<'oidc'> => 'oidc'),
       restore: vi.fn(async () => fakes.user),
       login: vi.fn(async () => undefined),
+      register: vi.fn(async () => undefined),
       logout: vi.fn(async () => {
         fakes.user = null;
         listeners.forEach((listener) => listener(null));

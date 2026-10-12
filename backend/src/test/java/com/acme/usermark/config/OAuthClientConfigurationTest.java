@@ -28,7 +28,7 @@ import org.springframework.web.client.RestClient;
 
 class OAuthClientConfigurationTest {
 
-    private static final String PUBLIC_ISSUER = "https://user-kit.ui5.local/auth/realms/user-kit";
+    private static final String PUBLIC_ISSUER = "https://user-kit.next.local/auth/realms/user-kit";
     private static final String INTERNAL_ISSUER = "http://keycloak:8080/realms/user-kit";
 
     private final AtomicReference<URI> requested = new AtomicReference<>();
@@ -93,7 +93,7 @@ class OAuthClientConfigurationTest {
     void registrationUsesTheBackendCallback() {
         ClientRegistration registration = register(PUBLIC_ISSUER, PUBLIC_ISSUER);
 
-        assertThat(registration.getRedirectUri()).isEqualTo("https://user-kit.ui5.local/api/v1/auth/callback");
+        assertThat(registration.getRedirectUri()).isEqualTo("https://user-kit.next.local/api/v1/auth/callback");
         assertThat(registration.getClientId()).isEqualTo("user-kit-bff");
         assertThat(registration.getScopes()).containsExactly("openid", "profile", "email");
     }
@@ -141,11 +141,12 @@ class OAuthClientConfigurationTest {
                         null,
                         new AppProperties.OAuth(
                                 true,
+                                true,
                                 "user-kit-bff",
                                 "secret",
                                 discoveryIssuer,
-                                "https://user-kit.ui5.local/api/v1/auth/callback",
-                                "https://user-kit.ui5.local/",
+                                "https://user-kit.next.local/api/v1/auth/callback",
+                                "https://user-kit.next.local/",
                                 "openid profile email",
                                 Duration.ofMinutes(10),
                                 Duration.ofHours(12),

@@ -37,6 +37,24 @@ server:
   forward-headers-strategy: framework
   shutdown: graceful
 
+logging:
+  # Every line has the shape "[level]-[date]- message". Logstash parses exactly
+  # this shape, a change here has to be mirrored in logstash/pipeline/logstash.conf.
+  pattern:
+    console: "[%level]-[%d{yyyy-MM-dd HH:mm:ss.SSS}]- %msg%n"
+    file: "[%level]-[%d{yyyy-MM-dd HH:mm:ss.SSS}]- %msg%n"
+  file:
+    # Empty keeps a local run console only. docker compose sets it to
+    # /var/log/user-kit/backend.log inside the shared backend-logs volume.
+    name: ${LOG_FILE:}
+  logback:
+    rollingpolicy:
+      # Rolled files keep the .log name and stay uncompressed, so the glob
+      # "/var/log/user-kit/backend.log*" of Logstash really reads them.
+      max-file-size: 100MB
+      max-history: 7
+      file-name-pattern: ${LOG_FILE}.%d{yyyy-MM-dd}.%i
+
 management:
   endpoints:
     web:
@@ -76,6 +94,9 @@ app:
       # Cookie based login: the backend is the OAuth client, the browser only
       # receives httpOnly cookies and the refresh token stays in the database.
       enabled: ${OIDC_CLIENT_ENABLED:false}
+      # Offer the self registration of the identity provider on the login screen.
+      # The provider must have self registration enabled itself, Keycloak does.
+      registration-enabled: ${OIDC_REGISTRATION_ENABLED:true}
       client-id: ${OIDC_CLIENT_ID:user-kit-bff}
       client-secret: ${OIDC_CLIENT_SECRET:}
       # Optional. Set it when the discovery document is not reachable under the

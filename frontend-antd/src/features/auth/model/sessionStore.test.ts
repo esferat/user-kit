@@ -33,6 +33,7 @@ function createAuth(
       return current;
     }),
     login: vi.fn(async () => undefined),
+    register: vi.fn(async () => undefined),
     logout: vi.fn(async () => {
       current = null;
       listeners.forEach((listener) => listener(null));

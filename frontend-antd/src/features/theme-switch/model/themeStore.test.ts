@@ -67,7 +67,7 @@ describe('ThemeStore', () => {
   });
 
   it('keeps the two applications apart in the local storage', () => {
-    // Ant Design shell и UI5 shell используют один профиль браузера, поэтому
+    // Ant Design shell и MUI shell используют один профиль браузера, поэтому
     // их ключи хранилища не должны совпадать.
     expect(THEME_STORAGE_KEY).toBe('user-kit-antd:theme');
   });

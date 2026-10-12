@@ -47,6 +47,7 @@ public class SecurityConfig {
         "/api/v1/dev/**",
         "/api/v1/auth/config",
         "/api/v1/auth/login",
+        "/api/v1/auth/register",
         "/api/v1/auth/callback",
         "/api/v1/auth/dev-login",
         "/api/v1/auth/logout"

@@ -8,13 +8,6 @@ nginx/certs/*
 !nginx/certs/.gitkeep
 
 # Frontend
-frontend/node_modules
-frontend/dist
-frontend/coverage
-frontend/.vite
-frontend/.env
-frontend/.env.local
-frontend/.env.*.local
 frontend-antd/node_modules
 frontend-antd/dist
 frontend-antd/coverage
@@ -29,6 +22,11 @@ frontend-mui/.vite
 frontend-mui/.env
 frontend-mui/.env.local
 frontend-mui/.env.*.local
+fullstack-next/node_modules
+fullstack-next/.next
+fullstack-next/.env
+fullstack-next/.env.local
+fullstack-next/.env.*.local
 
 # Backend
 backend/target
@@ -42,3 +40,5 @@ Thumbs.db
 
 # Logs
 *.log
+backend/logs
+logstash/data

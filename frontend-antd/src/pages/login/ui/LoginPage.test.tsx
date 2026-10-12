@@ -18,6 +18,7 @@ function createAuth(mode: AuthMode = 'oidc', overrides: Partial<AuthProvider> = 
     mode: vi.fn(async () => mode),
     restore: vi.fn(async () => null),
     login: vi.fn(async () => undefined),
+    register: vi.fn(async () => undefined),
     logout: vi.fn(async () => undefined),
     onAuthenticated: () => () => undefined,
     ...overrides,
@@ -38,6 +39,10 @@ function cardTitle(container: HTMLElement): string | undefined {
 
 function submit(container: HTMLElement): HTMLButtonElement {
   return container.querySelector('.login-card-body button.ant-btn-primary') as HTMLButtonElement;
+}
+
+function registerButton(container: HTMLElement): HTMLButtonElement | null {
+  return container.querySelector('.login-card-body button.ant-btn-link');
 }
 
 function roleSelect(container: HTMLElement): HTMLElement | null {
@@ -82,6 +87,24 @@ describe('LoginPage', () => {
 
     await waitFor(() => expect(submit(container).disabled).toBe(false));
     expect(alerts(container)).toEqual([]);
+    expect(registerButton(container)?.textContent).toBe(i18n.t('login.register'));
+  });
+
+  it('starts the self registration of the provider', async () => {
+    const auth = createAuth('oidc');
+    const { container } = renderPage(auth);
+    await ready(container);
+
+    fireEvent.click(registerButton(container) as HTMLButtonElement);
+
+    await waitFor(() => expect(auth.register).toHaveBeenCalledWith({ returnUrl: '#/admin-users' }));
+  });
+
+  it('offers no self registration without a provider', async () => {
+    const { container } = renderPage(createAuth('dev'), DEV_CONFIG);
+
+    await waitFor(() => expect(roleSelect(container)).not.toBeNull());
+    expect(registerButton(container)).toBeNull();
   });
 
   it('warns about the development authentication and offers the role', async () => {

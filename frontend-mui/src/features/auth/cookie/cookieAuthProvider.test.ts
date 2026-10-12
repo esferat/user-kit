@@ -98,6 +98,29 @@ describe('CookieAuthProvider', () => {
     expect(assigned).toEqual(['http://api:8080/api/v1/auth/login?returnUrl=%23%2Fadmin-users']);
   });
 
+  it('redirects the browser to the backend for a self registration', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ mode: 'oidc', devEnabled: false, oidcConfigured: true })),
+    );
+    const { assigned } = stubLocation();
+    const provider = new CookieAuthProvider('http://api:8080', 'user');
+
+    await provider.register({ returnUrl: '#/admin-users' });
+
+    expect(assigned).toEqual(['http://api:8080/api/v1/auth/register?returnUrl=%23%2Fadmin-users']);
+  });
+
+  it('refuses to register when the backend has no provider', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ mode: 'dev', devEnabled: true, oidcConfigured: false })),
+    );
+    const provider = new CookieAuthProvider('', 'user');
+
+    await expect(provider.register()).rejects.toThrow(/self registration/i);
+  });
+
   it('signs in locally in dev mode and reports the principal', async () => {
     const fetchMock = vi
       .fn()

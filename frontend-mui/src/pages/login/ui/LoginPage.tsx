@@ -6,7 +6,7 @@ import type { AppConfig } from '@/shared/config';
 import type { AppDispatch } from '@/shared/lib';
 
 import { DEFAULT_ROLE, ROLES } from '@/entities/user';
-import { login, selectSession } from '@/features/auth';
+import { login, register, selectSession } from '@/features/auth';
 import { useTranslate } from '@/shared/i18n';
 import { messageOfError } from '@/shared/lib';
 import { ICONS, Message } from '@/shared/ui';
@@ -71,6 +71,17 @@ export function LoginPage({ config }: LoginPageProps) {
           >
             {t('login.submit')}
           </Button>
+          {mode === 'oidc' && (
+            <Button
+              variant="text"
+              disabled={busy}
+              onClick={() => {
+                void dispatch(register({ returnUrl: window.location.hash }));
+              }}
+            >
+              {t('login.register')}
+            </Button>
+          )}
         </div>
       </Paper>
     </div>

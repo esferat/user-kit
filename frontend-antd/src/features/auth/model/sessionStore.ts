@@ -138,6 +138,26 @@ export class SessionStore {
     }
   }
 
+  /**
+   * Открывает саморегистрацию у провайдера. Браузер уходит со страницы, поэтому
+   * promise здесь не завершится; ошибка настройки показывается сообщением.
+   */
+  async register(returnUrl?: string): Promise<void> {
+    this.pending = true;
+    this.failure = undefined;
+    try {
+      await this.auth.register({ returnUrl });
+    } catch (error) {
+      runInAction(() => {
+        this.failure = messageOfError(error, t('login.failed'));
+      });
+    } finally {
+      runInAction(() => {
+        this.pending = false;
+      });
+    }
+  }
+
   async logout(): Promise<void> {
     try {
       await this.auth.logout();

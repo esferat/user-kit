@@ -44,14 +44,13 @@ compact document without `timestamp`, `status` and `path`:
 | Code                       | Status | Meaning                                                                                |
 | -------------------------- | ------ | -------------------------------------------------------------------------------------- |
 | `unauthorized`             | 401    | Missing, invalid or expired token                                                      |
-| `forbidden`                | 403    | Authenticated but not allowed, for example a user on `/api/v1/Users`                    |
+| `forbidden`                | 403    | Authenticated but not allowed, for example a user on `/api/v1/users`                    |
 | `bad_request`              | 400    | Malformed query, JSON body or parameter type, including unknown request properties     |
 | `validation_failed`        | 400    | Bean validation failed, details in `violations`                                        |
 | `unknown_role`             | 400    | Dev token endpoint called with a role other than `user`/`admin`                        |
 | `invalid_name`             | 400    | File name empty, too long or only path separators                                      |
 | `invalid_roles`            | 400    | Role set empty or contains an unsupported role                                         |
 | `read_only_property`       | 400    | PATCH tried to change an immutable property                                            |
-| `unsupported_odata_option` | 400    | OData system query option outside the supported subset                                 |
 | `empty_file`               | 400    | Upload without content                                                                 |
 | `not_found`                | 404    | Unknown resource                                                                       |
 | `conflict`                 | 409    | Conflicting state                                                                      |
@@ -177,43 +176,94 @@ curl -sk -X DELETE -H "Authorization: Bearer $TOKEN" -H 'If-Match: W/"3"' \
   https://user-kit.local/api/v1/files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
 ```
 
-## OData
+## Query parameters
 
-See [`odata.md`](odata.md) for the supported subset. The endpoints are:
+`GET /api/v1/files` and `GET /api/v1/users` share one query interface:
 
-| Method   | Path                       | Notes                                                                      |
-| -------- | -------------------------- | -------------------------------------------------------------------------- |
-| `GET`    | `/api/v1/$metadata`         | CSDL metadata, requires a token                                            |
-| `GET`    | `/api/v1/Files`             | Query options: `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` |
-| `GET`    | `/api/v1/Files/{id}`        | Single file, `ETag` in body and header                                     |
-| `GET`    | `/api/v1/Files/{id}/$value` | Binary content of the file                                                 |
-| `PATCH`  | `/api/v1/Files/{id}`        | `name` and `description`, honours `If-Match`                               |
-| `DELETE` | `/api/v1/Files/{id}`        | Honours `If-Match`, answers 204                                            |
-| `GET`    | `/api/v1/Users`             | `admin` only                                                               |
-| `GET`    | `/api/v1/Users/{id}`        | `admin` only                                                               |
-| `PATCH`  | `/api/v1/Users/{id}`        | `roles` and `enabled`, `admin` only                                        |
+| Parameter | Default                              | Meaning                                                                                                                       |
+| --------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `search`  | empty                                | Case-insensitive substring match. Files match `name`, `description` and `ownerEmail`; users match `email`, `displayName` and `username`. |
+| `sort`    | `-createdAt` (files) / `email` (users) | Sort key; a leading `-` sorts descending. Files: `name`, `createdAt`, `sizeBytes`. Users: `email`, `displayName`, `createdAt`. An unknown key is answered with `400`. |
+| `page`    | `0`                                  | Zero based page index.                                                                                                        |
+| `size`    | `50` (files) / `100` (users)         | Page size. A value above `REST_MAX_PAGE_SIZE` (default `200`) is clamped, not rejected.                                       |
 
-Writable properties:
+Both endpoints answer with `PageResult`:
 
-| Entity  | Writable              | Read-only                                                                                               |
-| ------- | --------------------- | ------------------------------------------------------------------------------------------------------- |
-| `Files` | `name`, `description` | `id`, `storageKey`, `contentType`, `sizeBytes`, `checksum`, `ownerId`, `createdAt`, `updatedAt`, `etag` |
-| `Users` | `roles`, `enabled`    | `id`, `subject`, `username`, `email`, `displayName`, `createdAt`, `updatedAt`, `etag`                   |
+```json
+{
+  "items": [],
+  "total": 42,
+  "page": 0,
+  "size": 50
+}
+```
 
-Sending a read-only property in a PATCH body is answered with `read_only_property` instead of being
-ignored silently. Jackson runs with `spring.jackson.deserialization.fail-on-unknown-properties=true`,
-so a property that is not part of the entity at all, for example a typo or `storageKey` on a user, is
-answered with `bad_request` and the message `Unknown request property: <name>`.
+`total` counts every match, the page only carries `size` of them.
+
+## Users
+
+### `GET /api/v1/users?search=&sort=&page=&size=` (admin only)
+
+Regular accounts are invisible to a caller without the `admin` role, who gets `403`.
+
+```json
+{
+  "items": [
+    {
+      "id": "d90ddc05-a638-4de5-9b54-8856641b9e97",
+      "subject": "8f2b...c1",
+      "username": "jane",
+      "email": "jane@example.com",
+      "displayName": "Jane Doe",
+      "roles": ["user"],
+      "enabled": true,
+      "version": 0,
+      "createdAt": "2026-01-01T10:00:00Z",
+      "updatedAt": "2026-01-01T10:00:00Z",
+      "etag": "W/\"0\""
+    }
+  ],
+  "total": 1,
+  "page": 0,
+  "size": 100
+}
+```
+
+### `GET /api/v1/users/{id}` (admin only)
+
+Single account, `ETag` in the header and in the body.
+
+### `PATCH /api/v1/users/{id}` (admin only)
+
+Updates `roles` and `enabled`, honours `If-Match`:
 
 ```bash
 curl -sk -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -H 'If-Match: W/"0"' -d '{"name":"renamed.pdf","description":"final"}' \
-  https://user-kit.local/api/v1/Files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
+  -H 'If-Match: W/"0"' -d '{"roles":["admin"],"enabled":true}' \
+  https://user-kit.local/api/v1/users/d90ddc05-a638-4de5-9b54-8856641b9e97
 ```
 
 Roles are normalized: the set must be a non-empty subset of `admin` and `user`, and `admin` is
 exclusive, so `["admin","user"]` is stored as `["admin"]`. Because `admin` implies full access, the
 frontend treats an administrator as a user as well.
+
+## Update and delete semantics
+
+| Resource | Writable              | Read-only                                                                                               |
+| -------- | --------------------- | ------------------------------------------------------------------------------------------------------- |
+| File     | `name`, `description` | `id`, `storageKey`, `contentType`, `sizeBytes`, `checksum`, `ownerId`, `ownerEmail`, `createdAt`, `updatedAt`, `etag` |
+| User     | `roles`, `enabled`    | `id`, `subject`, `username`, `email`, `displayName`, `version`, `createdAt`, `updatedAt`, `etag`         |
+
+Sending a read-only property in a PATCH body is answered with `read_only_property` instead of being
+ignored silently. Jackson runs with `spring.jackson.deserialization.fail-on-unknown-properties=true`,
+so a property that does not exist at all, for example a typo, is answered with `bad_request` and the
+message `Unknown request property: <name>`.
+
+```bash
+curl -sk -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -H 'If-Match: W/"0"' -d '{"name":"renamed.pdf","description":"final"}' \
+  https://user-kit.local/api/v1/files/ca16746a-ced1-40dd-90ad-0fc3aaef704d
+```
 
 ## Concurrency
 

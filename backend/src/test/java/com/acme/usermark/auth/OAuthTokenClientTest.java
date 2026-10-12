@@ -65,6 +65,7 @@ class OAuthTokenClientTest {
                         new AppProperties.Dev(false, "user-kit-dev", "", Duration.ofHours(1)),
                         new AppProperties.OAuth(
                                 true,
+                                true,
                                 "user-kit-bff",
                                 "s3cret",
                                 ISSUER,
@@ -110,6 +111,46 @@ REDIRECT_URI,
 
         assertThat(url).contains("redirect_uri=https://second.example.com/api/v1/auth/callback");
         assertThat(url).doesNotContain("app.example.com");
+    }
+
+    @Test
+    @DisplayName("builds the self registration URL next to the authorization endpoint")
+    void buildsRegistrationUrl() {
+        String url = client.registrationUrl("state-1", "challenge-1", REDIRECT_URI);
+
+        assertThat(url).startsWith(ISSUER + "/protocol/openid-connect/registrations?");
+        assertThat(url).contains("response_type=code", "client_id=user-kit-bff", "state=state-1");
+        assertThat(url).contains("redirect_uri=" + REDIRECT_URI);
+        assertThat(url).contains("code_challenge_method=S256");
+    }
+
+    @Test
+    @DisplayName("reports a provider that has no self registration endpoint")
+    void rejectsRegistrationWithoutStandardEndpoint() {
+        ClientRegistration registration = ClientRegistration.withRegistrationId("user-kit")
+                .clientId("user-kit-bff")
+                .clientSecret("s3cret")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri(REDIRECT_URI)
+                .scope("openid")
+                .authorizationUri(ISSUER + "/authorize")
+                .tokenUri(ISSUER + "/protocol/openid-connect/token")
+                .userInfoUri(ISSUER + "/protocol/openid-connect/userinfo")
+                .userNameAttributeName("sub")
+                .jwkSetUri(ISSUER + "/protocol/openid-connect/certs")
+                .issuerUri(ISSUER)
+                .providerConfigurationMetadata(Map.of("authorization_endpoint", ISSUER + "/authorize"))
+                .build();
+
+        AppProperties properties = new AppProperties(
+                new AppProperties.Security(
+                        new AppProperties.Oidc(false, "", "", List.of(), "roles"), null, null), null, null, null, null, null);
+        OAuthTokenClient limited = new OAuthTokenClient(registration, RestClient.builder(), properties);
+
+        assertThatThrownBy(() -> limited.registrationUrl("state", "challenge", REDIRECT_URI))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("self registration");
     }
 
     @Test

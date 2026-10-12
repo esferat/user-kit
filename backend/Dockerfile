@@ -16,6 +16,11 @@ WORKDIR /app
 COPY --from=build /workspace/target/user-kit-backend-*.jar /app/application.jar
 RUN chown -R app:app /app
 
+# Log directory of the shared backend-logs volume, Logstash reads the file from
+# there. The named volume inherits this owner on first use, so the app user can
+# write it.
+RUN mkdir -p /var/log/user-kit && chown -R app:app /var/log/user-kit
+
 USER app
 EXPOSE 8080
 

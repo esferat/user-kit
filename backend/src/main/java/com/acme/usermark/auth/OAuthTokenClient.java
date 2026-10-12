@@ -48,6 +48,26 @@ public class OAuthTokenClient {
      * which keeps a single frontend deployment working unchanged.
      */
     public String authorizationUrl(String state, String codeChallenge, String callbackUri) {
+        return endpoint(AUTHORIZATION_ENDPOINT, authorizationParameters(state, codeChallenge, callbackUri));
+    }
+
+    /**
+     * Self registration page of the provider. Keycloak serves it next to the
+     * authorization endpoint, so the same PKCE parameters are sent to
+     * {@code /registrations} instead of {@code /auth} and the callback stays
+     * the one of the login.
+     */
+    public String registrationUrl(String state, String codeChallenge, String callbackUri) {
+        String authorization = endpoint(AUTHORIZATION_ENDPOINT, Map.of());
+        if (!authorization.endsWith("/auth")) {
+            throw ApiException.badGateway("The identity provider publishes no self registration endpoint");
+        }
+        String registration =
+                authorization.substring(0, authorization.length() - "/auth".length()) + "/registrations";
+        return withParameters(registration, authorizationParameters(state, codeChallenge, callbackUri));
+    }
+
+    private Map<String, String> authorizationParameters(String state, String codeChallenge, String callbackUri) {
         Map<String, String> parameters = new LinkedHashMap<>();
         parameters.put("response_type", "code");
         parameters.put("client_id", registration.getClientId());
@@ -56,7 +76,7 @@ public class OAuthTokenClient {
         parameters.put("state", state);
         parameters.put("code_challenge", codeChallenge);
         parameters.put("code_challenge_method", "S256");
-        return endpoint(AUTHORIZATION_ENDPOINT, parameters);
+        return parameters;
     }
 
     /** Exchanges the code with the same callback the authorization request used. */
@@ -152,6 +172,10 @@ public class OAuthTokenClient {
         if (endpoint == null || endpoint.isBlank()) {
             throw ApiException.badGateway("The identity provider publishes no " + name);
         }
+        return withParameters(endpoint, parameters);
+    }
+
+    private static String withParameters(String endpoint, Map<String, String> parameters) {
         UriComponentsBuilder uri = UriComponentsBuilder.fromUriString(endpoint);
         for (Map.Entry<String, String> parameter : parameters.entrySet()) {
             uri.queryParam(parameter.getKey(), parameter.getValue());

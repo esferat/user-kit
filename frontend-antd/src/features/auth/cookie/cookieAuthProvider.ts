@@ -93,10 +93,21 @@ export class CookieAuthProvider implements AuthProvider {
     }
     // Навигация верхнего уровня: провайдер перенаправляет браузер на бэкенд,
     // который ставит cookie и возвращает посетителя в приложение.
-    const target = joinUrl(this.baseUrl, '/api/v1/auth/login');
-    const returnUrl = options.returnUrl ?? window.location.hash;
+    this.navigate('/api/v1/auth/login', options.returnUrl);
+  }
+
+  async register(options: LoginOptions = {}): Promise<void> {
+    if ((await this.mode()) !== 'oidc') {
+      throw new AuthenticationError('The backend has no self registration enabled');
+    }
+    this.navigate('/api/v1/auth/register', options.returnUrl);
+  }
+
+  private navigate(path: string, returnUrl?: string): void {
+    const target = joinUrl(this.baseUrl, path);
+    const back = returnUrl ?? window.location.hash;
     window.location.assign(
-      returnUrl === '' || returnUrl === undefined ? target : `${target}?returnUrl=${encodeURIComponent(returnUrl)}`,
+      back === '' || back === undefined ? target : `${target}?returnUrl=${encodeURIComponent(back)}`,
     );
   }
 

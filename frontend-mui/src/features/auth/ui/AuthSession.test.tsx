@@ -29,6 +29,7 @@ function createAuth(restored: AuthenticatedUser | null = null): AuthProvider {
     mode: vi.fn(async (): Promise<AuthMode> => 'oidc'),
     restore: vi.fn(async () => current),
     login: vi.fn(async () => undefined),
+    register: vi.fn(async () => undefined),
     logout: vi.fn(async () => {
       current = null;
       subscribers.forEach((listener) => listener(null));
