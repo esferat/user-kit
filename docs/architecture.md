@@ -193,12 +193,15 @@ Upload of `report.pdf` as user `jane`:
 ## Observability
 
 The backend logs one line per event in the format `[level]-[date]- message` and, when `LOG_FILE` is
-set, mirrors the stream into a file of the `backend-logs` volume. Logstash tails that file, parses the
-three parts with a grok filter, folds Java stack traces onto their first line with the multiline codec
-and indexes the events into the `user-kit-backend-<date>` indices of Elasticsearch. Kibana reads the
-indices behind the edge proxy on `SERVER_NAME_KIBANA`, so the pipeline never touches the request path: a
-slow or down log collector cannot slow the API down, and the console output of `docker compose logs
-backend` stays the single source of truth for a local run.
+set, mirrors the stream into a file of the `backend-logs` volume. Keycloak (`KC_LOG=console,file`)
+writes its Quarkus file log into `keycloak-logs`, the edge writes a JSON access log and a plain error
+log into `nginx-logs`. Logstash tails those files, parses each format with its own grok or `json`
+filter, folds Java stack traces onto their first line with the multiline codec and indexes the events,
+tagged with a `service` field, into the `user-kit-backend-<date>`, `user-kit-keycloak-<date>` and
+`user-kit-nginx-<date>` indices of Elasticsearch. Kibana reads the indices behind the edge proxy on
+`SERVER_NAME_KIBANA`, so the pipeline never touches the request path: a slow or down log collector
+cannot slow the API down, and the console output of `docker compose logs backend` stays the single
+source of truth for a local run.
 
 ## Scaling notes
 

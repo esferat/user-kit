@@ -1,3 +1,26 @@
+# Application logs of the edge, written in addition to the stdout stream of the
+# container so Logstash can ship them to Elasticsearch. The access log is JSON,
+# which keeps it parseable, the error log keeps the nginx format.
+log_format userkit_json escape=json
+    '{'
+      '"time":"$time_iso8601",'
+      '"remote_addr":"$remote_addr",'
+      '"method":"$request_method",'
+      '"scheme":"$scheme",'
+      '"host":"$host",'
+      '"uri":"$request_uri",'
+      '"status":$status,'
+      '"bytes":$body_bytes_sent,'
+      '"request_time":$request_time,'
+      '"upstream_addr":"$upstream_addr",'
+      '"upstream_status":"$upstream_status",'
+      '"referer":"$http_referer",'
+      '"user_agent":"$http_user_agent"'
+    '}';
+
+access_log /var/log/user-kit-nginx/access.log userkit_json;
+error_log  /var/log/user-kit-nginx/error.log warn;
+
 upstream frontend_antd_upstream {
     server ${UPSTREAM_FRONTEND_ANTD};
     keepalive 16;

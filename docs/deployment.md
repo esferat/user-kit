@@ -11,22 +11,23 @@ docker compose ps
 
 | Service          | Image                                       | Ports                       | Purpose                                                                      |
 | ---------------- | ------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------- |
-| `edge`           | `nginx:1.27-alpine`                         | 80, 443                     | TLS termination, reverse proxy, headers, the host names of all domains       |
+| `edge`           | `nginx:1.27-alpine`                         | 80, 443                     | TLS termination, reverse proxy, headers, the host names of all domains, access/error log files |
 | `frontend-antd`  | built from `frontend-antd/`                 | internal 80                 | static Ant Design assets, canonical domain                                   |
 | `frontend-mui`   | built from `frontend-mui/`                  | internal 80                 | static Material UI assets, second domain                                     |
 | `fullstack-next` | built from `fullstack-next/`                | internal 3000               | Next.js standalone server, third domain                                      |
 | `backend`        | built from `backend/`                       | 8080                        | REST service                                                                 |
-| `keycloak`       | `quay.io/keycloak/keycloak:26.4`            | 8180, internal 8080         | identity provider, realm `user-kit`                                          |
+| `keycloak`       | built from `keycloak/`                      | 8180, internal 8080         | identity provider, realm `user-kit`, writes its file log                     |
 | `postgres`       | `postgres:17-alpine`                        | internal 5432               | database with Flyway migrations                                              |
 | `object-storage` | `${SILO_IMAGE:-pgsty/silo}:${SILO_VERSION}` | console 9001, internal 9000 | S3 compatible file storage                                                   |
-| `elasticsearch`  | `docker.elastic.co/.../elasticsearch:${ELASTIC_VERSION}` | 9200            | log store, indices `user-kit-backend-*`                                      |
-| `logstash`       | `docker.elastic.co/logstash/logstash:${ELASTIC_VERSION}` | internal 9600   | tails the backend log file and indexes it into Elasticsearch                 |
+| `elasticsearch`  | `docker.elastic.co/.../elasticsearch:${ELASTIC_VERSION}` | 9200            | log store, `user-kit-backend-*`, `user-kit-keycloak-*` and `user-kit-nginx-*` |
+| `logstash`       | `docker.elastic.co/logstash/logstash:${ELASTIC_VERSION}` | internal 9600   | tails the backend, Keycloak and nginx logs and indexes them into Elasticsearch |
 | `kibana`         | `docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}`     | 5601            | log exploration UI                                                           |
 
 Volumes `postgres-data` and `object-storage-data` keep the state across restarts. `docker compose
 down -v` deletes them. Keycloak uses `dev-file`, so its data lives inside the container and a
 recreated container imports `keycloak/realm/user-kit-realm.json` again. The logging stack adds
-`backend-logs` (the backend writes, Logstash reads), `elasticsearch-data` and `logstash-data` (keeps
+`backend-logs` (the backend writes, Logstash reads), `keycloak-logs` and `nginx-logs` (each service
+writes its log file, Logstash reads it read only), `elasticsearch-data` and `logstash-data` (keeps
 the file offsets across restarts).
 
 Health checks: PostgreSQL uses `pg_isready`, Keycloak queries `/auth/health/ready` on its management
@@ -103,7 +104,7 @@ included challenge location, mount the webroot of the certificate client into
 | `OIDC_ROLES_CLAIM`                                          | `roles`                                                  | claim that carries the roles                                                                 |
 | `DEV_AUTH_ENABLED`                                          | `true`                                                   | local token issuer, set to `false` in production                                             |
 | `DEV_AUTH_SECRET`                                           | dev-only value                                           | HS256 secret, change it                                                                      |
-| `KEYCLOAK_VERSION`                                          | `26.4`                                                   | image tag of the identity provider                                                           |
+| `KEYCLOAK_VERSION`                                          | `26.4`                                                   | base image tag of the identity provider, built from `keycloak/`                              |
 | `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD`                | `admin`                                                  | bootstrap admin of the container, change them                                                |
 | `KEYCLOAK_PORT`                                             | `8180`                                                   | published port that bypasses the edge                                                        |
 | `KEYCLOAK_RELATIVE_PATH`                                    | `/auth`                                                  | prefix below `SERVER_NAME`, forwarded by the edge                                            |
@@ -134,10 +135,19 @@ Backend only settings are documented in the README, for example `FILES_MAX_SIZE_
 ## Logging
 
 The backend writes every line in the format `[level]-[date]- message` to the console and, when
-`LOG_FILE` is set, to that file inside the `backend-logs` volume. Logstash tails
-`/var/log/user-kit/backend.log*`, joins Java stack traces onto the line that started them, parses
-level, timestamp and message with the grok pattern of [`logstash/pipeline/logstash.conf`](../logstash/pipeline/logstash.conf)
-and indexes one document per line into `user-kit-backend-<date>`:
+`LOG_FILE` is set, to that file inside the `backend-logs` volume. Keycloak (`KC_LOG=console,file`)
+writes its Quarkus file log into `keycloak-logs`, the edge writes a JSON access log (`log_format
+userkit_json` in the nginx template) plus the plain error log into `nginx-logs`. Logstash tails all
+four files, joins Java stack traces onto the line that started them and parses each format with its
+own `grok`/`json` filter in
+[`logstash/pipeline/logstash.conf`](../logstash/pipeline/logstash.conf):
+
+| Source   | File inside the container             | Index                 |
+| -------- | ------------------------------------- | --------------------- |
+| backend  | `/var/log/user-kit/backend.log`       | `user-kit-backend-*`  |
+| Keycloak | `/opt/keycloak/data/log/keycloak.log` | `user-kit-keycloak-*` |
+| nginx    | `/var/log/user-kit-nginx/access.log`  | `user-kit-nginx-*`    |
+| nginx    | `/var/log/user-kit-nginx/error.log`   | `user-kit-nginx-*`    |
 
 ```
 [INFO]-[2026-10-13 12:00:00.123]- Started UserKitApplication in 3.1 seconds
@@ -145,8 +155,10 @@ and indexes one document per line into `user-kit-backend-<date>`:
 java.nio.file.AccessDeniedException: /data/report.pdf
 ```
 
-Create the data view `user-kit-backend-*` once in Kibana (**Stack Management → Data Views**) and filter
-by `log.level`, `message` or the time range. Open Kibana at `SERVER_NAME_KIBANA`
+Every document carries a `service` field (`backend`, `keycloak` or `nginx`) and the parsed
+`log.level`. Create the data views once in Kibana (**Stack Management → Data Views**): `user-kit-*`
+for all sources at once, or one per source (`user-kit-backend-*`, `user-kit-keycloak-*`,
+`user-kit-nginx-*`), each with `@timestamp` as the time field. Open Kibana at `SERVER_NAME_KIBANA`
 (`https://user-kit.kibana.local` by default), which the edge proxies to the Kibana container, or at the
 published `KIBANA_PORT`. The `date` filter of the pipeline sets `@timestamp` from the log line, so an
 event appears when it was written, not when Logstash read it.

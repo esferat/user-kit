@@ -14,7 +14,7 @@ Reference implementation of a small but production-shaped web application:
 - **Identity** – OpenID Connect against the Keycloak of the Compose stack, with the backend acting as
   the OAuth client (cookie based, no token in the browser) and a local dev login as an alternative.
 - **Edge** – nginx with TLS termination, HTTP → HTTPS redirect and reverse proxying.
-- **Logging** – the backend writes `[level]-[date]- message` lines, Logstash ships them into
+- **Logging** – the backend, Keycloak and the nginx edge write log files, Logstash ships them into
   Elasticsearch, Kibana explores them (`ELASTIC_VERSION`, ports `9200` and `5601`).
 
 The application manages **file objects**: authenticated users upload files, list and download them,
@@ -48,7 +48,7 @@ administrators additionally manage all files and the role assignment of all acco
 | Administration    | List accounts, change `roles` and `enabled`, reject unsupported roles                                          |
 | API documentation | OpenAPI 3 at `/v3/api-docs`, Swagger UI at `/swagger-ui/index.html`                                            |
 | Edge              | TLS 1.2/1.3, HSTS, security headers, request size limit, gzip, ACME challenge location                         |
-| Logging           | `[level]-[date]- message` files, Logstash pipeline, Elasticsearch indices `user-kit-backend-*`, Kibana at `https://user-kit.kibana.local` |
+| Logging           | log files of backend, Keycloak and nginx, Logstash pipeline, Elasticsearch indices `user-kit-backend-*`, `user-kit-keycloak-*`, `user-kit-nginx-*`, Kibana at `https://user-kit.kibana.local` |
 | Operations        | Health endpoint, structured logs, demo seed data, smoke script, Docker Compose full stack                      |
 
 ## Architecture
@@ -187,32 +187,51 @@ pwsh ./scripts/smoke.ps1 -AuthMode dev  # force the local token issuer
 
 ### Logs
 
-The backend writes every line in the format `[level]-[date]- message`. In the compose stack it also
-writes that stream to `/var/log/user-kit/backend.log` in the shared `backend-logs` volume; Logstash
-tails the file, parses level, timestamp and message and indexes one document per line into the
-`user-kit-backend-*` indices of Elasticsearch. Open Kibana at <https://user-kit.kibana.local> (or the
-published <http://localhost:5601>), create a data view once (see below), then filter by `log.level`,
-`message` or time range.
+Logstash tails the application logs of the backend, Keycloak and the nginx edge from shared volumes,
+parses them and writes one document per event into Elasticsearch. The backend writes every line in
+the format `[level]-[date]- message`, Keycloak logs in its Quarkus file format and nginx logs as
+JSON. Every document carries a `service` field (`backend`, `keycloak` or `nginx`) and the parsed
+`log.level`, so a single Kibana view can cover all of them.
 
-| Service       | URL / access                                                        |
-| ------------- | ------------------------------------------------------------------- |
-| Kibana        | <https://user-kit.kibana.local> or <http://localhost:5601>          |
-| Elasticsearch | <http://localhost:9200>                                             |
-| Backend log   | `docker compose exec backend cat /var/log/user-kit/backend.log`     |
+| Source       | Log file in the container                                                        | Index                 |
+| ------------ | -------------------------------------------------------------------------------- | --------------------- |
+| backend      | `/var/log/user-kit/backend.log`                                                  | `user-kit-backend-*`  |
+| Keycloak     | `/opt/keycloak/data/log/keycloak.log`                                            | `user-kit-keycloak-*` |
+| nginx (edge) | `/var/log/user-kit-nginx/access.log` (JSON) and `.../error.log`                  | `user-kit-nginx-*`    |
 
-First time setup of the Kibana view:
+Open Kibana at <https://user-kit.kibana.local> (or the published <http://localhost:5601>), create the
+data views once (see below), then filter by `service`, `log.level`, `message` or time range.
+
+| Service       | URL / access                                                                        |
+| ------------- | ----------------------------------------------------------------------------------- |
+| Kibana        | <https://user-kit.kibana.local> or <http://localhost:5601>                          |
+| Elasticsearch | <http://localhost:9200>                                                             |
+| Backend log   | `docker compose exec backend cat /var/log/user-kit/backend.log`                     |
+| Keycloak log  | `docker compose exec keycloak cat /opt/keycloak/data/log/keycloak.log`              |
+| nginx logs    | `docker compose exec edge cat /var/log/user-kit-nginx/access.log` (and `error.log`) |
+
+First time setup of the Kibana views:
 
 1. Open <https://user-kit.kibana.local>, accept the self-signed certificate and skip the welcome screen.
 2. **Stack Management → Data Views → Create data view**.
-3. Name it `user-kit-backend`, set the index pattern to `user-kit-backend-*` and the time field to
-   `@timestamp`, then **Save**.
-4. Open **Discover** and pick the `user-kit-backend` view. Filter with `log.level` (for example
-   `error`) or search the `message` field, and narrow the range in the time picker.
+3. Create one view per source, or a single `user-kit-*` view that covers all of them:
 
-Logstash creates one index per day (`user-kit-backend-2026.10.13`), the pattern `user-kit-backend-*`
-matches all of them, so the view keeps working. If Discover stays empty, check that the pipeline runs
-(`docker compose logs logstash`) and that the backend writes the file
-(`docker compose exec backend cat /var/log/user-kit/backend.log`).
+   | Name                | Index pattern         |
+   | ------------------- | --------------------- |
+   | `user-kit`          | `user-kit-*`          |
+   | `user-kit-backend`  | `user-kit-backend-*`  |
+   | `user-kit-keycloak` | `user-kit-keycloak-*` |
+   | `user-kit-nginx`    | `user-kit-nginx-*`    |
+
+   Set the time field to `@timestamp` for each, then **Save**.
+4. Open **Discover** and pick a view. The combined `user-kit` view can be filtered by `service`, the
+   per-source views are already scoped. Filter with `log.level` (for example `error`) or search the
+   `message` field, and narrow the range in the time picker.
+
+Logstash creates one index per source per day (`user-kit-backend-2026.10.13`); the `user-kit-*`
+pattern matches all of them, so the views keep working. If Discover stays empty, check that the
+pipeline runs (`docker compose logs logstash`) and that the containers write their log files
+(`docker compose exec backend cat /var/log/user-kit/backend.log` and the paths in the table above).
 
 `ELASTIC_VERSION` selects the image tag of all three services (`8.15.3` by default). The dev stack
 runs Elasticsearch without TLS and without a password, so a production deployment has to enable its

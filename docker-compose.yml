@@ -45,7 +45,11 @@ services:
     restart: unless-stopped
 
   keycloak:
-    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION:-26.4}
+    # Adds a writable log directory to the Keycloak image, see keycloak/Dockerfile
+    build:
+      context: ./keycloak
+      args:
+        KEYCLOAK_VERSION: ${KEYCLOAK_VERSION:-26.4}
     command: start-dev --import-realm
     environment:
       # Administration console of the local instance, dev-only credentials.
@@ -61,11 +65,17 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_LOG_LEVEL: ${KEYCLOAK_LOG_LEVEL:-info}
       KC_METRICS_ENABLED: "false"
+      # Write to the console and to data/log/keycloak.log, the file inside the
+      # keycloak-logs volume that Logstash tails.
+      KC_LOG: console,file
+      KC_LOG_FILE: /opt/keycloak/data/log/keycloak.log
       # nginx terminates TLS in front of the container, Keycloak has to trust the
       # forwarded protocol and client address
       KC_PROXY_HEADERS: xforwarded
     volumes:
       - ./keycloak/realm:/opt/keycloak/data/import:ro
+      # Shared with Logstash, which reads the log file read only
+      - keycloak-logs:/opt/keycloak/data/log
     ports:
       - "${KEYCLOAK_PORT:-8180}:8080"
     healthcheck:
@@ -187,9 +197,9 @@ services:
       - backend
     restart: unless-stopped
 
-  # Central log store. Logstash tails the backend log file and indexes one
-  # document per "[level]-[date]- message" line into this cluster, Kibana reads
-  # the user-kit-backend-* indices.
+  # Central log store. Logstash tails the log files of the backend, Keycloak and
+  # the edge and indexes one document per event into this cluster, Kibana reads
+  # the user-kit-backend-*, user-kit-keycloak-* and user-kit-nginx-* indices.
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.15.3}
     environment:
@@ -230,8 +240,10 @@ services:
       - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
       # Persists the sincedb so a restart continues where the last run stopped
       - logstash-data:/usr/share/logstash/data
-      # The same volume the backend writes its log file into, read only here
+      # The log volumes the other containers write into, read only here
       - backend-logs:/var/log/user-kit:ro
+      - keycloak-logs:/opt/keycloak/data/log:ro
+      - nginx-logs:/var/log/user-kit-nginx:ro
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -277,6 +289,8 @@ services:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
+      # Access and error log in nginx format, shared read only with Logstash
+      - nginx-logs:/var/log/user-kit-nginx
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
@@ -286,5 +300,7 @@ volumes:
   postgres-data:
   object-storage-data:
   backend-logs:
+  keycloak-logs:
+  nginx-logs:
   elasticsearch-data:
   logstash-data:
