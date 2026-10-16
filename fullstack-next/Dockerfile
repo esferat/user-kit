@@ -6,6 +6,10 @@ COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 RUN corepack enable && corepack prepare pnpm@12.10.1 --activate && pnpm install --frozen-lockfile
 
 FROM base AS builder
+# NEXT_PUBLIC_* is inlined by the Next.js compiler, so it has to be present while
+# the build runs. An empty value keeps the API calls on the same origin.
+ARG NEXT_PUBLIC_API_BASE_URL=""
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN corepack enable && corepack prepare pnpm@12.10.1 --activate && pnpm run build

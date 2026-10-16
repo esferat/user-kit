@@ -116,9 +116,11 @@ services:
       OIDC_CLIENT_ISSUER_URI: ${OIDC_CLIENT_ISSUER_URI:-http://keycloak:8080/auth/realms/user-kit}
       # One callback per frontend. A login always comes back to the domain it was
       # started on, because the cookies of the other domain stay unknown to the
-      # browser and the state row keeps the exact callback of that login.
-      OIDC_CLIENT_REDIRECT_URIS: 
-      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS: 
+      # browser and the state row keeps the exact callback of that login. The
+      # default lists all domains of this stack, override them to shrink the
+      # allowlist; .env carries the same entries.
+      OIDC_CLIENT_REDIRECT_URIS: ${OIDC_CLIENT_REDIRECT_URIS:-https://user-kit.local/api/v1/auth/callback,https://user-kit.mui.local/api/v1/auth/callback,https://user-kit.next.local/api/v1/auth/callback}
+      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS:-https://user-kit.local/,https://user-kit.mui.local/,https://user-kit.next.local/}
       # Singular values stay as the fallback of the lists above, they are what a
       # login state without a callback of its own falls back to.
       OIDC_CLIENT_REDIRECT_URI: ${OIDC_CLIENT_REDIRECT_URI:-https://user-kit.local/api/v1/auth/callback}

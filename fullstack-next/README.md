@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# fullstack-next
 
-## Getting Started
+Next.js 16 (App Router, React 19, Ant Design 6) application of the `user-kit` monorepo. The edge serves
+it on `user-kit.next.local`; locally `pnpm dev` runs it on `http://localhost:3000` and the Next dev
+server proxies `/api` to the backend, so the browser talks to a single origin.
 
-First, run the development server:
+## Authorization
+
+The app uses the cookie-based BFF scheme of the monorepo: the Spring backend is the OAuth client and the
+JWT resource server, the browser receives only `HttpOnly` cookies and never a token.
+
+- `src/shared/api/http.ts` — `fetch` with `credentials: 'include'` and the `XSRF-TOKEN` → `X-XSRF-TOKEN`
+  header on unsafe methods.
+- `src/features/auth/` — the `CookieAuthProvider`, the `SessionStore` and `useAuth`.
+- `src/proxy.ts` — optimistic redirect to `/login` when no session cookie is present.
+- `src/app/(protected)/` — private routes behind the app shell; `src/app/login/` — the login screen.
+
+Registration is a separate feature and is not implemented here.
+
+## Scripts
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm dev     # Next dev server on http://localhost:3000
+pnpm build   # production build (output: standalone)
+pnpm start   # next start, for a local production check
+pnpm lint    # eslint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Docker image runs the standalone server with `node .next/standalone/server.js`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`NEXT_PUBLIC_API_BASE_URL` is inlined at build time and defaults to an empty string: the API is called on
+the same origin, where the edge routes `/api` to the backend. Set it only when the API lives on another
+origin. Never put secrets in a `NEXT_PUBLIC_*` variable.
 
-## Learn More
+## Note on this Next.js version
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This release has breaking changes compared to older ones. Read the bundled guides under
+`node_modules/next/dist/docs/` before changing application code; `AGENTS.md` restates this rule.

@@ -358,18 +358,39 @@ explicitly.
 
 ## Next.js application
 
-`fullstack-next/` is a Next.js 16 application (React 19, pnpm 12) served by the edge on
-`user-kit.next.local`. It is still the default `create-next-app` scaffold: `src/app/layout.tsx` and
-`src/app/page.tsx` render the starter page and the application does not call the backend yet.
+`fullstack-next/` is a Next.js 16 application (React 19, pnpm 12, Ant Design 6) served by the edge on
+`user-kit.next.local`. It implements the cookie-based BFF authorization of the monorepo: the browser
+never sees a token, it only holds the `HttpOnly` cookies the backend sets.
+
+The code follows Feature-Sliced Design:
+
+- `src/shared/` — `api/http.ts` (`credentials: 'include'`, the `XSRF-TOKEN` → `X-XSRF-TOKEN` header on
+  unsafe methods, `ApiError`), `config/` (`NEXT_PUBLIC_API_BASE_URL`, empty means same origin) and small
+  helpers.
+- `src/entities/user/` — the profile type and `roles.ts`, which maps provider claims to `admin`/`user`
+  in the same order as the backend.
+- `src/features/auth/` — the `CookieAuthProvider` (`config` → `login` by navigation, `dev-login`,
+  `restore`, `logout`), the `SessionStore` behind `useSyncExternalStore` and `useAuth`, and the
+  `LoginScreen`/`ProfileMenu` components.
+- `src/widgets/app-shell/` — the header, profile menu and role-filtered navigation.
+- `src/app/` — the root layout (Ant Design registry and providers), `login/`, the `(protected)` route
+  group and `providers.tsx`.
+
+`src/proxy.ts` performs an optimistic check: a request without `UK_SESSION`/`UK_DEV_TOKEN` is redirected
+to `/login`, while the real authorization stays on the backend (`GET /api/v1/me` and the REST API). The
+route files stay thin; navigation, session and HTTP logic live in the lower slices.
 
 `next.config.ts` enables `cacheComponents`, `partialPrefetching`, `reactCompiler` and
 `output: "standalone"`, so the Docker image can run the minimal server:
 
-- `Dockerfile`: `node:22-alpine` base, `deps` runs `pnpm install --frozen-lockfile`, `builder` runs
-  `pnpm run build`, `runner` copies `.next/standalone` and `.next/static` and starts
-  `node server.js` as the `nextjs` user on port 3000.
-- The edge proxies `/` to `fullstack-next:3000` and routes `/api/`, `/auth/` and the documentation
-  paths exactly like the canonical domain.
+- `Dockerfile`: `node:22-alpine` base, `deps` runs `pnpm install --frozen-lockfile`, `builder` receives
+  `NEXT_PUBLIC_API_BASE_URL` and runs `pnpm run build`, `runner` copies `.next/standalone` and
+  `.next/static` and starts `node server.js` as the `nextjs` user on port 3000.
+- The edge proxies `/` to `fullstack-next:3000` and routes `/api/`, `/auth/` and the documentation paths
+  exactly like the canonical domain.
+
+Ant Design creates its css-in-js cache with `Math.random()`, a value `cacheComponents` forbids during
+prerender. The client tree therefore streams behind the `<Suspense>` in the root layout.
 
 Because this Next.js build differs from a stock release, `fullstack-next/AGENTS.md` warns to read the
 bundled docs under `node_modules/next/dist/docs/` before changing application code.

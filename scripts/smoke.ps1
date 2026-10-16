@@ -339,14 +339,22 @@ function Test-NextDomain {
     # The Next.js full stack app: its own server under /, the same REST API below
     # /api and the identity provider on the canonical domain.
     Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz")
-    Show "$Name GET / (Next.js page)" (HttpCode @() "$BaseUrl/")
+    # The root is protected: without a session cookie the proxy answers with a
+    # redirect, so the page itself is reached through the public login screen.
+    Show "$Name GET / (redirects to the login screen)" (HttpCode @() "$BaseUrl/") '307'
+    Show "$Name GET /login (Next.js page)" (HttpCode @() "$BaseUrl/login")
     Show "$Name GET /api/v1/me without token" (HttpCode @() "$BaseUrl/api/v1/me") '401'
     Show "$Name GET /api/v1/auth/config" (HttpCode @() "$BaseUrl/api/v1/auth/config")
 
-    $index = (Http @() "$BaseUrl/") -join "`n"
-    ShowCheck "$Name page references a Next.js chunk" ($index -like '*/_next/static/*') ''
+    $index = (Http @() "$BaseUrl/login") -join "`n"
+    ShowCheck "$Name login page references a Next.js chunk" ($index -like '*/_next/static/*') ''
 
     if ($mode -eq 'oidc') {
+        $login = Get-Location "$BaseUrl/api/v1/auth/login"
+        ShowCheck "$Name login redirects to the provider" ($login -like "$base/auth/*") ("location=" + $login)
+        ShowCheck "$Name login announces its own callback" ($login.Contains("redirect_uri=$BaseUrl/api/v1/auth/callback")) ("callback=$BaseUrl/api/v1/auth/callback")
+        ShowCheck "$Name login does not announce the canonical callback" (-not $login.Contains("redirect_uri=$base/api/v1/auth/callback"))
+
         $authRedirect = Get-Location "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration"
         Show "$Name GET /auth/... redirects to the canonical domain" (HttpCode @('-o', 'NUL') "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration") '308'
         ShowCheck "$Name /auth redirect keeps the path" ($authRedirect -eq "$base/auth/realms/$Realm/.well-known/openid-configuration") ("location=" + $authRedirect)
