@@ -1,7 +1,5 @@
 package com.acme.usermark.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +10,9 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Client registration of the backend for frontend flow. The endpoints of the
@@ -29,7 +30,7 @@ import org.springframework.web.client.RestClient;
 @ConditionalOnProperty(prefix = "app.security.oauth", name = "enabled", havingValue = "true")
 public class OAuthClientConfiguration {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMapper.builder().build();
     private static final String REGISTRATION_ID = "user-kit";
 
     /**
@@ -90,7 +91,7 @@ public class OAuthClientConfiguration {
             throw new IllegalStateException("The identity provider published no discovery document at " + discoveryIssuer);
         }
         Map<String, Object> metadata = new LinkedHashMap<>();
-        document.fields().forEachRemaining(entry -> metadata.put(entry.getKey(), MAPPER.convertValue(entry.getValue(), Object.class)));
+        document.properties().forEach(entry -> metadata.put(entry.getKey(), MAPPER.convertValue(entry.getValue(), Object.class)));
         if (!discoveryIssuer.equals(issuerUri)) {
             SERVER_ENDPOINTS.forEach(key -> {
                 Object value = metadata.get(key);

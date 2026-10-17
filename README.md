@@ -7,7 +7,7 @@ Reference implementation of a small but production-shaped web application:
   talk to the same backend.
 - **Full stack app** – `fullstack-next/`, a Next.js 16 application on its own domain. It is still the
   stock `create-next-app` scaffold; the edge, TLS and compose wiring around it is in place.
-- **Backend** – Spring Boot 3.5 / Java 21, a classic REST JSON API (`PageResult{items,total,page,size}`,
+- **Backend** – Spring Boot 4.1 / Java 21, a classic REST JSON API (`PageResult{items,total,page,size}`,
   query parameters for search and sorting, `If-Match`/`ETag` for concurrency).
 - **Database** – PostgreSQL 17 with Flyway migrations.
 - **Object storage** – any S3 compatible storage; the compose file ships Silo.

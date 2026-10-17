@@ -1,7 +1,5 @@
 import type { AuthenticatedUser, MeResponse, Role } from '@/entities/user';
-
 import { joinUrl, ApiError, requestJson } from '@/shared/api';
-
 import { AuthenticationError, type AuthConfig, type AuthProvider, type LoginOptions } from '../model/types';
 
 interface DevSessionResponse {

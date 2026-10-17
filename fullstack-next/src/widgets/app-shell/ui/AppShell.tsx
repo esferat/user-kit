@@ -48,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Alert
               type="error"
               showIcon
-              message="Не удалось проверить сессию"
+              title="Не удалось проверить сессию"
               description={auth.failure}
               style={{ marginBottom: 16 }}
             />

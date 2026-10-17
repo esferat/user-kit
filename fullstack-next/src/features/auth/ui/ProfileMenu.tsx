@@ -1,12 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-
 import { Avatar, Button, Dropdown, Space, Tag, Typography } from 'antd';
-
 import { initialsOf } from '@/shared/lib';
-
-import { useAuth } from '../model/useAuth';
+import { useAuth } from '@/features/auth';
 
 /** Меню профиля: кто вошёл, роли и выход. Без сессии предлагает войти. */
 export function ProfileMenu() {

@@ -1,7 +1,6 @@
 'use client';
 
 import { useContext, useSyncExternalStore } from 'react';
-
 import type { AuthenticatedUser, Role } from '@/entities/user';
 
 import { AuthContext } from './authContext';

@@ -2,9 +2,6 @@ package com.acme.usermark.auth;
 
 import com.acme.usermark.common.ApiException;
 import com.acme.usermark.config.AppProperties;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -18,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Owns the browser sessions of the cookie based login: the random session id and
@@ -214,7 +213,7 @@ public class AuthSessionService {
             String payload = new String(Base64.getUrlDecoder().decode(token.split("\\.")[1]), StandardCharsets.UTF_8);
             JsonNode value = objectMapper.readTree(payload).get(name);
             return value == null ? "unknown" : value.asText();
-        } catch (RuntimeException | IOException exception) {
+        } catch (RuntimeException exception) {
             return "unknown";
         }
     }

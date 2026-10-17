@@ -1,7 +1,5 @@
 import type { AppConfig } from '@/shared/config';
-
 import { DEFAULT_ROLE } from '@/entities/user';
-
 import type { AuthProvider } from '../model/types';
 import { CookieAuthProvider } from './cookieAuthProvider';
 

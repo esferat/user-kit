@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
-
-import { AuthContext } from '../model/authContext';
-import type { SessionStore } from '../model/sessionStore';
+import { type SessionStore, AuthContext } from '@/features/auth';
 
 export interface AuthSessionProviderProps {
   store: SessionStore;

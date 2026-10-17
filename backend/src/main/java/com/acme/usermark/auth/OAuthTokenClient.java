@@ -2,7 +2,6 @@ package com.acme.usermark.auth;
 
 import com.acme.usermark.common.ApiException;
 import com.acme.usermark.config.AppProperties;
-import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
@@ -18,6 +17,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Talks to the token, revocation and end session endpoints of the identity

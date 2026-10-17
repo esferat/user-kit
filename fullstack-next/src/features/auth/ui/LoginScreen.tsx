@@ -1,14 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
 import { useRouter, useSearchParams } from 'next/navigation';
-
 import { Alert, Button, Card, Select, Typography } from 'antd';
-
 import { DEFAULT_ROLE, ROLES, type Role } from '@/entities/user';
-
-import { useAuth } from '../model/useAuth';
+import { useAuth } from '@/features/auth';
 
 const { Title, Paragraph } = Typography;
 

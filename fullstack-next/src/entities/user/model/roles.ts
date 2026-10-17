@@ -1,5 +1,4 @@
 import { DEFAULT_ROLE, ROLES, type AuthenticatedUser, type Role } from './types';
-
 const PROPERTY_PATH = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/;
 
 export function normalizeRole(value: unknown): Role | undefined {

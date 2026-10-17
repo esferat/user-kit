@@ -1,7 +1,6 @@
 import type { AuthenticatedUser, Role } from '@/entities/user';
 
 import { messageOfError } from '@/shared/lib';
-
 import type { AuthMode, AuthProvider } from './types';
 
 /** Состояние сессии текущего пользователя. */

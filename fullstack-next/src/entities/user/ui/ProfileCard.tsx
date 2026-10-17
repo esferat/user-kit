@@ -1,5 +1,4 @@
 import { Card, Descriptions, Tag, type DescriptionsProps } from 'antd';
-
 import type { AuthenticatedUser } from '../model/types';
 
 /**

@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import com.acme.usermark.common.ApiException;
 import com.acme.usermark.config.AppProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -25,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
 class AuthSessionServiceTest {
@@ -70,7 +70,7 @@ class AuthSessionServiceTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<OAuthTokenClient> provider = org.mockito.Mockito.mock(ObjectProvider.class);
         lenient().when(provider.getIfAvailable()).thenReturn(tokenClient);
-        service = new AuthSessionService(sessions, loginStates, provider, properties, new ObjectMapper());
+        service = new AuthSessionService(sessions, loginStates, provider, properties, JsonMapper.builder().build());
     }
 
     private AppProperties properties;
