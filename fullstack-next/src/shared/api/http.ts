@@ -29,6 +29,8 @@ export class ApiError extends Error {
 export interface RequestOptions {
   method?: HttpMethod;
   body?: BodyInit | null;
+  /** Multipart: тип тела задаёт браузер, `Content-Type` ставить нельзя. */
+  rawBody?: boolean;
   accept?: string;
   headers?: Record<string, string>;
   signal?: AbortSignal;
@@ -82,7 +84,9 @@ export async function request(url: string, options: RequestOptions = {}): Promis
     ...options.headers,
   };
 
-  if (options.body !== undefined && options.body !== null) {
+  // Multipart загрузки помечают rawBody: границу (boundary) приписывает сам
+  // браузер, фиксированный Content-Type сломал бы разбор на бэкенде.
+  if (options.body !== undefined && options.body !== null && options.rawBody !== true) {
     headers['Content-Type'] = 'application/json';
   }
 

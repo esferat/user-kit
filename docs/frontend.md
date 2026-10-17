@@ -370,11 +370,17 @@ The code follows Feature-Sliced Design:
 - `src/entities/user/` — the profile type and `roles.ts`, which maps provider claims to `admin`/`user`
   in the same order as the backend.
 - `src/features/auth/` — the `CookieAuthProvider` (`config` → `login` by navigation, `dev-login`,
-  `restore`, `logout`), the `SessionStore` behind `useSyncExternalStore` and `useAuth`, and the
-  `LoginScreen`/`ProfileMenu` components.
-- `src/widgets/app-shell/` — the header, profile menu and role-filtered navigation.
+  `restore`, `logout`), the `SessionStore` behind `useSyncExternalStore` and `useAuth` (with
+  `refresh()` after an edit), and the `LoginScreen`/`ProfileMenu` components. Both avatars the backend
+  serves are wired here: the full one for `features/profile-edit`, the thumbnail for `ProfileMenu`.
+- `src/features/profile-edit/` — `createProfileApi` (`PATCH /api/v1/me`, avatar `POST`/`DELETE`, the
+  multipart body sets `rawBody` so the browser keeps the boundary) and `ProfileEditForm`.
+- `src/widgets/app-shell/` — the header with the profile menu and the role-filtered navigation in a
+  left sider; `model/navigation.ts` supports plain entries and groups that only expand a submenu (the
+  `Игры` section), and the pages of the games live under `(protected)/games/`.
 - `src/app/` — the root layout (Ant Design registry and providers), the public landing page
-  (`page.tsx`), `login/`, the `(protected)` route group and `providers.tsx`.
+  (`page.tsx`), `login/`, the `(protected)` route group with `admin/`, `profile/`,
+  `profile/edit/` and `games/`, and `providers.tsx`.
 
 `src/proxy.ts` performs an optimistic check: the landing page `/` and `/login` are public, while any
 other request without `UK_SESSION`/`UK_DEV_TOKEN` is redirected to `/login`. The real authorization

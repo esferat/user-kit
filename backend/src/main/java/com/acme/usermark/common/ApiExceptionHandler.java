@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
@@ -42,6 +43,7 @@ public class ApiExceptionHandler {
         ConstraintViolationException.class,
         HttpMessageNotReadableException.class,
         MissingServletRequestParameterException.class,
+        MissingServletRequestPartException.class,
         MethodArgumentTypeMismatchException.class
     })
     public ResponseEntity<ApiError> handleBadRequest(Exception exception, HttpServletRequest request) {

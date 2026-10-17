@@ -138,19 +138,23 @@ against the registration page of the provider, so a new account lands in the sam
 ## Data model
 
 ```
-user_account                          file_object
-────────────                          ───────────
-id              uuid  PK             id              uuid  PK
-subject         text unique           name            text
-username        text                  description     text nullable
-email           text                  content_type    text
-display_name    text                  size_bytes      bigint
-roles           text[]                checksum        text nullable
-enabled         boolean               storage_key     text unique
-created_at      timestamptz           owner_id        uuid FK -> user_account
-updated_at      timestamptz           version         bigint
-version         bigint                created_at      timestamptz
-                                       updated_at      timestamptz
+user_account                            file_object
+────────────                            ───────────
+id                   uuid  PK           id            uuid  PK
+subject              text unique        name          text
+username             text               description   text nullable
+email                text               content_type  text
+display_name         text               size_bytes    bigint
+roles                text[]             checksum      text nullable
+enabled              boolean            storage_key   text unique
+avatar_key           text               owner_id      uuid FK -> user_account
+avatar_thumbnail_key text               version       bigint
+avatar_content_type  text               created_at    timestamptz
+avatar_updated_at    timestamptz        updated_at    timestamptz
+profile_overridden   boolean
+created_at           timestamptz
+updated_at           timestamptz
+version              bigint
 
 auth_login_state                      auth_session
 ──────────────                        ────────────
@@ -167,6 +171,12 @@ created_at   timestamptz              refresh_token         text nullable
 `subject` is the stable identifier of the account at the identity provider (`sub` claim). File content
 never reaches the database; `storage_key` points to the object storage and `checksum` stores the
 SHA-256 of the uploaded bytes.
+
+The avatar lives in the same storage, under `avatars/<account-id>/<upload-id>/full.png` and
+`.../thumbnail.png`. Both are re-encoded PNG squares of 512×512 and 64×64, so neither the format of
+the upload nor the metadata of the original survives. `profile_overridden` flips on the first
+successful `PATCH /api/v1/me`; from then on the identity provider no longer overwrites the display
+name and the email of the account.
 
 Both auth tables hold a hash, never a value the browser presents: `state_hash` and `id_hash` are
 SHA-256 of the random values in the cookies, so a dump of the database does not allow a session to be

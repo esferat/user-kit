@@ -1,4 +1,6 @@
-import { Card, Descriptions, Tag, type DescriptionsProps } from 'antd';
+import { Avatar, Card, Descriptions, Space, Tag, Typography, type DescriptionsProps } from 'antd';
+
+import { initialsOf } from '@/shared/lib';
 import type { AuthenticatedUser } from '../model/types';
 
 /**
@@ -22,6 +24,14 @@ export function ProfileCard({ user }: { user: AuthenticatedUser }) {
 
   return (
     <Card title="Профиль" style={{ maxWidth: 640 }}>
+      <Space align="center" size={16} style={{ marginBottom: 24 }}>
+        <Avatar size={80} src={user.avatarUrl ?? undefined}>
+          {initialsOf(user.displayName)}
+        </Avatar>
+        <Typography.Text strong style={{ fontSize: 18 }}>
+          {user.displayName}
+        </Typography.Text>
+      </Space>
       <Descriptions column={1} size="middle" items={items} />
     </Card>
   );

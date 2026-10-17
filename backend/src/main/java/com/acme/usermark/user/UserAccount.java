@@ -41,6 +41,27 @@ public class UserAccount {
     @Column(name = "enabled", nullable = false)
     private boolean enabled = true;
 
+    /** Storage key of the larger avatar rendition; {@code null} while no avatar is set. */
+    @Column(name = "avatar_key", length = 1024)
+    private String avatarKey;
+
+    /** Storage key of the small avatar rendition of the profile menu. */
+    @Column(name = "avatar_thumbnail_key", length = 1024)
+    private String avatarThumbnailKey;
+
+    @Column(name = "avatar_content_type", length = 255)
+    private String avatarContentType;
+
+    @Column(name = "avatar_updated_at")
+    private Instant avatarUpdatedAt;
+
+    /**
+     * True once the owner edited the base data, which stops the identity provider
+     * from overwriting {@code displayName} and {@code email} on the next request.
+     */
+    @Column(name = "profile_overridden", nullable = false)
+    private boolean profileOverridden;
+
     @Version
     @Column(name = "version", nullable = false)
     private long version;
@@ -108,6 +129,49 @@ public class UserAccount {
 
     public boolean isAdmin() {
         return roles.contains("admin");
+    }
+
+    public boolean isProfileOverridden() {
+        return profileOverridden;
+    }
+
+    public void setProfileOverridden(boolean profileOverridden) {
+        this.profileOverridden = profileOverridden;
+    }
+
+    public String getAvatarKey() {
+        return avatarKey;
+    }
+
+    public String getAvatarThumbnailKey() {
+        return avatarThumbnailKey;
+    }
+
+    public String getAvatarContentType() {
+        return avatarContentType;
+    }
+
+    public Instant getAvatarUpdatedAt() {
+        return avatarUpdatedAt;
+    }
+
+    public boolean hasAvatar() {
+        return avatarKey != null;
+    }
+
+    /** Assigns a freshly stored avatar; the previous keys are not touched here. */
+    public void applyAvatar(String key, String thumbnailKey, String contentType) {
+        this.avatarKey = key;
+        this.avatarThumbnailKey = thumbnailKey;
+        this.avatarContentType = contentType;
+        this.avatarUpdatedAt = Instant.now();
+    }
+
+    public void clearAvatar() {
+        this.avatarKey = null;
+        this.avatarThumbnailKey = null;
+        this.avatarContentType = null;
+        this.avatarUpdatedAt = null;
     }
 
     public long getVersion() {

@@ -1,4 +1,4 @@
-package com.acme.usermark.file;
+package com.acme.usermark.storage;
 
 import com.acme.usermark.common.ApiException;
 import com.acme.usermark.config.AppProperties;

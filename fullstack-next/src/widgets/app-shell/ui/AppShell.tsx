@@ -1,39 +1,74 @@
 'use client';
 
-import {Layout, Menu, Typography} from 'antd';
-import {usePathname, useRouter} from 'next/navigation';
-import {type ReactNode} from 'react';
-import {ProfileMenu, useAuth} from '@/features/auth';
-import {visibleNavEntries} from '../model/navigation';
-import Link from "next/link";
+import { Layout, Menu, Typography, type MenuProps } from 'antd';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState, type ReactNode } from 'react';
 
-export function AppShell({children}: { children: ReactNode }) {
+import { ProfileMenu, useAuth } from '@/features/auth';
+import { isNavGroup, openGroupKeys, visibleNavEntries, type NavEntry } from '../model/navigation';
+
+/** Пункты модели навигации превращаются в подпункты меню antd. */
+function toMenuItems(entries: readonly NavEntry[]): NonNullable<MenuProps['items']> {
+  return entries.map((entry) =>
+    isNavGroup(entry)
+      ? {
+          key: entry.id,
+          label: entry.title,
+          children: entry.children.map((child) => ({ key: child.href, label: child.title })),
+        }
+      : { key: entry.href, label: entry.title },
+  );
+}
+
+/**
+ * Оболочка приложения: шапка с брендом и профилем, навигация — в левом боковом
+ * меню. У анонимного посетителя меню пустое, тогда и колонка не рисуется.
+ */
+export function AppShell({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const items = visibleNavEntries(auth.user).map((entry) => ({key: entry.href, label: entry.title}));
+  const items = toMenuItems(visibleNavEntries(auth.user));
+  // Группа со страницей, открытой по прямой ссылке, должна быть раскрыта сразу.
+  // Дальше раскрытием управляет сам antd: заход в игру возможен только из меню.
+  const [defaultOpenKeys] = useState(() => openGroupKeys(pathname));
 
   return (
-    <Layout style={{minHeight: '100vh'}}>
-      <Layout.Header style={{display: 'flex', alignItems: 'center', gap: 24}}>
+    <Layout style={{ minHeight: '100vh' }}>
+      <Layout.Header style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
         <Link href={`/`}>
-          <Typography.Title level={4} style={{color: '#fff', margin: 0, whiteSpace: 'nowrap'}}>
+          <Typography.Title level={4} style={{ color: '#fff', margin: 0, whiteSpace: 'nowrap' }}>
             User Kit
           </Typography.Title>
         </Link>
-        <Menu
-          theme="dark"
-          mode="vertical"
-          selectedKeys={[pathname]}
-          items={items}
-          onClick={({key}) => router.push(key)}
-          style={{flex: 1, minWidth: 0}}
-        />
+        <div style={{ flex: 1 }}/>
         <ProfileMenu/>
       </Layout.Header>
-      <Layout.Content style={{padding: '2rem'}}>
+      <Layout>
+        {items.length > 0 && (
+          <Layout.Sider theme="dark" width={220}>
+            <Menu
+              theme="dark"
+              mode="inline"
+              selectedKeys={[pathname]}
+              defaultOpenKeys={defaultOpenKeys}
+              items={items}
+              // Клик по группе только раскрывает подменю: у неё нет своего
+              // маршрута, поэтому переходим лишь по ключам-путям.
+              onClick={({ key }) => {
+                if (key.startsWith('/')) {
+                  router.push(key);
+                }
+              }}
+              style={{ borderInlineEnd: 0 }}
+            />
+          </Layout.Sider>
+        )}
+        <Layout.Content style={{ padding: '2rem' }}>
           {children}
-      </Layout.Content>
+        </Layout.Content>
+      </Layout>
     </Layout>
   );
 }

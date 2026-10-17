@@ -1,4 +1,4 @@
-package com.acme.usermark.file;
+package com.acme.usermark.storage;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;

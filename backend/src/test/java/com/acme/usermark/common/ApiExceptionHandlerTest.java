@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.exc.UnrecognizedPropertyException;
@@ -47,6 +48,16 @@ class ApiExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().message()).isEqualTo("plain");
+    }
+
+    @Test
+    void missingMultipartPartIsABadRequest() {
+        ResponseEntity<ApiError> response =
+                handler.handleBadRequest(new MissingServletRequestPartException("file"), request());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo("bad_request");
     }
 
     private static MockHttpServletRequest request() {

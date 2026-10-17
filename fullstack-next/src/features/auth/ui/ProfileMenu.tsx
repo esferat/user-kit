@@ -43,7 +43,7 @@ export function ProfileMenu() {
           {
             key: 'profile',
             label: (
-              <Link href={'profile'}>
+              <Link href={'/profile'} replace>
                 Личный кабинет
               </Link>
             )
@@ -60,7 +60,9 @@ export function ProfileMenu() {
     >
       <Button type="text" style={{color: '#fff', height: 'auto', padding: 4}}>
         <Space>
-          <Avatar size="small">{initialsOf(user.displayName)}</Avatar>
+          <Avatar size="small" src={user.avatarThumbnailUrl ?? undefined}>
+            {initialsOf(user.displayName)}
+          </Avatar>
           {user.displayName}
         </Space>
       </Button>

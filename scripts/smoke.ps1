@@ -216,6 +216,63 @@ Show 'POST /api/v1/auth/logout without CSRF token' (HttpCode @('-X', 'POST', '-H
 $me = (Http $A "$base/api/v1/me") | ConvertFrom-Json
 Show 'GET /api/v1/me (admin token)' '200' ("roles=" + ($me.roles -join ',') + " id=" + $me.id)
 
+# The profile of the caller: the base data and the avatar, which the backend
+# normalizes and stores in the object storage as two PNG renditions.
+$profileBody = Join-Path $env:TEMP 'user-kit-profile.json'
+$profileOut = Join-Path $env:TEMP 'user-kit-profile-response.json'
+$avatarImage = Join-Path $env:TEMP 'user-kit-avatar.png'
+
+try {
+    [System.IO.File]::WriteAllText($profileBody, '{"displayName":"Smoke Admin"}')
+    $profileCode = Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$profileBody",
+            '-o', $profileOut, '-w', '%{http_code}')) "$base/api/v1/me"
+    $profile = (Get-Content -Raw -LiteralPath $profileOut) | ConvertFrom-Json
+    Show 'PATCH /api/v1/me (displayName)' $profileCode '200' ("displayName=" + $profile.displayName)
+    ShowCheck 'PATCH /api/v1/me returns the edited name' ($profile.displayName -eq 'Smoke Admin')
+
+    [System.IO.File]::WriteAllText($profileBody, (@{displayName = $me.displayName} | ConvertTo-Json -Compress))
+    $profileCode = Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$profileBody",
+            '-o', $profileOut, '-w', '%{http_code}')) "$base/api/v1/me"
+    $profile = (Get-Content -Raw -LiteralPath $profileOut) | ConvertFrom-Json
+    Show 'PATCH /api/v1/me restores the display name' $profileCode '200' ("displayName=" + $profile.displayName)
+
+    [System.IO.File]::WriteAllText($profileBody, '{"id":"00000000-0000-0000-0000-000000000000"}')
+    Show 'PATCH /api/v1/me read-only property' (HttpCode ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$profileBody")) "$base/api/v1/me") '400'
+    [System.IO.File]::WriteAllText($profileBody, '{"etag":"W/\"0\""}')
+    Show 'PATCH /api/v1/me etag in body' (HttpCode ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$profileBody")) "$base/api/v1/me") '400'
+    [System.IO.File]::WriteAllText($profileBody, '{"nickname":"x"}')
+    Show 'PATCH /api/v1/me unknown property' (HttpCode ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$profileBody")) "$base/api/v1/me") '400'
+
+    Add-Type -AssemblyName System.Drawing
+    $bitmap = New-Object System.Drawing.Bitmap 8, 4
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.Clear([System.Drawing.Color]::CornflowerBlue)
+    $graphics.Dispose()
+    $bitmap.Save($avatarImage, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bitmap.Dispose()
+
+    $avatarCode = Http ($A + @('-F', "file=@$avatarImage", '-o', $profileOut, '-w', '%{http_code}')) "$base/api/v1/me/avatar"
+    $avatar = (Get-Content -Raw -LiteralPath $profileOut) | ConvertFrom-Json
+    Show 'POST /api/v1/me/avatar' $avatarCode '200' ("avatarUrl=" + $avatar.avatarUrl)
+    ShowCheck 'avatar upload returns both renditions' ([bool]$avatar.avatarUrl -and [bool]$avatar.avatarThumbnailUrl)
+    Show 'GET /api/v1/me/avatar' (HttpCode $A "$base/api/v1/me/avatar") '200'
+    Show 'GET /api/v1/me/avatar/thumbnail' (HttpCode $A "$base/api/v1/me/avatar/thumbnail") '200'
+
+    [System.IO.File]::WriteAllText($profileBody, 'not an image')
+    $avatarCode = Http ($A + @('-F', "file=@$profileBody", '-o', $profileOut, '-w', '%{http_code}')) "$base/api/v1/me/avatar"
+    Show 'POST /api/v1/me/avatar with a non-image' $avatarCode '400'
+
+    $avatarCode = Http ($A + @('-F', 'description=x', '-o', $profileOut, '-w', '%{http_code}')) "$base/api/v1/me/avatar"
+    Show 'POST /api/v1/me/avatar without a file' $avatarCode '400'
+
+    $avatarCode = Http ($A + @('-X', 'DELETE', '-o', $profileOut, '-w', '%{http_code}')) "$base/api/v1/me/avatar"
+    $removed = (Get-Content -Raw -LiteralPath $profileOut) | ConvertFrom-Json
+    Show 'DELETE /api/v1/me/avatar' $avatarCode '200' ("avatarUrl=" + $removed.avatarUrl)
+    ShowCheck 'DELETE /api/v1/me/avatar clears both URLs' ($null -eq $removed.avatarUrl -and $null -eq $removed.avatarThumbnailUrl)
+} finally {
+    Remove-Item -LiteralPath $profileBody, $profileOut, $avatarImage -Force -ErrorAction SilentlyContinue
+}
+
 $tempFile = Join-Path $env:TEMP 'user-kit-smoke.txt'
 $tempBody = Join-Path $env:TEMP 'user-kit-upload.json'
 $patchBody = Join-Path $env:TEMP 'user-kit-patch.json'
@@ -343,6 +400,8 @@ function Test-NextDomain {
     # while the private routes still answer with a redirect to the login screen.
     Show "$Name GET / (public landing page)" (HttpCode @() "$BaseUrl/") '200'
     Show "$Name GET /profile (redirects to the login screen)" (HttpCode @() "$BaseUrl/profile") '307'
+    Show "$Name GET /profile/edit (redirects to the login screen)" (HttpCode @() "$BaseUrl/profile/edit") '307'
+    Show "$Name GET /games/chess (redirects to the login screen)" (HttpCode @() "$BaseUrl/games/chess") '307'
     Show "$Name GET /login (Next.js page)" (HttpCode @() "$BaseUrl/login")
     Show "$Name GET /api/v1/me without token" (HttpCode @() "$BaseUrl/api/v1/me") '401'
     Show "$Name GET /api/v1/auth/config" (HttpCode @() "$BaseUrl/api/v1/auth/config")

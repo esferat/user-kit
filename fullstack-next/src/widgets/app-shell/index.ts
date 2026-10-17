@@ -1,2 +1,10 @@
 export { AppShell } from './ui/AppShell';
-export { NAV_ENTRIES, visibleNavEntries, type NavEntry } from './model/navigation';
+export {
+  NAV_ENTRIES,
+  isNavGroup,
+  openGroupKeys,
+  visibleNavEntries,
+  type NavEntry,
+  type NavGroup,
+  type NavLink,
+} from './model/navigation';

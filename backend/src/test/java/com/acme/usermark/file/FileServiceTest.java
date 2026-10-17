@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.acme.usermark.common.ApiException;
 import com.acme.usermark.config.AppProperties;
+import com.acme.usermark.storage.FileStorageService;
 import com.acme.usermark.user.UserAccount;
 import java.time.Instant;
 import java.util.Optional;

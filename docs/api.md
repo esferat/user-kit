@@ -51,6 +51,9 @@ compact document without `timestamp`, `status` and `path`:
 | `invalid_name`             | 400    | File name empty, too long or only path separators                                      |
 | `invalid_roles`            | 400    | Role set empty or contains an unsupported role                                         |
 | `read_only_property`       | 400    | PATCH tried to change an immutable property                                            |
+| `invalid_profile`          | 400    | `displayName` or `email` of a profile failed validation                                |
+| `invalid_image`            | 400    | Avatar upload is not a supported raster image or exceeds the pixel limit                |
+| `unreadable_upload`        | 400    | The uploaded multipart part could not be read                                          |
 | `empty_file`               | 400    | Upload without content                                                                 |
 | `not_found`                | 404    | Unknown resource                                                                       |
 | `conflict`                 | 409    | Conflicting state                                                                      |
@@ -74,12 +77,65 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://user-kit.local/api/v1/me
 {
   "id": "d90ddc05-a638-4de5-9b54-8856641b9e97",
   "subject": "8f2b...c1",
+  "username": "jane",
   "email": "jane@example.com",
   "displayName": "Jane Doe",
   "roles": ["admin"],
-  "enabled": true
+  "enabled": true,
+  "version": 3,
+  "createdAt": "2026-09-01T09:00:00Z",
+  "updatedAt": "2026-10-04T10:05:00Z",
+  "avatarUrl": "/api/v1/me/avatar?v=1759572300000",
+  "avatarThumbnailUrl": "/api/v1/me/avatar/thumbnail?v=1759572300000",
+  "avatarUpdatedAt": "2026-10-04T10:05:00Z",
+  "etag": "W/\"3\""
 }
 ```
+
+### `PATCH /api/v1/me`
+
+Updates the base data of the caller: `displayName` and `email`. An absent field keeps its value,
+`displayName` must be 1..255 characters and `email` is either a valid address or empty, which clears
+it. `If-Match` works as everywhere else and is optional.
+
+```bash
+curl -sk -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"displayName":"Jane Roe","email":"jane.roe@example.com"}' \
+  https://user-kit.local/api/v1/me
+```
+
+The first successful edit flags the account as managed by the application (`profile_overridden`):
+from then on the identity provider no longer overwrites `displayName` and `email` on the next
+request. Before the first edit they follow the claims of the token.
+
+### `POST /api/v1/me/avatar`
+
+`multipart/form-data` with the single field `file`. The upload must be a raster image (PNG, JPEG,
+GIF or BMP) of at most 5 MB. The backend center crops it to a square and stores two PNG renditions:
+
+| Rendition | Size    | Used by            | URL                          |
+| --------- | ------- | ------------------ | ---------------------------- |
+| Avatar    | 512×512 | profile page       | `/api/v1/me/avatar`          |
+| Thumbnail | 64×64   | avatar of the menu | `/api/v1/me/avatar/thumbnail` |
+
+```bash
+curl -sk -X POST -H "Authorization: Bearer $TOKEN" -F 'file=@avatar.png' \
+  https://user-kit.local/api/v1/me/avatar
+```
+
+The response is the profile document, like `GET /api/v1/me`. The object storage is private, so the
+edge serves the image through this endpoint, not from a signed URL. SVG and other non-raster formats
+are rejected with `invalid_image`, because what is stored is always a freshly encoded PNG. A request
+without the `file` part is answered with `bad_request`.
+
+### `GET /api/v1/me/avatar`, `GET /api/v1/me/avatar/thumbnail`
+
+Return the stored PNG of the caller. Both answer with `Cache-Control: private, max-age=3600`; the
+`?v=` parameter of the URLs in the profile document busts that cache after an upload.
+
+### `DELETE /api/v1/me/avatar`
+
+Removes the avatar and returns the profile document. Deleting while no avatar is set is a no-op.
 
 ## Local development helpers
 
@@ -253,6 +309,7 @@ frontend treats an administrator as a user as well.
 | -------- | --------------------- | ------------------------------------------------------------------------------------------------------- |
 | File     | `name`, `description` | `id`, `storageKey`, `contentType`, `sizeBytes`, `checksum`, `ownerId`, `ownerEmail`, `createdAt`, `updatedAt`, `etag` |
 | User     | `roles`, `enabled`    | `id`, `subject`, `username`, `email`, `displayName`, `version`, `createdAt`, `updatedAt`, `etag`         |
+| Profile  | `displayName`, `email` | `id`, `subject`, `username`, `roles`, `enabled`, `version`, `avatarUrl`, `avatarThumbnailUrl`, `avatarUpdatedAt`, `createdAt`, `updatedAt`, `etag` |
 
 Sending a read-only property in a PATCH body is answered with `read_only_property` instead of being
 ignored silently. Jackson runs with `spring.jackson.deserialization.fail-on-unknown-properties=true`,

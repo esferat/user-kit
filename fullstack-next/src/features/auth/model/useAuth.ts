@@ -9,6 +9,8 @@ import type { AuthSnapshot, SessionStore } from './sessionStore';
 export interface AuthApi extends AuthSnapshot {
   login(role?: Role): Promise<void>;
   logout(): Promise<void>;
+  /** Перечитывает профиль: имя и аватар после сохранения на экране правки. */
+  refresh(): Promise<void>;
 }
 
 /**
@@ -22,7 +24,7 @@ export function useAuth(): AuthApi {
     throw new Error('useAuth должен вызываться внутри AuthSessionProvider');
   }
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
-  return { ...snapshot, login: store.login, logout: store.logout };
+  return { ...snapshot, login: store.login, logout: store.logout, refresh: store.refresh };
 }
 
 /** Текущий пользователь или `null`; удобно там, где нужны только данные. */

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.acme.usermark.file.FileController;
+import com.acme.usermark.user.MeController;
 import com.acme.usermark.user.UserAdminController;
 import java.io.IOException;
 import java.util.List;
@@ -60,10 +61,37 @@ class RestPatchContractTest {
                 "\"updatedAt\":\"2026-10-04T10:05:00Z\"");
     }
 
+    static Stream<String> profileReadOnlyProperties() {
+        return Stream.of(
+                "\"id\":\"3f6a1c1e-6f2f-4a1b-9a1e-1b2c3d4e5f60\"",
+                "\"etag\":\"W/\\\"2\\\"\"",
+                "\"subject\":\"auth0|abc\"",
+                "\"username\":\"alice\"",
+                "\"roles\":[\"user\"]",
+                "\"enabled\":false",
+                "\"version\":3",
+                "\"avatarUrl\":\"/api/v1/me/avatar?v=1\"",
+                "\"avatarThumbnailUrl\":\"/api/v1/me/avatar/thumbnail?v=1\"",
+                "\"avatarUpdatedAt\":\"2026-10-04T10:05:00Z\"",
+                "\"createdAt\":\"2026-10-04T10:00:00Z\"",
+                "\"updatedAt\":\"2026-10-04T10:05:00Z\"");
+    }
+
     @ParameterizedTest
     @MethodSource("fileReadOnlyProperties")
     void filePatchRejectsReadOnlyProperty(String property) throws Exception {
         FileController.FilePatch patch = mapper.readValue("{" + property + "}", FileController.FilePatch.class);
+
+        assertThatThrownBy(patch::rejectReadOnly)
+                .isInstanceOf(ApiException.class)
+                .extracting(exception -> ((ApiException) exception).code())
+                .isEqualTo("read_only_property");
+    }
+
+    @ParameterizedTest
+    @MethodSource("profileReadOnlyProperties")
+    void profilePatchRejectsReadOnlyProperty(String property) throws Exception {
+        MeController.MePatch patch = mapper.readValue("{" + property + "}", MeController.MePatch.class);
 
         assertThatThrownBy(patch::rejectReadOnly)
                 .isInstanceOf(ApiException.class)
@@ -103,10 +131,22 @@ class RestPatchContractTest {
     }
 
     @Test
+    void profilePatchAcceptsWritableProperties() throws Exception {
+        MeController.MePatch patch = mapper.readValue(
+                "{\"displayName\":\"Alice\",\"email\":\"alice@example.com\"}", MeController.MePatch.class);
+
+        assertThatCode(patch::rejectReadOnly).doesNotThrowAnyException();
+        assertThat(patch.displayName()).isEqualTo("Alice");
+        assertThat(patch.email()).isEqualTo("alice@example.com");
+    }
+
+    @Test
     void emptyPatchIsAccepted() throws Exception {
         assertThatCode(() -> mapper.readValue("{}", FileController.FilePatch.class).rejectReadOnly())
                 .doesNotThrowAnyException();
         assertThatCode(() -> mapper.readValue("{}", UserAdminController.UserPatch.class).rejectReadOnly())
+                .doesNotThrowAnyException();
+        assertThatCode(() -> mapper.readValue("{}", MeController.MePatch.class).rejectReadOnly())
                 .doesNotThrowAnyException();
     }
 

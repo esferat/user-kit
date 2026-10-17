@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * Roles are seeded from the IdP claims on first login only: afterwards the
  * application owns them, so an administrator can revoke the `admin` role without
- * the identity provider overwriting the change on the next request.
+ * the identity provider overwriting the change on the next request. The base
+ * data follows the same rule once its owner edited it through the profile
+ * endpoints, see {@link UserAccount#isProfileOverridden()}.
  */
 @Service
 public class AuthenticatedUserService {
@@ -54,6 +56,11 @@ public class AuthenticatedUserService {
     }
 
     private UserAccount updateProfile(UserAccount account, Map<String, Object> claims) {
+        // The owner took over the base data, so the claims of the identity
+        // provider no longer overwrite the display name and the email.
+        if (account.isProfileOverridden()) {
+            return account;
+        }
         String displayName = stringClaim(claims, "name");
         String email = stringClaim(claims, "email");
         boolean changed = false;

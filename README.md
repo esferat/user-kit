@@ -44,6 +44,7 @@ administrators additionally manage all files and the role assignment of all acco
 | Authentication    | OIDC Authorization Code + PKCE, optional local HS256 dev issuer, JWT resource server on the backend            |
 | Authorization     | Two roles only: `admin` and `user`; every API call is authorized on the server, the frontend only hides UI     |
 | Files             | Upload (`multipart/form-data`), download, delete, SHA-256 checksum, size and type limits, sanitized file names |
+| Profile           | Editable display name and email, avatar stored in the object storage in two PNG sizes                          |
 | REST API          | Paged collections via `page`/`size`, search via `search`, sorting via `sort`, concurrency via `If-Match`/`ETag`|
 | Administration    | List accounts, change `roles` and `enabled`, reject unsupported roles                                          |
 | API documentation | OpenAPI 3 at `/v3/api-docs`, Swagger UI at `/swagger-ui/index.html`                                            |

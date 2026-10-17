@@ -11,6 +11,10 @@ export interface AuthenticatedUser {
   displayName: string;
   email?: string;
   roles: Role[];
+  /** Полный аватар для страницы профиля; `null`, пока аватар не загружен. */
+  avatarUrl?: string | null;
+  /** Миниатюра для меню профиля; `null`, пока аватар не загружен. */
+  avatarThumbnailUrl?: string | null;
 }
 
 /** Ответ `GET /api/v1/me`. Тело бэкенда шире, лишние поля не читаются. */
@@ -21,4 +25,10 @@ export interface MeResponse {
   roles: Role[];
   id?: string;
   enabled?: boolean;
+  username?: string;
+  version?: number;
+  etag?: string;
+  avatarUrl?: string | null;
+  avatarThumbnailUrl?: string | null;
+  avatarUpdatedAt?: string | null;
 }

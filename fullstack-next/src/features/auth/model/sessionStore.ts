@@ -94,6 +94,21 @@ export class SessionStore {
     }
   };
 
+  /**
+   * Перечитывает профиль. Экран правки вызывает это после сохранения, чтобы
+   * оболочка показала новое имя и аватар без перезагрузки страницы.
+   */
+  refresh = async (): Promise<void> => {
+    try {
+      const user = await this.auth.restore();
+      this.restored = true;
+      this.apply(user);
+    } catch (error) {
+      // Пользователь остаётся на месте: ошибку показывает вызвавший экран.
+      console.error('Не удалось обновить профиль', error);
+    }
+  };
+
   private async restore(): Promise<void> {
     try {
       const user = await this.auth.restore();

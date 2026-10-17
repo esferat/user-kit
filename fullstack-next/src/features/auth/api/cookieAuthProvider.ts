@@ -15,14 +15,24 @@ interface LogoutResponse {
   redirectUrl: string | null;
 }
 
-function toUser(response: MeResponse): AuthenticatedUser {
+function toUser(response: MeResponse, baseUrl: string): AuthenticatedUser {
   return {
     subject: response.subject,
-    username: response.email,
+    username: response.username ?? response.email,
     displayName: response.displayName,
     email: response.email,
     roles: response.roles,
+    avatarUrl: toAvatarUrl(baseUrl, response.avatarUrl),
+    avatarThumbnailUrl: toAvatarUrl(baseUrl, response.avatarThumbnailUrl),
   };
+}
+
+/**
+ * Путь аватара приходит от бэкенда; базовый URL добавляется, когда приложение и
+ * API живут на разных origins. `null` означает «аватара нет».
+ */
+function toAvatarUrl(baseUrl: string, path: string | null | undefined): string | null {
+  return path === undefined || path === null || path === '' ? null : joinUrl(baseUrl, path);
 }
 
 /**
@@ -53,7 +63,10 @@ export class CookieAuthProvider implements AuthProvider {
 
   async restore(): Promise<AuthenticatedUser | null> {
     try {
-      this.currentUser = toUser(await requestJson<MeResponse>(joinUrl(this.baseUrl, '/api/v1/me')));
+      this.currentUser = toUser(
+        await requestJson<MeResponse>(joinUrl(this.baseUrl, '/api/v1/me')),
+        this.baseUrl,
+      );
     } catch (error) {
       this.currentUser = null;
       // Отсутствие сессии — обычное состояние экрана входа, любая другая
