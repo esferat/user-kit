@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Alert, Button, Card, Select, Typography } from 'antd';
-import { DEFAULT_ROLE, ROLES, type Role } from '@/entities/user';
-import { useAuth } from '@/features/auth';
+import {useEffect, useState} from 'react';
+import {useRouter, useSearchParams} from 'next/navigation';
+import {Alert, Button, Card, Select, Typography} from 'antd';
+import {DEFAULT_ROLE, ROLES, type Role} from '@/entities/user';
+import {useAuth} from '@/features/auth';
 
-const { Title, Paragraph } = Typography;
+const {Title, Paragraph} = Typography;
 
 /**
  * Экран входа. Показывает только те способы входа, которые назвал бэкенд:
@@ -35,8 +35,8 @@ export function LoginScreen() {
         padding: '1.5rem',
       }}
     >
-      <Card style={{ width: 380 }}>
-        <Title level={3} style={{ marginBottom: 4 }}>
+      <Card style={{width: 380}}>
+        <Title level={3} style={{marginBottom: 4}}>
           User Kit
         </Title>
         <Paragraph type="secondary">Войдите, чтобы продолжить</Paragraph>
@@ -45,14 +45,14 @@ export function LoginScreen() {
           <Alert
             type="error"
             showIcon
-            message="Не удалось завершить вход"
+            title="Не удалось завершить вход"
             description="Провайдер вернул ошибку. Попробуйте ещё раз."
-            style={{ marginBottom: 16 }}
+            style={{marginBottom: 16}}
           />
         )}
 
         {auth.failure && (
-          <Alert type="error" showIcon message={auth.failure} style={{ marginBottom: 16 }} />
+          <Alert type="error" showIcon title={auth.failure} style={{marginBottom: 16}}/>
         )}
 
         {auth.status === 'restoring' && <Paragraph>Проверяем сессию…</Paragraph>}
@@ -65,21 +65,21 @@ export function LoginScreen() {
           <Alert
             type="warning"
             showIcon
-            message="Вход отключён на сервере"
+            title="Вход отключён на сервере"
             description="Обратитесь к администратору."
           />
         )}
 
         {auth.mode === 'dev' && (
           <div>
-            <Paragraph type="secondary" style={{ marginBottom: 4 }}>
+            <Paragraph type="secondary" style={{marginBottom: 4}}>
               Локальный вход (dev-профиль)
             </Paragraph>
             <Select
-              style={{ width: '100%', marginBottom: 16 }}
+              style={{width: '100%', marginBottom: 16}}
               value={role}
               onChange={(value: Role) => setRole(value)}
-              options={ROLES.map((item) => ({ value: item, label: item }))}
+              options={ROLES.map((item) => ({value: item, label: item}))}
             />
             <Button
               type="primary"

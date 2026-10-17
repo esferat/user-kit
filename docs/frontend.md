@@ -373,12 +373,13 @@ The code follows Feature-Sliced Design:
   `restore`, `logout`), the `SessionStore` behind `useSyncExternalStore` and `useAuth`, and the
   `LoginScreen`/`ProfileMenu` components.
 - `src/widgets/app-shell/` — the header, profile menu and role-filtered navigation.
-- `src/app/` — the root layout (Ant Design registry and providers), `login/`, the `(protected)` route
-  group and `providers.tsx`.
+- `src/app/` — the root layout (Ant Design registry and providers), the public landing page
+  (`page.tsx`), `login/`, the `(protected)` route group and `providers.tsx`.
 
-`src/proxy.ts` performs an optimistic check: a request without `UK_SESSION`/`UK_DEV_TOKEN` is redirected
-to `/login`, while the real authorization stays on the backend (`GET /api/v1/me` and the REST API). The
-route files stay thin; navigation, session and HTTP logic live in the lower slices.
+`src/proxy.ts` performs an optimistic check: the landing page `/` and `/login` are public, while any
+other request without `UK_SESSION`/`UK_DEV_TOKEN` is redirected to `/login`. The real authorization
+stays on the backend (`GET /api/v1/me` and the REST API). The route files stay thin; navigation, session
+and HTTP logic live in the lower slices.
 
 `next.config.ts` enables `cacheComponents`, `partialPrefetching`, `reactCompiler` and
 `output: "standalone"`, so the Docker image can run the minimal server:

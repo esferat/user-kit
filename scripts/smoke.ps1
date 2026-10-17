@@ -339,9 +339,10 @@ function Test-NextDomain {
     # The Next.js full stack app: its own server under /, the same REST API below
     # /api and the identity provider on the canonical domain.
     Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz")
-    # The root is protected: without a session cookie the proxy answers with a
-    # redirect, so the page itself is reached through the public login screen.
-    Show "$Name GET / (redirects to the login screen)" (HttpCode @() "$BaseUrl/") '307'
+    # The root is the public landing page: it opens without a session cookie,
+    # while the private routes still answer with a redirect to the login screen.
+    Show "$Name GET / (public landing page)" (HttpCode @() "$BaseUrl/") '200'
+    Show "$Name GET /profile (redirects to the login screen)" (HttpCode @() "$BaseUrl/profile") '307'
     Show "$Name GET /login (Next.js page)" (HttpCode @() "$BaseUrl/login")
     Show "$Name GET /api/v1/me without token" (HttpCode @() "$BaseUrl/api/v1/me") '401'
     Show "$Name GET /api/v1/auth/config" (HttpCode @() "$BaseUrl/api/v1/auth/config")

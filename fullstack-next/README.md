@@ -12,8 +12,10 @@ JWT resource server, the browser receives only `HttpOnly` cookies and never a to
 - `src/shared/api/http.ts` — `fetch` with `credentials: 'include'` and the `XSRF-TOKEN` → `X-XSRF-TOKEN`
   header on unsafe methods.
 - `src/features/auth/` — the `CookieAuthProvider`, the `SessionStore` and `useAuth`.
-- `src/proxy.ts` — optimistic redirect to `/login` when no session cookie is present.
-- `src/app/(protected)/` — private routes behind the app shell; `src/app/login/` — the login screen.
+- `src/proxy.ts` — optimistic redirect to `/login` when no session cookie is present; the public
+  landing page `/` is exempt.
+- `src/app/page.tsx` — the public landing page; `src/app/(protected)/` — private routes behind the app
+  shell; `src/app/login/` — the login screen.
 
 Registration is a separate feature and is not implemented here.
 

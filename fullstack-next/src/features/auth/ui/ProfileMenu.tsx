@@ -12,9 +12,7 @@ export function ProfileMenu() {
 
   if (user === null) {
     return (
-      <Link href="/login">
-        <Button type="primary">Войти</Button>
-      </Link>
+      <Button type="primary" onClick={() => void auth.login()}>Войти</Button>
     );
   }
 
