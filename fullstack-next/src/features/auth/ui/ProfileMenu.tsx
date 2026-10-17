@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { Avatar, Button, Dropdown, Space, Tag, Typography } from 'antd';
-import { initialsOf } from '@/shared/lib';
-import { useAuth } from '@/features/auth';
+import {Avatar, Button, Dropdown, Space, Tag, Typography} from 'antd';
+import {initialsOf} from '@/shared/lib';
+import {useAuth} from '@/features/auth';
 
 /** Меню профиля: кто вошёл, роли и выход. Без сессии предлагает войти. */
 export function ProfileMenu() {
@@ -24,33 +24,43 @@ export function ProfileMenu() {
       menu={{
         items: [
           {
-            key: 'profile',
+            key: 'info',
             disabled: true,
             label: (
-              <Space direction="vertical" size={0}>
-                <Typography.Text strong>{user.displayName}</Typography.Text>
+              <Space orientation="vertical" size={0}>
+                <Typography.Text strong>
+                  {user.displayName}
+                  <Space size={4}>
+                    {user.roles.map((role) => (
+                      <Tag key={role} color={role === 'admin' ? 'gold' : 'blue'}>
+                        {role}
+                      </Tag>
+                    ))}
+                  </Space>
+                </Typography.Text>
                 <Typography.Text type="secondary">{user.email}</Typography.Text>
-                <Space size={4}>
-                  {user.roles.map((role) => (
-                    <Tag key={role} color={role === 'admin' ? 'gold' : 'blue'}>
-                      {role}
-                    </Tag>
-                  ))}
-                </Space>
               </Space>
             ),
           },
-          { type: 'divider' },
-          { key: 'logout', label: 'Выйти', danger: true },
+          {
+            key: 'profile',
+            label: (
+              <Link href={'profile'}>
+                Личный кабинет
+              </Link>
+            )
+          },
+          {type: 'divider'},
+          {key: 'logout', label: 'Выйти', danger: true},
         ],
-        onClick: ({ key }) => {
+        onClick: ({key}) => {
           if (key === 'logout') {
             void auth.logout();
           }
         },
       }}
     >
-      <Button type="text" style={{ color: '#fff', height: 'auto', padding: 4 }}>
+      <Button type="text" style={{color: '#fff', height: 'auto', padding: 4}}>
         <Space>
           <Avatar size="small">{initialsOf(user.displayName)}</Avatar>
           {user.displayName}

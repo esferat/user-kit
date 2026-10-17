@@ -9,7 +9,6 @@ export interface NavEntry {
 }
 
 export const NAV_ENTRIES: readonly NavEntry[] = [
-  { id: 'dashboard', href: '/', title: 'Личный кабинет', roles: ['user', 'admin'] },
   { id: 'admin', href: '/admin', title: 'Администрирование', roles: ['admin'] },
 ];
 

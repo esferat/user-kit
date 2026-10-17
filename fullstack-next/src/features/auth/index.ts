@@ -5,4 +5,3 @@ export { createAuthProvider } from './api/createAuthProvider';
 export { AuthSessionProvider } from './ui/AuthSessionProvider';
 export { LoginScreen } from './ui/LoginScreen';
 export { ProfileMenu } from './ui/ProfileMenu';
-export { AuthContext } from './model/authContext';

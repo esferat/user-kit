@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Suspense } from "react";
-
 import { Providers } from "./providers";
+import {AppShell} from "@/widgets/app-shell";
 
 import "antd/dist/reset.css";
 import "./globals.css";
@@ -34,7 +34,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         */}
         <Suspense fallback={null}>
           <AntdRegistry>
-            <Providers>{children}</Providers>
+            <Providers>
+              <AppShell>{children}</AppShell>
+            </Providers>
           </AntdRegistry>
         </Suspense>
       </body>

@@ -5,7 +5,7 @@ import { Typography } from 'antd';
 import { ProfileCard } from '@/entities/user';
 import { useAuth } from '@/features/auth';
 
-export default function DashboardPage() {
+export default function ProfilePage() {
   const auth = useAuth();
 
   return (
