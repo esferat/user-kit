@@ -31,6 +31,7 @@ export const NAV_ENTRIES: readonly NavEntry[] = [
     children: [
       { id: 'chess', title: 'Шахматы', href: '/games/chess', roles: ['admin', 'user'] },
       { id: 'checkers', title: 'Шашки', href: '/games/checkers', roles: ['admin', 'user'] },
+      { id: 'match3', title: 'Три в ряд', href: '/games/match3', roles: ['admin', 'user'] },
     ],
   },
   { id: 'admin', title: 'Администрирование', href: '/admin', roles: ['admin'] },
