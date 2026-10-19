@@ -18,7 +18,7 @@ export function ProtectedAppShell({children}: { children: ReactNode }) {
 
   return (
 
-    <div style={{maxWidth: 960, margin: '0 auto'}}>
+    <div style={{width: '100%', margin: '0 auto'}}>
       {auth.status === 'error' && (
         <Alert
           type="error"

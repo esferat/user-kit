@@ -2,7 +2,7 @@
 
 import { Button, Space, Typography, message } from 'antd';
 import Phaser from 'phaser';
-import { useEffect, useRef, useState } from 'react';
+import {CSSProperties, useEffect, useRef, useState} from 'react';
 
 import {
   BallModel,
@@ -25,7 +25,7 @@ const COLORS = [0x4dabf7, 0xff6b6b, 0x51cf66, 0xffe066, 0xcc5de8, 0xff922b];
 const FALL_DURATION = 200;
 const EMPTY_KEYS: ReadonlySet<string> = new Set();
 
-const PANEL_STYLE: React.CSSProperties = {
+const PANEL_STYLE: CSSProperties = {
   background: 'linear-gradient(180deg, #1c2230, #12151c)',
   border: '1px solid #33405a',
   borderRadius: 14,
@@ -33,7 +33,7 @@ const PANEL_STYLE: React.CSSProperties = {
 };
 
 /** Фон страницы повторяет фон игровой доски: градиент, шахматка и мягкая сетка. */
-const PAGE_STYLE: React.CSSProperties = {
+const PAGE_STYLE: CSSProperties = {
   // Отрицательные поля отменяют padding контента AppShell — игра занимает всю страницу.
   margin: '-2rem',
   minHeight: 'calc(100vh - 64px)',
@@ -52,9 +52,10 @@ const PAGE_STYLE: React.CSSProperties = {
   backgroundSize: 'auto, auto, 160px 160px, 160px 160px, 100% 100%',
   backgroundPosition: '0 0, 0 0, 0 0, 80px 80px, 0 0',
   backgroundRepeat: 'repeat, repeat, repeat, repeat, no-repeat',
+  justifyContent: 'center'
 };
 
-const PILL_STYLE: React.CSSProperties = {
+const PILL_STYLE: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 10,
@@ -65,7 +66,7 @@ const PILL_STYLE: React.CSSProperties = {
   boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
 };
 
-const BALL_ICON_STYLE: React.CSSProperties = {
+const BALL_ICON_STYLE: CSSProperties = {
   width: 22,
   height: 22,
   borderRadius: '50%',
@@ -1325,7 +1326,7 @@ export function Match3Game() {
 
   return (
     <div style={PAGE_STYLE}>
-      <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+      <Space orientation="vertical" size="middle" style={{ display: 'flex' }}>
         <Space align="center" wrap size="large">
           <Typography.Title
             level={2}
@@ -1396,7 +1397,7 @@ export function Match3Game() {
             Сбросить
           </Button>
         </Space>
-        <Space direction="vertical" size={6} style={{ display: 'flex' }}>
+        <Space orientation="vertical" size={6} style={{ display: 'flex', maxWidth: 825 }}>
           <div style={{ ...PANEL_STYLE, padding: 10, display: 'inline-block' }}>
             <div ref={containerRef} style={{ lineHeight: 0, borderRadius: 8, overflow: 'hidden' }} />
           </div>
@@ -1420,7 +1421,7 @@ export function Match3Game() {
           <span aria-hidden style={{ fontSize: 18 }}>🏆</span>
           <span style={{ color: '#e9edf5', fontWeight: 600 }}>Таблица лидеров</span>
         </div>
-        <Space direction="vertical" size={6} style={{ display: 'flex' }}>
+        <Space orientation="vertical" size={6} style={{ display: 'flex' }}>
           {MOCK_LEADERS.map((entry, idx) => (
             <div
               key={`${entry.name}-${idx}`}
