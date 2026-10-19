@@ -31,6 +31,12 @@ export interface LightningActivation {
   orientation: LightningOrientation;
 }
 
+/** Сработавший взрыв бомбы: центр и радиус его зоны. */
+export interface BlastActivation {
+  pos: Pos;
+  radius: number;
+}
+
 export function keyOf(pos: Pos): string {
   return `${pos.r},${pos.c}`;
 }
@@ -158,7 +164,8 @@ export function planSpecials(
  * бомба добавляет клетки в радиусе взрыва, молния — всю свою строку
  * или столбец. Активации цепные: взрыв может подрядить соседнюю бомбу
  * или молнию. Клетки из `protectedKeys` (будущие особые элементы) не очищаются.
- * Сработавшие молнии записываются в `lightningFx` для эффекта по линии.
+ * Сработавшие молнии записываются в `lightningFx` для эффекта по линии,
+ * сработавшие бомбы — в `blasts` для волны взрыва от центра к краю.
  */
 export function expandClears(
   grid: CellGrid,
@@ -166,6 +173,7 @@ export function expandClears(
   protectedKeys: ReadonlySet<string>,
   consumed: ReadonlySet<string> = EMPTY_KEYS,
   lightningFx?: LightningActivation[],
+  blasts?: BlastActivation[],
 ): Set<string> {
   const result = new Set<string>();
   const queue: string[] = [];
@@ -188,6 +196,7 @@ export function expandClears(
     const cell = grid[pos.r][pos.c];
     if (!cell) continue;
     if (cell.kind === 'bomb') {
+      blasts?.push({ pos, radius: cell.blastRadius });
       const radius = cell.blastRadius;
       for (let dr = -radius; dr <= radius; dr++) {
         for (let dc = -radius; dc <= radius; dc++) {
@@ -195,7 +204,7 @@ export function expandClears(
         }
       }
     } else if (cell.kind === 'lightning') {
-      // Разряд молнии: линия очищается, эффект играется над затухающими клетками.
+      // Разряд молнии: линия очищается, эффект играется над разлетающимися осколками.
       lightningFx?.push({ pos, orientation: cell.orientation });
       for (let i = 0; i < GRID_SIZE; i++) {
         if (cell.orientation === 'row') add(pos.r, i);

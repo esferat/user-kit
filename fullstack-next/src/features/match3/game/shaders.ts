@@ -15,6 +15,229 @@ export function nextShaderName(base: string): string {
 export const STRIKE_DURATION_MS = 420;
 
 /**
+ * Фрагментный шейдер плитки-бомбы. Тёмный корпус с ободком цвета
+ * совпадения и раскалённым пульсирующим ядром, а над ядром — живой
+ * огонь: шумовые языки поднимаются вверх, конус сужается и рассеивается,
+ * от ядра отрываются искры-угольки. Фаза сдвинута на `uSeed` — пламя
+ * разных бомб горит независимо. Координаты — пиксели плитки, цвет
+ * выводится в предмножительном виде (блендинг ONE).
+ */
+export const BOMB_TILE_FRAG = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+varying vec2 outTexCoord;
+
+uniform vec3 uColor;
+uniform float uTime;
+uniform float uAlpha;
+uniform float uSeed;
+
+float hash2(vec2 x) {
+  return fract(sin(dot(x, vec2(127.1, 311.7)) + uSeed * 47.3) * 43758.5453123);
+}
+
+float vnoise2(vec2 x) {
+  vec2 i = floor(x);
+  vec2 f = fract(x);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash2(i), hash2(i + vec2(1.0, 0.0)), u.x),
+    mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 x) {
+  float v = 0.0;
+  float amp = 0.55;
+  for (int i = 0; i < 4; i++) {
+    v += amp * vnoise2(x);
+    x *= 2.03;
+    amp *= 0.5;
+  }
+  return v;
+}
+
+void layer(inout vec3 col, inout float a, vec3 color, float alpha) {
+  alpha = clamp(alpha, 0.0, 1.0);
+  col = color * alpha + col * (1.0 - alpha);
+  a = alpha + a * (1.0 - alpha);
+}
+
+// Пламя: тёмно-красный → оранжево-жёлтый → белый.
+vec3 fireColor(float i) {
+  vec3 c = mix(vec3(0.4, 0.02, 0.0), vec3(1.0, 0.3, 0.03), smoothstep(0.0, 0.45, i));
+  c = mix(c, vec3(1.0, 0.72, 0.2), smoothstep(0.45, 0.8, i));
+  c = mix(c, vec3(1.0, 0.98, 0.85), smoothstep(0.8, 1.0, i));
+  return c;
+}
+
+void main() {
+  float size = ${TILE_SIZE}.0;
+  float radius = ${BALL_RADIUS}.0;
+  float t = uTime + uSeed;
+  vec2 p = vec2(outTexCoord.x, 1.0 - outTexCoord.y) * size;
+  vec2 center = vec2(size * 0.5);
+  vec2 rel = p - center;
+  float d = length(rel);
+
+  vec3 col = vec3(0.0);
+  float a = 0.0;
+
+  // Дышащий ореол цвета совпадения и тёмный корпус.
+  layer(
+    col, a, uColor,
+    (0.1 + 0.04 * sin(t * 4.0)) * (1.0 - smoothstep(radius + 5.0, radius + 6.0, d))
+  );
+  layer(col, a, vec3(0.18, 0.2, 0.25), 1.0 - smoothstep(radius - 1.0, radius, d));
+  // Тень корпуса снизу-справа.
+  layer(
+    col, a, vec3(0.08, 0.09, 0.12),
+    0.5 * (1.0 - smoothstep(radius * 0.7 - 1.0, radius * 0.7, length(rel - vec2(4.0, 5.0))))
+  );
+  // Ободок цвета совпадения.
+  layer(col, a, uColor * 0.6 + 0.4, 0.8 * (1.0 - smoothstep(0.4, 1.3, abs(d - (radius - 0.5)))));
+
+  // Раскалённое ядро: красное свечение и горячая сердцевина дышат.
+  float breath = 0.5 + 0.5 * sin(t * 6.0);
+  layer(
+    col, a, vec3(1.0, 0.3, 0.3),
+    (0.16 + 0.1 * breath) * (1.0 - smoothstep(radius * 0.62 - 2.0, radius * 0.62, d))
+  );
+  float coreR = radius * (0.3 + 0.04 * sin(t * 6.0 + 1.0));
+  layer(col, a, vec3(1.0, 0.42, 0.42), 0.9 * (1.0 - smoothstep(coreR - 1.2, coreR, d)));
+  // Блик на корпусе.
+  layer(
+    col, a, vec3(1.0),
+    0.85 * (1.0 - smoothstep(radius * 0.1 - 0.6, radius * 0.1, length(rel - vec2(-9.6, -10.9))))
+  );
+
+  // Пламя: шум идёт вверх, языки сужаются кверху и рассеиваются к краям.
+  float rise = fbm(vec2(rel.x * 0.055, (rel.y + t * 46.0) * 0.055));
+  float upH = clamp(-rel.y / 30.0, 0.0, 1.0);
+  float width = 13.0 * (1.0 - upH * 0.8) + 2.0;
+  float axis = 1.0 - smoothstep(0.0, width, abs(rel.x + (rise - 0.5) * 18.0 * upH));
+  float below = 1.0 - smoothstep(-2.0, 4.0, rel.y);
+  float flame = axis * (1.0 - upH * 0.85) * smoothstep(0.25, 0.75, rise) * below;
+  layer(col, a, fireColor(clamp(flame * 1.3, 0.0, 1.0)), smoothstep(0.08, 0.55, flame) * 0.92);
+
+  // Искры-угольки отрываются от ядра, поднимаются и гаснут.
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    float life = fract(t * (0.5 + fi * 0.17) + fi * 0.41);
+    vec2 sp = center + vec2(
+      sin((life * 8.0 + fi * 2.3) * 2.0) * (4.0 + life * 8.0),
+      8.0 - life * 38.0
+    );
+    float bright = (1.0 - life) * (0.5 + 0.5 * sin(t * 22.0 + fi * 5.0));
+    layer(
+      col, a, mix(vec3(1.0, 0.45, 0.08), vec3(1.0, 0.9, 0.4), life),
+      bright * (1.0 - smoothstep(0.7, 1.7, length(p - sp)))
+    );
+  }
+
+  gl_FragColor = vec4(col * uAlpha, a * uAlpha);
+}
+`;
+
+/**
+ * Фрагментный шейдер плитки-радужного элемента. Тёмное тело и шесть
+ * колец, которые живут своей жизнью: цвета плавно закручиваются по
+ * радуге, кольца дышат волной от центра к краю, от пульсирующего
+ * жемчужного ядра расходится волна энергии, а искра-блик обходит
+ * по кругу. Фаза каждого элемента сдвинута на `uSeed` — пульсации
+ * разных радужных не синхронны. Координаты — пиксели плитки, цвет
+ * выводится в предмножительном виде (блендинг ONE).
+ */
+export const RAINBOW_TILE_FRAG = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+varying vec2 outTexCoord;
+
+uniform float uTime;
+uniform float uAlpha;
+uniform float uSeed;
+
+vec3 hue2rgb(float h) {
+  vec3 p = abs(fract(h + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+  return clamp(p - 1.0, 0.0, 1.0);
+}
+
+// Слой поверх: обычный альфа-овер поверх уже нарисованного.
+void layer(inout vec3 col, inout float a, vec3 color, float alpha) {
+  alpha = clamp(alpha, 0.0, 1.0);
+  col = color * alpha + col * (1.0 - alpha);
+  a = alpha + a * (1.0 - alpha);
+}
+
+void main() {
+  float size = ${TILE_SIZE}.0;
+  float radius = ${BALL_RADIUS}.0;
+  float t = uTime + uSeed;
+  vec2 p = vec2(outTexCoord.x, 1.0 - outTexCoord.y) * size;
+  vec2 center = vec2(size * 0.5);
+  float d = length(p - center);
+
+  vec3 col = vec3(0.0);
+  float a = 0.0;
+
+  // Дышащий ореол и тёмное тело.
+  layer(
+    col, a, vec3(1.0),
+    (0.07 + 0.04 * sin(t * 4.0)) * (1.0 - smoothstep(radius + 5.0, radius + 6.0, d))
+  );
+  layer(col, a, vec3(0.137, 0.157, 0.2), 1.0 - smoothstep(radius - 1.0, radius, d));
+
+  // Шесть колец: цвет плавно закручивается по радуге, кольца дышат волной.
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i);
+    float ringR = radius - 2.5 - fi * 5.0 + 1.2 * sin(t * 2.0 - fi * 0.7);
+    float width = 3.2 + 0.6 * sin(t * 3.0 + fi);
+    vec3 ringColor = hue2rgb(fract(fi / 6.0 + t * 0.083 + 0.58));
+    layer(
+      col, a, ringColor,
+      (1.0 - smoothstep(width * 0.5, width * 0.5 + 1.0, abs(d - ringR))) * 0.95
+    );
+  }
+
+  // Волна энергии идёт от ядра к краю.
+  float wave = fract(t * 0.55);
+  float waveR = wave * (radius - 2.0);
+  layer(
+    col, a, vec3(1.0),
+    (1.0 - smoothstep(1.2, 3.5, abs(d - waveR))) * 0.3 * (1.0 - wave) * smoothstep(0.0, 0.12, wave)
+  );
+
+  // Искра-блик обходит по кругу.
+  vec2 glint = center + vec2(cos(t * 1.7), sin(t * 1.7)) * radius * 0.52;
+  layer(
+    col, a, vec3(1.0),
+    (0.3 + 0.4 * (0.5 + 0.5 * sin(t * 5.0))) * (1.0 - smoothstep(1.5, 2.6, length(p - glint)))
+  );
+
+  // Жемчужное ядро пульсирует.
+  float coreR = radius * (0.16 + 0.035 * sin(t * 6.0));
+  layer(col, a, vec3(1.0), 0.95 * (1.0 - smoothstep(coreR - 0.7, coreR, d)));
+
+  // Ободок.
+  layer(
+    col, a, vec3(1.0),
+    (0.35 + 0.15 * sin(t * 4.0)) * (1.0 - smoothstep(0.4, 1.3, abs(d - (radius - 0.5))))
+  );
+
+  gl_FragColor = vec4(col * uAlpha, a * uAlpha);
+}
+`;
+
+/**
  * Фрагментный шейдер плитки-молнии. Кристалл своего цвета (раскладка
  * как у Graphics-версии `drawCrystal`), а поверх — живая молния, которая
  * проходит ровно по линии списания: горизонтально для строки, вертикально

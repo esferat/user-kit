@@ -1,14 +1,25 @@
 import { message } from 'antd';
 import Phaser from 'phaser';
 
-import { BallModel, BombModel, cellColor, type CellModel, type LightningModel } from '../model';
-import { BALL_RADIUS, EMPTY_KEYS, FALL_DURATION, GRID_SIZE, TILE_SIZE, paletteColor } from './constants';
+import { BallModel, BombModel, LightningModel, cellColor, type CellModel } from '../model';
 import {
+  BALL_RADIUS,
+  BLAST_WAVE_MS,
+  COLORS,
+  EMPTY_KEYS,
+  FALL_DURATION,
+  GRID_SIZE,
+  TILE_SIZE,
+  paletteColor,
+} from './constants';
+import {
+  darken,
   drawBomb,
   drawCrystal,
   drawLightning,
   drawRainbow,
   hexToUnitRgb,
+  lighten,
   strokeBolt,
   type BoltPoint,
 } from './drawing';
@@ -21,19 +32,22 @@ import {
   keyOf,
   parseKey,
   planSpecials,
+  type BlastActivation,
   type LightningActivation,
   type Pos,
 } from './rules';
 import {
+  BOMB_TILE_FRAG,
   LIGHTNING_STRIKE_FRAG,
   LIGHTNING_TILE_FRAG,
+  RAINBOW_TILE_FRAG,
   STRIKE_DURATION_MS,
   nextShaderName,
 } from './shaders';
 
 /**
- * Плитка — Graphics или шейдерный объект (молнии рисуются шейдером
- * при наличии WebGL). Оба варианта двигаются и анимируются одинаково.
+ * Плитка — Graphics или шейдерный объект (спецэлементы рисуются
+ * шейдером при наличии WebGL). Оба варианта двигаются и анимируются одинаково.
  */
 type Tile = (Phaser.GameObjects.Graphics | Phaser.GameObjects.Shader) & {
   r: number;
@@ -44,7 +58,6 @@ interface TweenItem {
   obj: Tile;
   x?: number;
   y?: number;
-  alpha?: number;
 }
 
 export class Match3Scene extends Phaser.Scene {
@@ -56,8 +69,10 @@ export class Match3Scene extends Phaser.Scene {
   private selectionRing: Phaser.GameObjects.Graphics | null = null;
   private animating = false;
   private score = 0;
-  /** WebGL доступен — молния рисуется шейдерами, иначе Graphics-фолбэк. */
+  /** WebGL доступен — спецэлементы рисуются шейдерами, иначе Graphics-фолбэк. */
   private webgl = false;
+  /** Номер последнего тика перерисовки без WebGL (~20 раз/с). */
+  private lastFallbackTick = -1;
 
   constructor(onScoreChange: (score: number) => void, colorCount: number) {
     super({ key: 'Match3' });
@@ -100,6 +115,36 @@ export class Match3Scene extends Phaser.Scene {
     if (this.animating) return;
     this.colorCount = colorCount;
     this.resetGame();
+  }
+
+  update(): void {
+    if (!this.webgl && this.tiles.length > 0) this.updateFallbackTiles();
+  }
+
+  /**
+   * Без WebGL анимированные спецэлементы перерисовываются Graphics-
+   * версиями по непрерывной фазе времени ~20 раз/с: кольца радужного
+   * и огонь бомбы.
+   */
+  private updateFallbackTiles(): void {
+    const tick = Math.floor(this.time.now / 50);
+    if (tick === this.lastFallbackTick) return;
+    this.lastFallbackTick = tick;
+    const seconds = this.time.now / 1000;
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const tile = this.tiles[r][c];
+        const cell = this.grid[r][c];
+        if (!tile || !cell || !(tile instanceof Phaser.GameObjects.Graphics)) continue;
+        if (cell.kind === 'rainbow') {
+          tile.clear();
+          drawRainbow(tile, seconds / 2);
+        } else if (cell.kind === 'bomb') {
+          tile.clear();
+          drawBomb(tile, paletteColor(cell.color), seconds);
+        }
+      }
+    }
   }
 
   private randomColorIndex(): number {
@@ -153,6 +198,12 @@ export class Match3Scene extends Phaser.Scene {
     if (this.webgl && cell.kind === 'lightning') {
       return this.createLightningTile(r, c, cell);
     }
+    if (this.webgl && cell.kind === 'bomb') {
+      return this.createBombTile(r, c, cell);
+    }
+    if (this.webgl && cell.kind === 'rainbow') {
+      return this.createRainbowTile(r, c);
+    }
     const g = this.add.graphics();
     switch (cell.kind) {
       case 'ball':
@@ -186,7 +237,7 @@ export class Match3Scene extends Phaser.Scene {
    * Молния при WebGL: кристалл и ломаная рисуются собственным фрагментным
    * шейдером (`LIGHTNING_TILE_FRAG`) — линия мерцает и слегка колеблется.
    * Начало координат смещается в верхний левый угол, чтобы плитка двигалась
-   * как обычная Graphics; гашение при очистке идёт через uniform uAlpha.
+   * как обычная Graphics; при очистке плитка разлетается осколками.
    */
   private createLightningTile(r: number, c: number, cell: LightningModel): Tile {
     const born = this.time.now;
@@ -224,6 +275,87 @@ export class Match3Scene extends Phaser.Scene {
     return tile;
   }
 
+  /**
+   * Бомба при WebGL: тёмный корпус с ободком своего цвета, пульсирующее
+   * раскалённое ядро и живой огонь над ним — шумовые языки и искры-угольки
+   * в собственном фрагментном шейдере (`BOMB_TILE_FRAG`).
+   */
+  private createBombTile(r: number, c: number, cell: BombModel): Tile {
+    const born = this.time.now;
+    const shader = this.add.shader(
+      {
+        name: 'BombTile',
+        shaderName: nextShaderName('BombTile'),
+        fragmentSource: BOMB_TILE_FRAG,
+        initialUniforms: {
+          uColor: hexToUnitRgb(paletteColor(cell.color)),
+          uAlpha: 1,
+          uSeed: Math.random() * 10,
+        },
+        setupUniforms: (setUniform: (name: string, value: number) => void) =>
+          setUniform('uTime', (this.time.now - born) / 1000),
+      },
+      0,
+      0,
+      TILE_SIZE,
+      TILE_SIZE,
+    );
+    shader.setOrigin(0, 0);
+    shader.setPosition(c * TILE_SIZE, r * TILE_SIZE);
+    shader.setDepth(1);
+    shader.setInteractive({
+      hitArea: new Phaser.Geom.Circle(TILE_SIZE / 2, TILE_SIZE / 2, BALL_RADIUS + 4),
+      hitAreaCallback: Phaser.Geom.Circle.Contains,
+      cursor: 'pointer',
+    });
+    const tile = shader as unknown as Tile;
+    tile.r = r;
+    tile.c = c;
+    tile.on('pointerdown', () => this.onTileClick(tile));
+    return tile;
+  }
+
+  /**
+   * Радужный элемент при WebGL: шесть переливающихся колец, дышащее
+   * жемчужное ядро, волна энергии от центра и облетающий блик — всё
+   * живёт по `uTime` в собственном фрагментном шейдере (`RAINBOW_TILE_FRAG`).
+   * Начало координат смещается в верхний левый угол, чтобы плитка
+   * двигалась как обычная Graphics.
+   */
+  private createRainbowTile(r: number, c: number): Tile {
+    const born = this.time.now;
+    const shader = this.add.shader(
+      {
+        name: 'RainbowTile',
+        shaderName: nextShaderName('RainbowTile'),
+        fragmentSource: RAINBOW_TILE_FRAG,
+        initialUniforms: {
+          uAlpha: 1,
+          uSeed: Math.random() * 10,
+        },
+        setupUniforms: (setUniform: (name: string, value: number) => void) =>
+          setUniform('uTime', (this.time.now - born) / 1000),
+      },
+      0,
+      0,
+      TILE_SIZE,
+      TILE_SIZE,
+    );
+    shader.setOrigin(0, 0);
+    shader.setPosition(c * TILE_SIZE, r * TILE_SIZE);
+    shader.setDepth(1);
+    shader.setInteractive({
+      hitArea: new Phaser.Geom.Circle(TILE_SIZE / 2, TILE_SIZE / 2, BALL_RADIUS + 4),
+      hitAreaCallback: Phaser.Geom.Circle.Contains,
+      cursor: 'pointer',
+    });
+    const tile = shader as unknown as Tile;
+    tile.r = r;
+    tile.c = c;
+    tile.on('pointerdown', () => this.onTileClick(tile));
+    return tile;
+  }
+
   private animate(items: TweenItem[], duration = FALL_DURATION): Promise<void> {
     if (items.length === 0) {
       return Promise.resolve();
@@ -231,27 +363,9 @@ export class Match3Scene extends Phaser.Scene {
     return new Promise((resolve) => {
       let remaining = items.length;
       items.forEach((it) => {
-        const obj = it.obj;
-        // У Shader нельзя менять alpha напрямую — гашение идёт через uniform.
-        if (it.alpha !== undefined && obj instanceof Phaser.GameObjects.Shader) {
-          const fade = { v: 1 };
-          this.tweens.add({
-            targets: fade,
-            v: 0,
-            duration,
-            ease: 'Quad.easeOut',
-            onUpdate: () => obj.setUniform('uAlpha', fade.v),
-            onComplete: () => {
-              remaining -= 1;
-              if (remaining === 0) resolve();
-            },
-          });
-          return;
-        }
         const props: Record<string, number> = {};
         if (it.x !== undefined) props.x = it.x;
         if (it.y !== undefined) props.y = it.y;
-        if (it.alpha !== undefined) props.alpha = it.alpha;
         this.tweens.add({
           targets: it.obj,
           ...props,
@@ -272,12 +386,22 @@ export class Match3Scene extends Phaser.Scene {
 
   /**
    * Проигрывает эффект молнии по каждой активации: вспышка по ячейкам
-   * линии и ломаная-молния вдоль неё — клетки гаснут под разрядом.
+   * линии и ломаная-молния вдоль неё — осколки разлетаются под разрядом.
    */
   private playLightnings(activations: readonly LightningActivation[]): Promise<void> {
     if (activations.length === 0) return Promise.resolve();
     const size = GRID_SIZE * TILE_SIZE;
-    const tasks = activations.map(
+    // При массовой активации (радужный + молния) несколько элементов могут
+    // списывать одну и ту же линию — эффект рисуется один раз на линию.
+    const seenLines = new Set<string>();
+    const unique = activations.filter((act) => {
+      const line = act.orientation === 'row' ? act.pos.r : act.pos.c;
+      const id = `${act.orientation}:${line}`;
+      if (seenLines.has(id)) return false;
+      seenLines.add(id);
+      return true;
+    });
+    const tasks = unique.map(
       (act) =>
         new Promise<void>((resolve) => {
           if (
@@ -391,20 +515,250 @@ export class Match3Scene extends Phaser.Scene {
     return keys;
   }
 
-  private async clearCells(keys: ReadonlySet<string>): Promise<void> {
-    const doomed: Tile[] = [];
+  /**
+   * Списание клеток: каждая плитка разбивается на осколки, которые
+   * разлетаются из центра и по дороге гаснут. При взрыве бомбы её
+   * кристалл лопается со вспышкой и расходящимся кольцом, а соседние
+   * кристаллы разлетаются волной от центра взрыва к краю зоны.
+   */
+  private async clearCells(
+    keys: ReadonlySet<string>,
+    blasts: readonly BlastActivation[] = [],
+  ): Promise<void> {
+    const doomed: { tile: Tile; cell: CellModel | null; pos: Pos }[] = [];
     keys.forEach((key) => {
       const pos = parseKey(key);
+      const cell = this.grid[pos.r][pos.c];
       this.grid[pos.r][pos.c] = null;
       const tile = this.tiles[pos.r][pos.c];
       if (tile) {
         this.tiles[pos.r][pos.c] = null as unknown as Tile;
-        doomed.push(tile);
+        doomed.push({ tile, cell, pos });
       }
     });
     if (doomed.length === 0) return;
-    await this.animate(doomed.map((t) => ({ obj: t, alpha: 0 })));
-    doomed.forEach((t) => t.destroy());
+    await this.shatterDoomed(doomed, blasts);
+  }
+
+  /** Цвет осколков: тело элемента — у радужного случайный цвет колец, у бомбы тёмный корпус. */
+  private shardColor(cell: CellModel | null): number {
+    if (!cell) return 0xffffff;
+    if (cell.kind === 'rainbow') return COLORS[Math.floor(Math.random() * COLORS.length)];
+    const color = paletteColor(cell.color);
+    return cell.kind === 'bomb' ? darken(color, 0.35) : color;
+  }
+
+  /**
+   * Разбивает кристалл на секторы-осколки: те разлетаются из центра
+   * веером наружу, проворачиваясь и уменьшаясь, и исчезают.
+   */
+  private spawnShards(cx: number, cy: number, color: number): void {
+    const segments = 7;
+    const edge = lighten(color, 0.45);
+    for (let i = 0; i < segments; i++) {
+      const a0 = (i / segments) * Math.PI * 2 + 0.03;
+      const a1 = ((i + 1) / segments) * Math.PI * 2 - 0.03;
+      const radius = BALL_RADIUS * (0.72 + Math.random() * 0.25);
+      const shard = this.add.graphics().setDepth(2);
+      // Сектор рисуется вокруг (0, 0): Graphics не имеет origin, и при
+      // позиции в центре кристалла проворот идёт вокруг его же центра.
+      shard.fillStyle(color, 1);
+      shard.beginPath();
+      shard.moveTo(0, 0);
+      for (let s = 0; s <= 3; s++) {
+        const a = a0 + (a1 - a0) * (s / 3);
+        shard.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+      }
+      shard.closePath();
+      shard.fillPath();
+      shard.lineStyle(1.2, edge, 0.85);
+      shard.strokePath();
+      shard.setPosition(cx, cy);
+      const mid = (a0 + a1) / 2;
+      const fly = 24 + Math.random() * 26;
+      this.tweens.add({
+        targets: shard,
+        x: cx + Math.cos(mid) * fly,
+        // Небольшой «дождик» вниз при потере высоты.
+        y: cy + Math.sin(mid) * fly + 6 + Math.random() * 10,
+        angle: (Math.random() * 2 - 1) * 120,
+        scale: 0.55,
+        alpha: 0,
+        duration: 300 + Math.random() * 160,
+        ease: 'Quad.easeOut',
+        onComplete: () => shard.destroy(),
+      });
+    }
+  }
+
+  /**
+   * Анимация взрывающегося кристалла-бомбы: разбухание с вспышкой
+   * в центре и расходящимся кольцом до края зоны взрыва, затем
+   * кристалл лопается и порождает осколки.
+   */
+  private playBombBurst(tile: Tile, radius: number, onBurst: () => void): void {
+    const cx = tile.x + TILE_SIZE / 2;
+    const cy = tile.y + TILE_SIZE / 2;
+
+    // Вспышка в центре взрыва.
+    const flash = this.add.graphics().setDepth(4);
+    flash.fillStyle(0xfff3c4, 0.95);
+    flash.fillCircle(0, 0, BALL_RADIUS * 0.75);
+    flash.setPosition(cx, cy);
+    this.tweens.add({ targets: flash, scale: 2.1, duration: 320, ease: 'Quad.easeOut' });
+    // Яркость держится почти всю длительность и гаснет только в конце:
+    // затухание отдельным твином с Quad.easeIn, иначе вспышка невидима.
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 320,
+      ease: 'Quad.easeIn',
+      onComplete: () => flash.destroy(),
+    });
+
+    // Кольцо удара расходится до края зоны взрыва.
+    const ring = this.add.graphics().setDepth(4);
+    ring.lineStyle(3, 0xffb84d, 1);
+    ring.strokeCircle(0, 0, BALL_RADIUS);
+    ring.setPosition(cx, cy);
+    this.tweens.add({
+      targets: ring,
+      scale: (radius * TILE_SIZE) / BALL_RADIUS,
+      duration: 440,
+      ease: 'Quad.easeOut',
+    });
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      duration: 440,
+      ease: 'Quad.easeIn',
+      onComplete: () => ring.destroy(),
+    });
+
+    // Сам кристалл разбухает — и лопается. У Graphics точка опоры
+    // твина в локальном (0, 0), поэтому позиция компенсируется,
+    // чтобы центр кристалла оставался на месте.
+    const grow = 1.35;
+    const shift = ((grow - 1) * TILE_SIZE) / 2;
+    this.tweens.add({
+      targets: tile,
+      x: tile.x - shift,
+      y: tile.y - shift,
+      scale: grow,
+      duration: 90,
+      ease: 'Quad.easeOut',
+      onComplete: onBurst,
+    });
+  }
+
+  /**
+   * Разбирает собранные плитки: каждая ждёт своей задержки и лопается,
+   * превращаясь в осколки. Клетки во взрыве ждут тем больше, чем дальше
+   * они от центра: волна бьёт по ним точечными взрывами, и кристалы
+   * разлетаются волной от центра к краю. Обещание выполняется, когда
+   * все плитки разбились; осколки гаснут уже после этого, параллельно
+   * с гравитацией.
+   */
+  private shatterDoomed(
+    doomed: readonly { tile: Tile; cell: CellModel | null; pos: Pos }[],
+    blasts: readonly BlastActivation[],
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      let pending = doomed.length;
+      doomed.forEach(({ tile, cell, pos }) => {
+        const color = this.shardColor(cell);
+        const { x, y } = tile;
+        const breakTile = (): void => {
+          tile.destroy();
+          this.spawnShards(x + TILE_SIZE / 2, y + TILE_SIZE / 2, color);
+          pending -= 1;
+          if (pending === 0) resolve();
+        };
+        const center = blasts.find((blast) => blast.pos.r === pos.r && blast.pos.c === pos.c);
+        if (center) {
+          this.playBombBurst(tile, center.radius, breakTile);
+          return;
+        }
+        let wave: number | null = null;
+        for (const blast of blasts) {
+          const d = Math.hypot(pos.r - blast.pos.r, pos.c - blast.pos.c);
+          if (d > 0 && d <= blast.radius) {
+            const delay = d * BLAST_WAVE_MS;
+            wave = wave === null ? delay : Math.min(wave, delay);
+          }
+        }
+        if (wave === null) {
+          // Обычное списание — почти одновременно.
+          this.time.delayedCall(Math.random() * 70, breakTile);
+        } else {
+          // Взрыв идёт волной: клетку бьёт точечный взрыв, и она разлетается.
+          this.time.delayedCall(wave, () => {
+            this.playBlastPop(x, y);
+            breakTile();
+          });
+        }
+      });
+    });
+  }
+
+  /**
+   * Точечный взрыв на месте кристалла, сбитого волной бомбы: белая
+   * вспышка, расходящееся кольцо и искры — и клетка разлетается
+   * осколками.
+   */
+  private playBlastPop(x: number, y: number): void {
+    const cx = x + TILE_SIZE / 2;
+    const cy = y + TILE_SIZE / 2;
+
+    // Вспышка удара.
+    const flash = this.add.graphics().setDepth(4);
+    flash.fillStyle(0xfff3c4, 0.95);
+    flash.fillCircle(0, 0, BALL_RADIUS * 0.62);
+    flash.setPosition(cx, cy);
+    this.tweens.add({ targets: flash, scale: 1.9, duration: 260, ease: 'Quad.easeOut' });
+    // Затухание отдельным твином: яркость держится почти всю длительность,
+    // иначе вспышка гаснет в первые миллисекунды и её не видно.
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 260,
+      ease: 'Quad.easeIn',
+      onComplete: () => flash.destroy(),
+    });
+
+    // Кольцо удара расходится от клетки.
+    const ring = this.add.graphics().setDepth(4);
+    ring.lineStyle(3, 0xffb84d, 1);
+    ring.strokeCircle(0, 0, BALL_RADIUS * 0.5);
+    ring.setPosition(cx, cy);
+    this.tweens.add({ targets: ring, scale: 3.4, duration: 340, ease: 'Quad.easeOut' });
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      duration: 340,
+      ease: 'Quad.easeIn',
+      onComplete: () => ring.destroy(),
+    });
+
+    // Искры разлетаются веером.
+    for (let i = 0; i < 3; i++) {
+      const spark = this.add.graphics().setDepth(4);
+      spark.fillStyle(i % 2 === 0 ? 0xffb84d : 0xffe066, 0.95);
+      spark.fillCircle(0, 0, 1.5 + Math.random());
+      spark.setPosition(cx, cy);
+      const angle = Math.random() * Math.PI * 2;
+      const fly = 20 + Math.random() * 16;
+      this.tweens.add({
+        targets: spark,
+        x: cx + Math.cos(angle) * fly,
+        y: cy + Math.sin(angle) * fly + 6,
+        alpha: 0,
+        scale: 0.4,
+        duration: 300 + Math.random() * 140,
+        ease: 'Quad.easeOut',
+        onComplete: () => spark.destroy(),
+      });
+    }
   }
 
   private spawnCreations(creations: ReadonlyMap<string, CellModel>): void {
@@ -438,9 +792,10 @@ export class Match3Scene extends Phaser.Scene {
       anchors.forEach((key) => base.delete(key));
 
       const lightningFx: LightningActivation[] = [];
-      const clearSet = expandClears(this.grid, base, anchors, EMPTY_KEYS, lightningFx);
+      const blasts: BlastActivation[] = [];
+      const clearSet = expandClears(this.grid, base, anchors, EMPTY_KEYS, lightningFx, blasts);
       const fxTask = this.playLightnings(lightningFx);
-      await this.clearCells(clearSet);
+      await this.clearCells(clearSet, blasts);
       await fxTask;
       this.spawnCreations(creations);
       await this.applyGravity();
@@ -496,10 +851,35 @@ export class Match3Scene extends Phaser.Scene {
   }
 
   /**
+   * Радужный + молния/бомба: каждая ячейка этого цвета превращается в спецэлемент
+   * того же типа, что и поглощённый элемент. Плитки перерисовываются сразу,
+   * активация всех новых элементов произойдёт при расширении набора
+   * очищаемых клеток.
+   */
+  private transformColorToSpecial(other: LightningModel | BombModel): void {
+    const creations = new Map<string, CellModel>();
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const cell = this.grid[r][c];
+        if (cell?.kind !== 'ball' || cell.color !== other.color) continue;
+        const key = keyOf({ r, c });
+        creations.set(
+          key,
+          other.kind === 'lightning'
+            ? new LightningModel(other.color, other.orientation)
+            : new BombModel(other.color),
+        );
+      }
+    }
+    this.spawnCreations(creations);
+  }
+
+  /**
    * Комбо, срабатывающие без совпадения: соединение радужного элемента
-   * с другим элементом, объединение двух бомб, скрещивание бомбы
-   * с молнией и скрещивание двух молний. Возвращает число очищенных
-   * клеток или `null`, если обычного обмена без комбо.
+   * с молнией или бомбой (все элементы её цвета превращаются в такие же
+   * спецэлементы и активируются), объединение двух бомб, скрещивание
+   * бомбы с молнией и скрещивание двух молний. Возвращает число
+   * очищенных клеток или `null`, если обычного обмена без комбо.
    */
   private async tryCombo(a: Tile, b: Tile): Promise<number | null> {
     const cellA = this.grid[a.r][a.c];
@@ -509,12 +889,12 @@ export class Match3Scene extends Phaser.Scene {
     let base: Set<string> | null = null;
     let consumed: ReadonlySet<string> = EMPTY_KEYS;
     const lightningFx: LightningActivation[] = [];
+    const blasts: BlastActivation[] = [];
 
     if (cellA.kind === 'rainbow' || cellB.kind === 'rainbow') {
       const fromA = cellA.kind === 'rainbow';
       const rainbowPos = fromA ? { r: a.r, c: a.c } : { r: b.r, c: b.c };
       const other = fromA ? cellB : cellA;
-      const otherPos = fromA ? { r: b.r, c: b.c } : { r: a.r, c: a.c };
       if (other.kind === 'rainbow') {
         // Две радужные вместе очищают всё поле.
         base = this.allCellKeys();
@@ -523,16 +903,19 @@ export class Match3Scene extends Phaser.Scene {
         base = this.cellsOfColor(other.color);
         base.add(keyOf(rainbowPos));
       } else {
-        // Соединение со спецэлементом активирует его, радужный поглощается.
-        base = new Set([keyOf(rainbowPos), keyOf(otherPos)]);
+        // Радужный + молния/бомба: каждая ячейка этого цвета становится
+        // таким же спецэлементом, и они все срабатывают сразу.
+        this.transformColorToSpecial(other);
+        base = this.cellsOfColor(other.color);
       }
     } else if (cellA.kind === 'bomb' && cellB.kind === 'bomb') {
       // Две бомбы вместе — общий взрыв от середины между ними.
-      base = blastKeys(
-        (a.r + b.r) / 2,
-        (a.c + b.c) / 2,
-        BombModel.COMBINED_BLAST_RADIUS,
-      );
+      const midR = (a.r + b.r) / 2;
+      const midC = (a.c + b.c) / 2;
+      base = blastKeys(midR, midC, BombModel.COMBINED_BLAST_RADIUS);
+      // Волна общего взрыва идёт от общей середины (координата может
+      // быть полуклеткой — это важно только для расстояний).
+      blasts.push({ pos: { r: midR, c: midC }, radius: BombModel.COMBINED_BLAST_RADIUS });
     } else if (cellA.kind === 'lightning' && cellB.kind === 'lightning') {
       // Две молнии — каждая списывает свою линию: ряд и колонка
       // пересекаются в точке скрещения.
@@ -569,9 +952,9 @@ export class Match3Scene extends Phaser.Scene {
     base.add(keyOf({ r: a.r, c: a.c }));
     base.add(keyOf({ r: b.r, c: b.c }));
 
-    const clearSet = expandClears(this.grid, base, new Set<string>(), consumed, lightningFx);
+    const clearSet = expandClears(this.grid, base, new Set<string>(), consumed, lightningFx, blasts);
     const fxTask = this.playLightnings(lightningFx);
-    await this.clearCells(clearSet);
+    await this.clearCells(clearSet, blasts);
     await fxTask;
     await this.applyGravity();
     const cascaded = await this.resolve();

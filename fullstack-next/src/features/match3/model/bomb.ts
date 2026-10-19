@@ -10,15 +10,18 @@
  *
  * Скрещивание бомбы с молнией списывает ряд или колонку шириной
  * 3 клетки по линии молнии.
+ *
+ * Обмен с радужным элементом превращает каждую ячейку этого цвета
+ * в бомбу, и все они взрываются сразу после обмена.
  */
 export class BombModel {
   readonly kind = 'bomb' as const;
 
   /** Радиус взрыва обычной бомбы, в клетках. */
-  readonly blastRadius = 3;
+  readonly blastRadius = 2;
 
   /** Радиус взрыва при объединении двух бомб, в клетках. */
-  static readonly COMBINED_BLAST_RADIUS = 5;
+  static readonly COMBINED_BLAST_RADIUS = 4;
 
   /** Цвет, которым бомба участвует в совпадениях. */
   constructor(readonly color: number) {}
