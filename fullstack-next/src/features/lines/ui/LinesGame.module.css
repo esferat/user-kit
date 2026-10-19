@@ -1,0 +1,395 @@
+/*
+ * Стили игры «Цветные линии».
+ * Селекторы антд-компонентов (Typography, Button, Segmented) продублированы
+ * (`.класс.класс`), чтобы их правила гарантированно победили базовые стили antd
+ * независимо от порядка файлов в сборке.
+ */
+
+/* ===== Страница ===== */
+
+/* Фон страницы повторяет фон игровой доски: градиент, шахматка и мягкая сетка. */
+.page {
+  /* Отрицательные поля отменяют padding контента AppShell — игра занимает всю страницу. */
+  margin: -2rem;
+  min-height: calc(100vh - 64px);
+  padding: 1.5rem;
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  background-image:
+    repeating-linear-gradient(to right, rgba(43, 52, 70, 0.5) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(to bottom, rgba(43, 52, 70, 0.5) 0 1px, transparent 1px 80px),
+    linear-gradient(45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.025) 75%),
+    linear-gradient(45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.025) 75%),
+    linear-gradient(180deg, #1a2130, #10141b);
+  background-size: auto, auto, 160px 160px, 160px 160px, 100% 100%;
+  background-position: 0 0, 0 0, 0 0, 80px 80px, 0 0;
+  background-repeat: repeat, repeat, repeat, repeat, no-repeat;
+}
+
+/* Центральная колонка: растягивается, чтобы ширина вложенных блоков была определённой. */
+.mainColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 1000px;
+}
+
+/* ===== Панели ===== */
+
+.panel {
+  background: linear-gradient(180deg, #1c2230, #12151c);
+  border: 1px solid #33405a;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.boardPanel {
+  padding: 1rem;
+  width: 100%;
+}
+
+.attemptsPanel {
+  padding: 1rem;
+  width: 260px;
+}
+
+/* ===== Верхний блок: счёт и кнопки ===== */
+
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.topLeft,
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.title.title {
+  margin: 0;
+  font-weight: 700;
+  background: linear-gradient(90deg, #ff6b6b, #ffe066, #51cf66, #4dabf7, #cc5de8);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.scorePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, #232a38, #171c26);
+  border: 1px solid #3b4657;
+  border-radius: 999px;
+  padding: 6px 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.ballIcon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.28) 18%, #4dabf7 42%, #1f5fae 100%);
+  box-shadow: 0 0 10px rgba(77, 171, 247, 0.7);
+}
+
+.scoreLabel {
+  color: #9fb0c8;
+}
+
+.scoreValue {
+  color: #ffe066;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Панель предпросмотра: что выпадет в следующем ходу ===== */
+
+.nextPanel {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, #232a38, #171c26);
+  border: 1px solid #3b4657;
+  border-radius: 999px;
+  padding: 6px 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.nextLabel {
+  color: #9fb0c8;
+}
+
+.nextBalls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Шарик предпросмотра: цвета задаются переменными --ball-* из палитры. */
+.nextBall {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, var(--ball-light) 0%, var(--ball-main) 45%, var(--ball-dark) 100%);
+  box-shadow: 0 0 8px var(--ball-main), inset 0 -2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* ===== Кнопки-иконки ===== */
+
+.iconButton.iconButton {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  background: linear-gradient(180deg, #2a3345, #1c2331);
+  border: 1px solid #3b4657;
+  color: #9fb0c8;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+/* Сброс (↻) — крупнее базовой иконки. */
+.resetIcon.resetIcon {
+  font-size: 18px;
+}
+
+/* Настройки (⚙) — акцентная кнопка. */
+.primaryIcon.primaryIcon {
+  background: linear-gradient(180deg, #4dabf7, #2b7fd4);
+  border: none;
+  border-radius: 999px;
+  color: #0b1524;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(77, 171, 247, 0.35);
+}
+
+/* Подсказка (💡) включена. */
+.hintActive.hintActive {
+  color: #ffe066;
+  border: 1px solid #8a7a3a;
+  box-shadow: 0 0 14px rgba(255, 224, 102, 0.55);
+}
+
+/* ===== Поле ===== */
+
+.boardArea {
+  width: 100%;
+  height: clamp(420px, calc(100vh - 270px), 940px);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Запасная сетка, если WebGL недоступен: колонки задаются переменной --cells. */
+.fallbackGrid {
+  display: grid;
+  grid-template-columns: repeat(var(--cells), 44px);
+  gap: 6px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #0e1219;
+  border: 1px solid #2a3345;
+}
+
+/* Пустая клетка запасного поля. */
+.cell {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  border: 1px solid #2a3345;
+}
+
+.caption.caption {
+  color: #7c8ba1;
+  font-size: 13px;
+  display: block;
+  padding-top: 10px;
+}
+
+/* ===== Правая панель: лучшие попытки ===== */
+
+.attemptsHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #2a3345;
+}
+
+.trophyIcon {
+  font-size: 18px;
+}
+
+.attemptsHeading {
+  color: #e9edf5;
+  font-weight: 600;
+}
+
+.attemptsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attemptRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.attemptRow:nth-child(even) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.rankBadge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.1);
+  color: #10131a;
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rankBadge[data-rank='0'] {
+  background: radial-gradient(circle at 35% 30%, #ffe8a3, #f0b429 55%, #a8741a);
+}
+
+.rankBadge[data-rank='1'] {
+  background: radial-gradient(circle at 35% 30%, #f3f6fa, #b8c2cf 55%, #7c8797);
+}
+
+.rankBadge[data-rank='2'] {
+  background: radial-gradient(circle at 35% 30%, #ffd9b3, #d2894e 55%, #8f5424);
+}
+
+.attemptName {
+  color: #d7dde8;
+  flex: 1;
+}
+
+.attemptScore {
+  color: #ffe066;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Модальные окна ===== */
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+}
+
+.rulesBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.fieldLabel.fieldLabel {
+  color: #9fb0c8;
+}
+
+/* Селектор сложности: акцентная жёлтая тема вместо дефолтной синей антд. */
+.segmented.segmented {
+  margin-top: 6px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(10, 14, 22, 0.9);
+}
+
+.segmented.segmented :global(.ant-segmented-item) {
+  color: #9fb0c8;
+  border-radius: 7px;
+}
+
+.segmented.segmented :global(.ant-segmented-item:hover:not(.ant-segmented-item-selected)) {
+  color: #ffe066;
+}
+
+.segmented.segmented :global(.ant-segmented-item-selected),
+.segmented.segmented :global(.ant-segmented-thumb) {
+  background: linear-gradient(180deg, #ffe066, #f2c53d);
+  box-shadow: 0 2px 10px rgba(255, 224, 102, 0.35);
+}
+
+.segmented.segmented :global(.ant-segmented-item-selected),
+.segmented.segmented :global(.ant-segmented-item-selected .ant-segmented-item-label) {
+  color: #1a1d24;
+  font-weight: 600;
+}
+
+/* Ползунки громкости: жёлтая активная часть и ручка на тёмном фоне. */
+.slider.slider {
+  margin: 8px 6px 0;
+}
+
+.slider.slider :global(.ant-slider-rail) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.slider.slider :global(.ant-slider-track) {
+  background: linear-gradient(90deg, #f2c53d, #ffe066);
+}
+
+.slider.slider :global(.ant-slider-handle::after) {
+  box-shadow: 0 0 0 2px #ffe066 !important;
+  background: #1a1d24;
+}
+
+.slider.slider :global(.ant-slider-handle:hover::after) {
+  box-shadow: 0 0 0 2px #fff2b0 !important;
+}
+
+/* Подпись под сложностью: сколько шаров и цветов она даёт. */
+.fieldHint.fieldHint {
+  color: #7c8ba1;
+  font-size: 13px;
+  display: block;
+  margin-top: 6px;
+}
+
+.paragraph.paragraph {
+  color: #d7dde8;
+  margin-bottom: 0;
+}
+
+.paragraphMuted.paragraphMuted {
+  color: #7c8ba1;
+}
+
+.highlight.highlight {
+  color: #ffe066;
+}
