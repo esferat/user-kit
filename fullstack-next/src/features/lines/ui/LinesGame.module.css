@@ -253,6 +253,13 @@
   gap: 6px;
 }
 
+.attemptsEmpty {
+  margin: 0;
+  color: #9fb0c8;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .attemptRow {
   display: flex;
   align-items: center;

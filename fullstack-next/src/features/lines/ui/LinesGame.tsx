@@ -7,6 +7,7 @@ import type { LinesBoard } from '../game/board';
 import { DEFAULT_SETTINGS, type LinesDifficulty, type LinesSettings } from '../game/constants';
 import { applyMove, createGame, EMPTY, findHint, findPath, type LinesHint, type LinesState } from '../game/engine';
 import { loadSettings, saveSettings } from '../game/settingsStorage';
+import { loadAttempts, recordAttempt, type AttemptEntry } from '../game/statsStorage';
 import { AttemptsPanel } from './components/AttemptsPanel';
 import { GameBoard } from './components/GameBoard';
 import { RulesModal } from './components/RulesModal';
@@ -28,6 +29,8 @@ export function LinesGame() {
   const [hintOn, setHintOn] = useState(false);
   /** Маршрут подсказки: белый путь полезного хода, виден, пока ничего не выделено. */
   const [hint, setHint] = useState<LinesHint | null>(null);
+  /** Лучшие попытки из localStorage: на старте список пустой. */
+  const [attempts, setAttempts] = useState<AttemptEntry[]>([]);
 
   // Ход асинхронный (анимации на доске): читаем актуальное состояние через ref.
   const gameRef = useRef(game);
@@ -83,16 +86,20 @@ export function LinesGame() {
     [],
   );
 
-  // Сохранённые настройки подхватываем один раз при монтировании: SSR хранилища не видит.
+  // Сохранённые настройки и статистику подхватываем один раз при монтировании:
+  // SSR хранилища не видит, поэтому читаем после маунта.
   useEffect(() => {
     const stored = loadSettings();
-    if (!stored) return;
+    const stats = loadAttempts();
     setTimeout(() => {
-      setSettings(stored);
-      setDraft(stored);
-      if (stored.difficulty !== gameRef.current.difficulty) {
-        setGame(createGame(stored.difficulty));
+      if (stored) {
+        setSettings(stored);
+        setDraft(stored);
+        if (stored.difficulty !== gameRef.current.difficulty) {
+          setGame(createGame(stored.difficulty));
+        }
       }
+      if (stats.length > 0) setAttempts(stats);
     }, 0);
   }, []);
 
@@ -169,7 +176,17 @@ export function LinesGame() {
       board.sync(outcome.state.board, outcome.state.nextCells, outcome.state.nextColors, null);
       await board.animateSpawn(outcome.spawned);
       busyRef.current = false;
-      if (outcome.state.status === 'over') setGameOverOpen(true);
+      if (outcome.state.status === 'over') {
+        setGameOverOpen(true);
+        // Партия закончилась — добавляем результат в лучшие попытки.
+        setAttempts(
+          recordAttempt({
+            score: outcome.state.score,
+            difficulty: outcome.state.difficulty,
+            at: Date.now(),
+          }),
+        );
+      }
     })();
   }, [getSound]);
 
@@ -238,7 +255,7 @@ export function LinesGame() {
         />
       </div>
 
-      <AttemptsPanel />
+      <AttemptsPanel attempts={attempts} />
 
       <SettingsModal
         open={settingsOpen}

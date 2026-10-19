@@ -1,10 +1,16 @@
 'use client';
 
-import { MOCK_ATTEMPTS } from '../mock';
+import { DIFFICULTY_LABELS } from '../../game/constants';
+import type { AttemptEntry } from '../../game/statsStorage';
 import styles from '../LinesGame.module.css';
 
-/** Правый блок: список лучших попыток (пока мок-данные). */
-export function AttemptsPanel() {
+interface AttemptsPanelProps {
+  /** Лучшие попытки из localStorage; пусто — таблица ещё не заполнена. */
+  attempts: AttemptEntry[];
+}
+
+/** Правый блок: список лучших попыток, сохранённых в браузере. */
+export function AttemptsPanel({ attempts }: AttemptsPanelProps) {
   return (
     <aside className={`${styles.panel} ${styles.attemptsPanel}`}>
       <div className={styles.attemptsHeader}>
@@ -13,17 +19,21 @@ export function AttemptsPanel() {
         </span>
         <span className={styles.attemptsHeading}>Лучшие попытки</span>
       </div>
-      <div className={styles.attemptsList}>
-        {MOCK_ATTEMPTS.map((entry, idx) => (
-          <div key={`${entry.name}-${idx}`} className={styles.attemptRow}>
-            <span className={styles.rankBadge} data-rank={idx}>
-              {idx + 1}
-            </span>
-            <span className={styles.attemptName}>{entry.name}</span>
-            <strong className={styles.attemptScore}>{entry.score}</strong>
-          </div>
-        ))}
-      </div>
+      {attempts.length === 0 ? (
+        <p className={styles.attemptsEmpty}>Пока пусто — сыграйте партию до конца.</p>
+      ) : (
+        <div className={styles.attemptsList}>
+          {attempts.map((entry, idx) => (
+            <div key={`${entry.at}-${idx}`} className={styles.attemptRow}>
+              <span className={styles.rankBadge} data-rank={idx}>
+                {idx + 1}
+              </span>
+              <span className={styles.attemptName}>{DIFFICULTY_LABELS[entry.difficulty]}</span>
+              <strong className={styles.attemptScore}>{entry.score}</strong>
+            </div>
+          ))}
+        </div>
+      )}
     </aside>
   );
 }
