@@ -36,8 +36,6 @@ export function LinesGame() {
   const gameRef = useRef(game);
   const selectedRef = useRef(selected);
   const busyRef = useRef(false);
-  // Клетка, до которой маршрут уже зафиксирован первым кликом.
-  const pendingRef = useRef<number | null>(null);
   // Звук создаётся лениво, когда понадобится (первый выбор шара или первый жест).
   const soundRef = useRef<SoundEngine | null>(null);
   const musicVolRef = useRef(settings.musicVolume);
@@ -104,7 +102,6 @@ export function LinesGame() {
   }, []);
 
   const startGame = useCallback((difficulty: LinesDifficulty) => {
-    pendingRef.current = null;
     setGame(createGame(difficulty));
     setSelected(null);
     setGameOverOpen(false);
@@ -113,9 +110,8 @@ export function LinesGame() {
   }, []);
 
   /**
-   * Клик по клетке: выбор шара, фиксация маршрута или подтверждение хода.
-   * Первый клик по свободной клетке строит маршрут, повторный по той же —
-   * выполняет движение, клик по другой клетке перестраивает маршрут.
+   * Клик по клетке: выбор шара или перемещение.
+   * Выбранный шар сразу едет по клику — подтверждать ход не нужно.
    */
   const handleCellClick = useCallback((cell: number, board: LinesBoard) => {
     if (busyRef.current || gameRef.current.status === 'over') return;
@@ -125,7 +121,6 @@ export function LinesGame() {
       // Клик по шару: выбрать или снять выделение.
       const next = selectedRef.current === cell ? null : cell;
       selectedRef.current = next;
-      pendingRef.current = null;
       setSelected(next);
       if (next !== null) {
         // Выделение любого шара гасит белый маршрут подсказки.
@@ -142,22 +137,8 @@ export function LinesGame() {
 
     // Маршрут — только вертикально и горизонтально через свободные клетки.
     const path = findPath(state, from, cell);
-
-    if (pendingRef.current !== cell) {
-      // Первый клик по клетке (или клик по другой): фиксируем новый маршрут.
-      if (!path) {
-        pendingRef.current = null;
-        board.setRouteTarget(null);
-        return;
-      }
-      pendingRef.current = cell;
-      board.setRouteTarget(cell);
-      return;
-    }
-
-    // Повторный клик по той же клетке — подтверждение маршрута.
+    // Пути нет — ход не выполняется.
     if (!path) return;
-    pendingRef.current = null;
 
     busyRef.current = true;
     void (async () => {
@@ -200,7 +181,6 @@ export function LinesGame() {
    * правила — тогда начинаем партию заново.
    */
   const applySettings = () => {
-    pendingRef.current = null;
     setSettings(draft);
     saveSettings(draft);
     if (draft.difficulty !== settings.difficulty) {
@@ -222,7 +202,6 @@ export function LinesGame() {
    * выделение любого шара тоже. При показе выделение снимается, чтобы маршрут был виден.
    */
   const toggleHint = () => {
-    pendingRef.current = null;
     selectedRef.current = null;
     setSelected(null);
     if (hintOn) {

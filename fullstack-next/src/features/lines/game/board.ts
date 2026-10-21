@@ -54,8 +54,6 @@ export class LinesBoard {
   private readonly footprintGeometry: THREE.CircleGeometry;
   /** Отпечатки под курсором игрока: акцентные, полупрозрачные. */
   private readonly footprintMaterial: THREE.MeshBasicMaterial;
-  /** Зафиксированный кликом маршрут игрока: акцентные, плотные. */
-  private readonly lockedFootprintMaterial: THREE.MeshBasicMaterial;
   /** Подсказка: белые следы и метка, отдельные от маршрута игрока. */
   private readonly hintMaterial: THREE.MeshBasicMaterial;
   private readonly targetMarker: THREE.Mesh;
@@ -76,7 +74,6 @@ export class LinesBoard {
   private bounceTime = 0;
   private lastBounceFrame = 0;
   private pointerCell: number | null = null;
-  private pendingTarget: number | null = null;
   private hasBoardState = false;
   private currentBalls: number[] | null = null;
 
@@ -183,15 +180,6 @@ export class LinesBoard {
     this.footprintMaterial = new THREE.MeshBasicMaterial({
       color: 0xffd43b,
       transparent: true,
-      opacity: 0.6,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    });
-    // Зафиксированный кликом маршрут — ярче, чтобы отличать от следов под курсором.
-    this.lockedFootprintMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffe066,
-      transparent: true,
       opacity: 0.95,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -207,7 +195,7 @@ export class LinesBoard {
       toneMapped: false,
     });
 
-    // Метка конечной клетки зафиксированного маршрута.
+    // Метка конечной клетки маршрута игрока.
     this.targetMarker = new THREE.Mesh(
       new THREE.RingGeometry(30, 42, 40),
       new THREE.MeshBasicMaterial({
@@ -311,10 +299,8 @@ export class LinesBoard {
     }
 
     // Сохраняем текущее состояние для построения маршрута и пересчитываем его.
-    // Смена состояния игры/выделения снимает зафиксированный кликом маршрут.
     this.hasBoardState = true;
     this.currentBalls = balls.slice();
-    this.pendingTarget = null;
     this.targetMarker.visible = false;
     this.clearPathMeshes();
     if (selected !== null && this.pointerCell !== null) this.updatePath(this.pointerCell);
@@ -330,27 +316,6 @@ export class LinesBoard {
   }
 
   /**
-   * Маршрут, зафиксированный кликом: яркие отпечатки и метка конечной клетки.
-   * `null` — снять маршрут.
-   */
-  setRouteTarget(cell: number | null): void {
-    this.pendingTarget = cell;
-    this.targetMarker.visible = false;
-    this.clearPathMeshes();
-    if (cell !== null) {
-      const drawn = this.updatePath(cell, true);
-      if (!drawn) {
-        this.pendingTarget = null;
-      } else {
-        const pos = this.cellPosition(cell, TILE_TOP + 0.7);
-        this.targetMarker.position.set(pos.x, pos.y, pos.z);
-        this.targetMarker.visible = true;
-      }
-    }
-    this.render();
-  }
-
-  /**
    * Ведёт шар по маршруту клеток (вертикально и горизонтально).
    * `onStep` вызывается на каждую клетку пути — под звук шагов.
    */
@@ -359,7 +324,6 @@ export class LinesBoard {
     if (!mesh) return Promise.resolve();
     this.stopBounce(); // шар едет — прыжок мешает
     this.clearHint(); // подсказка гаснет вместе с началом хода
-    this.pendingTarget = null;
     this.targetMarker.visible = false;
     this.clearPathMeshes();
     this.pointerCell = null;
@@ -451,10 +415,9 @@ export class LinesBoard {
     const nextCell = typeof cell === 'number' ? cell : null;
     if (nextCell === this.pointerCell) return;
     this.pointerCell = nextCell;
-    // Зафиксированный кликом маршрут не перебиваем подсказкой под курсором.
-    if (this.pendingTarget !== null) return;
     if (this.selectedCell === null || nextCell === null) {
       this.clearPathMeshes();
+      this.targetMarker.visible = false;
       this.render();
       return;
     }
@@ -463,10 +426,10 @@ export class LinesBoard {
   };
 
   private handlePointerLeave = () => {
-    if (this.pendingTarget !== null) return; // зафиксированный маршрут не гаснет
     if (this.pointerCell === null) return;
     this.pointerCell = null;
     this.clearPathMeshes();
+    this.targetMarker.visible = false;
     this.render();
   };
 
@@ -621,19 +584,22 @@ export class LinesBoard {
 
   /**
    * Строит маршрут от выделенного шара до `target` отпечатками ног.
-   * `locked` — маршрут зафиксирован кликом (белые плотные следы), иначе подсказка под курсором.
+   * Это предпросмотр под курсором: ход выполняется сразу по клику, подтверждать его не нужно.
    * Возвращает false, если пути нет.
    */
-  private updatePath(target: number, locked = false): boolean {
+  private updatePath(target: number): boolean {
     this.clearPathMeshes();
+    this.targetMarker.visible = false;
     const from = this.selectedCell;
     if (from === null || !this.currentBalls || !this.hasBoardState) return false;
     if (this.currentBalls[from] === EMPTY || this.currentBalls[target] !== EMPTY) return false;
     const path = findPath({size: GRID_SIZE, board: this.currentBalls} as LinesState, from, target);
     if (!path || path.length < 2) return false;
-    const material = locked ? this.lockedFootprintMaterial : this.footprintMaterial;
-    // Старт под шаром не показываем, финиш отмечается меткой или последним следом.
-    this.pathMeshes.push(...this.drawFootprints(path, locked, material));
+    // Старт под шаром не показываем, финиш отмечается кольцом.
+    this.pathMeshes.push(...this.drawFootprints(path, false, this.footprintMaterial));
+    const pos = this.cellPosition(path[path.length - 1], TILE_TOP + 0.7);
+    this.targetMarker.position.set(pos.x, pos.y, pos.z);
+    this.targetMarker.visible = true;
     return true;
   }
 
