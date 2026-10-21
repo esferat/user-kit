@@ -2,7 +2,7 @@ package com.acme.usermark.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.acme.usermark.auth.AuthCookies;
+import com.acme.usermark.adapters.in.security.AuthCookies;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

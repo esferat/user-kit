@@ -420,7 +420,7 @@ Details and examples are in [`docs/api.md`](docs/api.md).
 ```bash
 # backend: unit and slice tests, compiled and executed by Maven
 docker run --rm -v userkit-m2:/root/.m2 -v "$PWD/backend:/workspace" -w /workspace \
-  maven:3.9-eclipse-temurin-21 mvn -B -ntp test
+  maven:3.9-eclipse-temurin-21 mvn -B -ntp clean test
 
 # frontends: lint, formatting, typecheck, unit tests and the production build
 cd frontend-antd && npm run check && npm run build
@@ -431,14 +431,14 @@ cd ../frontend-mui && npm run check && npm run build
 
 ```
 user-kit/
-├── backend/                Spring Boot service
+├── backend/                Spring Boot service, hexagonal architecture
 │   └── src/main/java/com/acme/usermark/
-│       ├── common/         page result, error shape, exception handler, patch helpers
-│       ├── config/         security, JWT, S3 client, OpenAPI, properties
-│       ├── dev/            local token issuer, demo documents
-│       ├── file/           file entity, service, storage, REST controller
-│       ├── security/       role extraction from JWT claims
-│       └── user/           account entity, profile, administration, ETag support
+│       ├── domain/         aggregates, rules and ports, free of framework code
+│       ├── application/    use cases, DTOs and commands with the transactions
+│       ├── adapters/       in/web (+ zones), in/security, out/persistence (+ zones),
+│       │                   out/storage, out/identity, out/dev
+│       ├── config/         security, JWT/OIDC/S3 wiring, properties
+│       └── UserKitApplication.java
 ├── frontend-antd/          Vite + React 19 + TypeScript + MobX + Ant Design (canonical)
 ├── frontend-mui/           Vite + React 19 + TypeScript + Redux Toolkit + Material UI
 ├── fullstack-next/         Next.js 16 application, standalone output

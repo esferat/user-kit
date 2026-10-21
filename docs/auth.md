@@ -113,8 +113,8 @@ When `OIDC_ENABLED=true` and `OIDC_ISSUER_URI` is set, tokens are validated as f
 
 ### Supported claim layouts
 
-`security/RoleClaims` inspects the claims in this order and stops at the first source that carries a
-supported role:
+`domain/account/AccountRoles` inspects the claims in this order and stops at the first source that
+carries a supported role:
 
 | Order | Claim                              | Example                                                     |
 | ----- | ---------------------------------- | ----------------------------------------------------------- |
@@ -295,7 +295,7 @@ as one of them validates it, see `JwtDecoderConfiguration`.
 ## Demo documents
 
 `DemoDataSeeder` belongs to the same `dev` profile: on an empty store it creates the local account
-`demo` (subject `local-demo-owner`) and uploads eight sample documents through `FileService`, so the
+`demo` (subject `local-demo-owner`) and uploads eight sample documents through `FileUseCases`, so the
 seeder reuses the validation, checksum and storage key rules of a real upload. As soon as one document
 exists the seeder does nothing, which makes restarts idempotent, and `DEMO_DATA_ENABLED=false`
 switches it off. The documents are plain PDF, CSV, Markdown and text files that `SimplePdf` generates
@@ -304,9 +304,9 @@ repository.
 
 ## Account lifecycle
 
-`AuthenticatedUserService` resolves the caller from the `sub` claim:
+`CurrentAccountService` resolves the caller from the `sub` claim:
 
-- Unknown subject: a new `UserAccount` is created with the roles from the token. Username falls back
+- Unknown subject: a new `Account` is created with the roles from the token. Username falls back
   to `preferred_username`, then to `sub`, then to a generated value; the email falls back to an
   empty string.
 - Known subject: only `email` and `displayName` are refreshed from the token. Roles are **not**

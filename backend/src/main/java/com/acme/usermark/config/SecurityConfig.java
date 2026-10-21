@@ -1,9 +1,9 @@
 package com.acme.usermark.config;
 
-import com.acme.usermark.auth.AuthCookies;
-import com.acme.usermark.auth.AuthSessionService;
-import com.acme.usermark.auth.SessionTokenFilter;
-import com.acme.usermark.security.OidcJwtAuthenticationConverter;
+import com.acme.usermark.adapters.in.security.AuthCookies;
+import com.acme.usermark.adapters.in.security.OidcJwtAuthenticationConverter;
+import com.acme.usermark.adapters.in.security.SessionTokenFilter;
+import com.acme.usermark.application.auth.AuthenticationUseCases;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -54,12 +54,13 @@ public class SecurityConfig {
     };
 
     private final AppProperties properties;
-    private final AuthSessionService sessions;
+    private final AuthenticationUseCases authentication;
     private final AuthCookies cookies;
 
-    public SecurityConfig(AppProperties properties, AuthSessionService sessions, AuthCookies cookies) {
+    public SecurityConfig(
+            AppProperties properties, AuthenticationUseCases authentication, AuthCookies cookies) {
         this.properties = properties;
-        this.sessions = sessions;
+        this.authentication = authentication;
         this.cookies = cookies;
     }
 
@@ -93,7 +94,8 @@ public class SecurityConfig {
                         .accessDeniedHandler(SecurityConfig::writeForbidden));
         if (properties.security().oauth().enabled()) {
             http.addFilterBefore(
-                    new SessionTokenFilter(sessions, cookies, properties.security().oauth().refreshWindow(), jwtDecoder, jwtConverter),
+                    new SessionTokenFilter(
+                            authentication, cookies, properties.security().oauth().refreshWindow(), jwtDecoder, jwtConverter),
                     AuthorizationFilter.class);
         }
         return http.build();

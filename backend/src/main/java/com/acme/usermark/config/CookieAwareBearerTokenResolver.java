@@ -1,6 +1,6 @@
 package com.acme.usermark.config;
 
-import com.acme.usermark.auth.AuthCookies;
+import com.acme.usermark.adapters.in.security.AuthCookies;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;

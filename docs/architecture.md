@@ -45,16 +45,57 @@ Kibana container of the logging stack, so the log UI shares the TLS edge of the 
 
 ## Layers
 
-| Layer       | Where                                                       | Responsibility                                                          |
-| ----------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Edge        | `nginx/templates`                                           | TLS termination, proxy, security headers, host routing                  |
-| Frontends   | `frontend-antd/`, `frontend-mui/`                           | UI, state (MobX / Redux), session, API calls                            |
-| Next.js     | `fullstack-next/`                                           | Full stack app (scaffold), served by the edge on the third domain       |
-| API         | `backend/.../file`, `.../user`, `.../auth`, `.../common`    | REST controllers, DTO mapping, authorization, error shape               |
-| Domain      | `backend/.../file`, `backend/.../user`                      | Services, `@Version` optimistic locking, `ETag`, validation             |
-| Persistence | `backend/.../file`, `.../user`, Flyway `db/migration`       | JPA entities and schema                                                 |
-| Storage     | `backend/.../storage`                                       | S3 compatible object storage                                            |
-| Identity    | `backend/.../auth`, `.../security`, `keycloak/realm`        | OAuth client, JWT resource server, realm import                         |
+| Layer       | Where                                                        | Responsibility                                                        |
+| ----------- | ------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Edge        | `nginx/templates`                                            | TLS termination, proxy, security headers, host routing                |
+| Frontends   | `frontend-antd/`, `frontend-mui/`                            | UI, state (MobX / Redux), session, API calls                          |
+| Next.js     | `fullstack-next/`                                            | Full stack app (scaffold), served by the edge on the third domain     |
+| API         | `backend/.../adapters/in/web`                                | REST controllers, DTO mapping, error shape                            |
+| Application | `backend/.../application`                                    | Use cases, transactions, validation, orchestration of the ports       |
+| Domain      | `backend/.../domain`                                         | Aggregates, rules, ports (repositories, storage, identity provider)   |
+| Adapters    | `backend/.../adapters/out`                                   | JPA rows and repositories, S3 storage, OpenID Connect client          |
+| Identity    | `backend/.../adapters/in/security`, `keycloak/realm`         | JWT resource server, cookies, session filter, realm import            |
+
+The backend follows the hexagonal architecture: the domain is in the centre, the use cases around it
+depend only on the ports it declares, and the adapters implement those ports. The dependencies always
+point inwards:
+
+```
+   adapters/in/web ─┐                        ┌─ adapters/out/persistence (JPA)
+   adapters/in/sec ─┼─► application ─► domain ┼─ adapters/out/storage (S3)
+   adapters/dev ────┘      (use cases)  (ports)└─ adapters/out/identity (OIDC)
+```
+
+`domain/` does not import Spring, JPA, Jackson or the servlet API at all: the aggregates (`Account`,
+`FileObject`, `AuthSession`, `LoginState`), the ports (`AccountRepository`, `FileRepository`,
+`FileStorage`, `SessionRepository`, `LoginStateRepository`, `IdentityProvider`) and the value objects
+(`DomainException`, `Etag`, `PageResult`, `FileUpload`, `Caller`) are plain Java. The application layer
+uses the ports and owns the transactions; the only framework annotations it carries are
+`@Transactional` and the transaction synchronization of the avatar cleanup, because a transaction
+boundary has to span several ports (the object storage and the database). The adapters translate
+between the world of the domain and the world of the framework: JPA rows, multipart uploads, JSON
+DTOs, cookies, JWT claims.
+
+The boundary of the application layer is described in DTOs: the web adapter hands over commands and
+the caller, the use cases answer with DTOs. The aggregates never leave the application layer.
+
+### Packages by responsibility
+
+Every layer is packaged by the zone of responsibility it serves, and the zones are named the same
+way in every layer: `file`, `profile`, `account`, `auth` and `dev`.
+
+| Zone      | Domain            | Application                       | Web adapter                    | Persistence                       |
+| --------- | ----------------- | --------------------------------- | ------------------------------ | --------------------------------- |
+| `file`    | `FileObject`      | `FileUseCases`, `FileDto`         | `web/file`                     | `persistence/file`                |
+| `profile` | —                 | `ProfileUseCases`, `ProfileDto`   | `web/profile`                  | —                                 |
+| `account` | `Account`         | `AccountAdminUseCases`, `AccountDto` | `web/account`                | `persistence/account`             |
+| `auth`    | `AuthSession`     | `AuthenticationUseCases`          | `web/auth`, `in/security`      | `persistence/auth`                |
+| `dev`     | —                 | —                                 | `web/dev`, `out/dev`           | —                                 |
+
+So the model of a zone, its use case, its controller and its adapter sit next to each other by name,
+while the layers keep their dependency direction. The cross-zone references are explicit and few: the
+file zone needs the owner row of the account zone, and the profile zone needs the account.
+
 
 ## Key decisions
 
@@ -79,28 +120,50 @@ uses plain REST with a small, explicit query interface:
 - `size` is clamped to `REST_MAX_PAGE_SIZE`, so a huge value cannot exhaust memory.
 - Reading uses `GET`, writing uses `PATCH`/`DELETE` with `If-Match`/`ETag`.
 
-Search and sorting are implemented in the service layer against typed queries; no user supplied string
+Search and sorting are implemented in the web adapter against typed values; no user supplied string
 is concatenated into SQL or JPQL.
 
-### DTOs at the service boundary
+### DTOs at the use case boundary
 
-`FileService` returns `FileResponse` DTOs instead of JPA entities, and the entity to DTO mapping runs
-inside the transactional method. `UserAdminService` returns `UserResponse` the same way. Two problems
-are solved by this:
+The use cases are the boundary of the application layer, and the boundary speaks DTOs:
+
+- **Input:** the web adapter builds a command (`UploadFileCommand`, `UpdateFileCommand`,
+  `UpdateProfileCommand`, `UpdateAccountCommand`) or passes the caller (`CallerContext` with the id, the
+  email and the admin flag). A command field that is `null` stays untouched.
+- **Output:** the use cases answer with a DTO (`FileDto`, `AccountDto`, `ProfileDto`), never with an
+  aggregate. The DTO is the JSON of the API, so the web adapter only serializes it.
+
+The aggregates of the domain (`Account`, `FileObject`, `AuthSession`, `LoginState`) stay inside the
+application layer: no controller, no filter and no DTO holds one. That solves three problems at once:
 
 - No lazy association is touched after the transaction closed (`spring.jpa.open-in-view` is disabled
   deliberately, so such a failure surfaces as HTTP 500 instead of a hidden extra query).
 - Optimistic locking is flushed before the response is built, so the returned `ETag` already contains
   the new version number.
+- The JSON contract is described in one place — the DTO — and the domain may change without touching
+  it.
 
 `spring.jpa.open-in-view: false` plus explicit `join fetch` queries in the repositories guarantees
-that every read which needs the owner has it loaded. `FileObject.owner` is additionally mapped as
+that every read which needs the owner has it loaded. `FileObjectRow.owner` is additionally mapped as
 `FetchType.EAGER`, so a detached owner can no longer turn into a `LazyInitializationException` when a
-file leaves the service layer.
+file leaves the adapter.
+
+The persistence adapter has its own DTOs: the JPA rows (`UserAccountRow`, `FileObjectRow`, …) are the
+data transfer objects of the storage, the mappers translate them into the aggregates and back.
+
+### Errors: the domain names the failure, the adapter names the status
+
+The domain throws `DomainException` with a `Kind` (`VALIDATION`, `NOT_FOUND`, `FORBIDDEN`,
+`UNAUTHENTICATED`, `CONFLICT`, `PRECONDITION_FAILED`, `PAYLOAD_TOO_LARGE`, `UPSTREAM`) and a stable
+machine readable code. The web adapter maps the kind onto the status of the response
+(`400/404/403/401/409/412/413/502`) in `ApiExceptionHandler`, so the domain does not know HTTP and the
+JSON contract stays exactly as it was. The same code and the same message are used everywhere, the
+frontends and the smoke script rely on them.
+
 
 ### Object storage: Silo in compose, S3 everywhere else
 
-`FileStorageService` speaks plain S3 with the AWS SDK v2, so Silo, AWS S3, Ceph or Garage only need the
+`S3FileStorage` speaks plain S3 with the AWS SDK v2, so Silo, AWS S3, Ceph or Garage only need the
 endpoint, region, credentials and `S3_PATH_STYLE`. The compose file runs
 `${SILO_IMAGE:-pgsty/silo}:${SILO_VERSION:-latest}` with path style addressing. Silo is a community
 maintained fork of the MinIO server, so it keeps the S3 API, the storage format, the reserved
@@ -132,7 +195,7 @@ available (`oidc`, `dev` or `none`) and whether self registration is offered (`r
 so the bundle carries no provider configuration. `GET /api/v1/auth/register` starts the same code flow
 against the registration page of the provider, so a new account lands in the same session.
 
-`SessionTokenFilter` refreshes the access token when it is about to expire; `EtagSupport` maps the JPA
+`SessionTokenFilter` refreshes the access token when it is about to expire; `Etag` maps the JPA
 `@Version` to a weak `W/"<version>"` ETag and verifies `If-Match` on PATCH and DELETE.
 
 ## Data model
@@ -193,11 +256,12 @@ Upload of `report.pdf` as user `jane`:
 3. `CookieAwareBearerTokenResolver` picks the token of a command line client from the header,
    `SessionTokenFilter` renews the token of a cookie session if it is about to expire and turns it into
    the authentication, and `OidcJwtAuthenticationConverter` maps the claims to authorities.
-4. `AuthenticatedUserService` loads or creates the `UserAccount` for `sub` and returns the entity.
-5. `FileService.upload` validates name, size and content type, computes the checksum and the
-   `files/2026/10/<uuid>/report.pdf` key.
-6. `FileStorageService.put` writes the object and returns the created `FileResponse` with
-   `ETag: W/"0"`.
+4. `CallerResolver` reads the principal out of the security context, `CurrentAccountService`
+   loads or creates the `Account` of `sub` and reduces it to the `CallerContext`.
+5. `FileUseCases.upload` takes the `UploadFileCommand`, validates name, size and content type,
+   computes the checksum and the `files/2026/10/<uuid>/report.pdf` key.
+6. `S3FileStorage.put` writes the object, `FileRepository.save` stores the metadata and the use case
+   answers with the `FileDto` that carries the `ETag: W/"0"`.
 7. If the database insert fails afterwards, the object is deleted again so that no orphan remains.
 
 ## Observability

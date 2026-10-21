@@ -117,61 +117,6 @@ public record AppProperties(Security security, Storage storage, Files files, Res
             return split(postLogoutRedirectUris).isEmpty() ? List.of(postLogoutRedirectUri) : split(postLogoutRedirectUris);
         }
 
-        /**
-         * Callback of the frontend that sent the request. An unknown origin falls
-         * back to the first configured entry, so a crafted {@code Host} header can
-         * only pick between allowlisted URIs and never add a new one.
-         */
-        public String callbackUriFor(String origin) {
-            return matchOrigin(redirectUriList(), origin);
-        }
-
-        /** Frontend root of the request origin, with the same allowlist fallback. */
-        public String appUriFor(String origin) {
-            return matchOrigin(postLogoutRedirectUriList(), origin);
-        }
-
-        /**
-         * Falls back to the first configured entry, never to a value outside the
-         * list, so the singular property of a single frontend setup keeps working.
-         */
-        private static String matchOrigin(List<String> candidates, String origin) {
-            if (candidates.isEmpty()) {
-                return "";
-            }
-            if (origin == null || origin.isBlank()) {
-                return candidates.get(0);
-            }
-            String wanted = origin.trim().toLowerCase(java.util.Locale.ROOT);
-            return candidates.stream()
-                    .filter(entry -> wanted.equals(originOf(entry).toLowerCase(java.util.Locale.ROOT)))
-                    .findFirst()
-                    .orElseGet(() -> candidates.get(0));
-        }
-
-        /** Scheme, host and port of an absolute URL, or an empty string when it has none. */
-        private static String originOf(String url) {
-            try {
-                java.net.URI uri = java.net.URI.create(url.trim());
-                if (uri.getScheme() == null || uri.getHost() == null) {
-                    return "";
-                }
-                int port = uri.getPort();
-                boolean defaultPort = port < 0
-                        || ("https".equalsIgnoreCase(uri.getScheme()) && port == 443)
-                        || ("http".equalsIgnoreCase(uri.getScheme()) && port == 80);
-                return defaultPort
-                        ? uri.getScheme().toLowerCase(java.util.Locale.ROOT) + "://" + uri.getHost().toLowerCase(java.util.Locale.ROOT)
-                        : uri.getScheme().toLowerCase(java.util.Locale.ROOT)
-                                + "://"
-                                + uri.getHost().toLowerCase(java.util.Locale.ROOT)
-                                + ":"
-                                + port;
-            } catch (IllegalArgumentException exception) {
-                return "";
-            }
-        }
-
         private static List<String> split(String value) {
             if (value == null || value.isBlank()) {
                 return List.of();
