@@ -84,7 +84,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> requests.requestMatchers(PUBLIC_ENDPOINTS)
                         .permitAll()
                         .requestMatchers("/api/v1/admin/**", "/api/v1/users", "/api/v1/users/**")
-                        .hasRole("ADMIN")
+                        .authenticated()
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2

@@ -4,6 +4,7 @@ import com.acme.usermark.config.AppProperties;
 import com.acme.usermark.domain.file.FileStorage;
 import com.acme.usermark.domain.shared.DomainException;
 import jakarta.annotation.PostConstruct;
+import java.io.InputStream;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,13 +81,12 @@ public class S3FileStorage implements FileStorage {
     }
 
     @Override
-    public byte[] get(String key) {
+    public InputStream get(String key) {
         try {
-            return s3.getObjectAsBytes(GetObjectRequest.builder()
-                            .bucket(storage.bucket())
-                            .key(key)
-                            .build())
-                    .asByteArray();
+            return s3.getObject(GetObjectRequest.builder()
+                    .bucket(storage.bucket())
+                    .key(key)
+                    .build());
         } catch (RuntimeException exception) {
             if (exception instanceof S3Exception s3Exception && s3Exception.statusCode() == 404) {
                 throw DomainException.notFound("The stored content no longer exists");

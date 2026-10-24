@@ -16,7 +16,10 @@ import com.acme.usermark.domain.file.FileObject;
 import com.acme.usermark.domain.file.FileRepository;
 import com.acme.usermark.domain.file.FileStorage;
 import com.acme.usermark.domain.shared.DomainException;
+import com.acme.usermark.domain.shared.PageQuery;
+import com.acme.usermark.domain.shared.PageResult;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,6 +94,17 @@ class FileUseCasesTest {
     }
 
     @Test
+    @DisplayName("rejects a content type that is not a media type")
+    void rejectsMalformedContentType() {
+        assertThatThrownBy(() -> useCases.upload(
+                        new UploadFileCommand("notes.txt", "not a media type", "hello".getBytes(), null), caller))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).code())
+                .isEqualTo("invalid_content_type");
+        verify(storage, never()).put(anyString(), any(byte[].class), anyString());
+    }
+
+    @Test
     @DisplayName("removes orphaned content when the database insert fails")
     void removesOrphanOnFailure() {
         when(repository.save(any(FileObject.class))).thenThrow(new IllegalStateException("db down"));
@@ -150,6 +164,18 @@ class FileUseCasesTest {
     }
 
     @Test
+    @DisplayName("does not touch the row when a patch has no writable fields")
+    void ignoresEmptyPatch() {
+        FileObject file = file("a.txt", owner);
+        when(repository.findById(file.id())).thenReturn(Optional.of(file));
+
+        FileDto result = useCases.update(file.id(), caller, new UpdateFileCommand(null, null, null));
+
+        assertThat(result.name()).isEqualTo("a.txt");
+        verify(repository, never()).save(any(FileObject.class));
+    }
+
+    @Test
     @DisplayName("propagates storage failures as a bad gateway")
     void propagatesStorageFailure() {
         doThrow(DomainException.upstream("storage_unavailable", "down")).when(storage).get(anyString());
@@ -164,23 +190,24 @@ class FileUseCasesTest {
     @Test
     @DisplayName("lists only the own files of a regular user")
     void listsOwnFilesForUser() {
-        when(repository.findAllByOwner(owner.id())).thenReturn(java.util.List.of());
+        when(repository.search("", owner.id(), false, "-createdAt", new PageQuery(0, 50)))
+                .thenReturn(PageResult.of(List.of(), 0, 0, 50));
 
-        useCases.listVisibleTo(caller);
+        PageResult<FileDto> result = useCases.listVisibleTo(caller, "", "-createdAt", new PageQuery(0, 50));
 
-        verify(repository).findAllByOwner(owner.id());
-        verify(repository, never()).findAll();
+        assertThat(result.items()).isEmpty();
+        verify(repository).search("", owner.id(), false, "-createdAt", new PageQuery(0, 50));
     }
 
     @Test
     @DisplayName("lists every file for an administrator")
     void listsEveryFileForAdmin() {
-        when(repository.findAll()).thenReturn(java.util.List.of());
+        when(repository.search("", null, true, "-createdAt", new PageQuery(0, 50)))
+                .thenReturn(PageResult.of(List.of(), 0, 0, 50));
 
-        useCases.listVisibleTo(new CallerContext(owner.id(), owner.email(), true));
+        useCases.listVisibleTo(new CallerContext(owner.id(), owner.email(), true), "", "-createdAt", new PageQuery(0, 50));
 
-        verify(repository).findAll();
-        verify(repository, never()).findAllByOwner(any());
+        verify(repository).search("", null, true, "-createdAt", new PageQuery(0, 50));
     }
 
     private FileObject file(String name, Account owner) {

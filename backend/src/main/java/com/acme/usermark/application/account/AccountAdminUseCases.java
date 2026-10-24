@@ -5,7 +5,8 @@ import com.acme.usermark.domain.account.AccountRepository;
 import com.acme.usermark.domain.account.AccountRoles;
 import com.acme.usermark.domain.shared.DomainException;
 import com.acme.usermark.domain.shared.Etag;
-import java.util.List;
+import com.acme.usermark.domain.shared.PageQuery;
+import com.acme.usermark.domain.shared.PageResult;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,8 +22,13 @@ public class AccountAdminUseCases {
     }
 
     @Transactional(readOnly = true)
-    public List<AccountDto> findAll() {
-        return accounts.findAll().stream().map(AccountDto::from).toList();
+    public PageResult<AccountDto> list(String search, String sort, PageQuery page) {
+        PageResult<Account> found = accounts.search(search, sort, page);
+        return PageResult.of(
+                found.items().stream().map(AccountDto::from).toList(),
+                found.total(),
+                found.page(),
+                found.size());
     }
 
     @Transactional(readOnly = true)

@@ -15,15 +15,21 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 
 /**
  * Owns the browser sessions of the cookie based login: the random session id and
  * the login state live in cookies, the database keeps their hashes together with
  * the refresh token, so the identity provider session can be renewed silently.
+ *
+ * <p>Database work runs in short transactions. Calls to the identity provider
+ * happen outside of them, so an unavailable provider cannot hold a connection of
+ * the pool while it times out.
  */
 @Component
 public class AuthenticationUseCases {
@@ -31,22 +37,30 @@ public class AuthenticationUseCases {
     private static final Logger log = LoggerFactory.getLogger(AuthenticationUseCases.class);
     private static final int SECRET_BYTES = 32;
     private static final int VERIFIER_BYTES = 32;
+    private static final int REFRESH_LOCK_STRIPES = 64;
 
     private final SessionRepository sessions;
     private final LoginStateRepository loginStates;
     private final IdentityProvider identityProvider;
     private final OAuthSettings settings;
+    private final TransactionOperations transactions;
+    private final ReentrantLock[] refreshLocks = new ReentrantLock[REFRESH_LOCK_STRIPES];
     private final SecureRandom random = new SecureRandom();
 
     public AuthenticationUseCases(
             SessionRepository sessions,
             LoginStateRepository loginStates,
             IdentityProvider identityProvider,
-            OAuthSettings settings) {
+            OAuthSettings settings,
+            TransactionOperations transactions) {
         this.sessions = sessions;
         this.loginStates = loginStates;
         this.identityProvider = identityProvider;
         this.settings = settings;
+        this.transactions = transactions;
+        for (int index = 0; index < refreshLocks.length; index++) {
+            refreshLocks[index] = new ReentrantLock();
+        }
     }
 
     public boolean oauthEnabled() {
@@ -107,23 +121,32 @@ public class AuthenticationUseCases {
     }
 
     /** Consumes the state and exchanges the code, returning the session to hand to the browser. */
-    @Transactional
     public LoginResult completeLogin(String state, String code) {
         IdentityProvider provider = requireProvider();
         Instant now = Instant.now();
-        LoginState loginState = loginStates
-                .findById(hash(state == null ? "" : state))
-                .filter(candidate -> candidate.isUsable(now))
-                .orElseThrow(() -> DomainException.validation("auth_state_invalid", "The login state is unknown or expired"));
-        loginStates.delete(loginState);
+        LoginState loginState = transactions.execute(status -> {
+            LoginState candidate = loginStates
+                    .findById(hash(state == null ? "" : state))
+                    .filter(entry -> entry.isUsable(now))
+                    .orElseThrow(() -> DomainException.validation(
+                            "auth_state_invalid", "The login state is unknown or expired"));
+            loginStates.delete(candidate);
+            return candidate;
+        });
+        if (loginState == null) {
+            throw DomainException.validation("auth_state_invalid", "The login state is unknown or expired");
+        }
+
         TokenSet tokens = provider.exchangeCode(code, loginState.codeVerifier(), callbackOf(loginState));
-        sessions.deleteOlderThan(now.minus(settings.sessionTtl()));
+        String subject = provider.subjectOf(tokens.accessToken());
         String sessionId = randomValue(SECRET_BYTES);
-        sessions.save(AuthSession.create(
-                hash(sessionId),
-                provider.subjectOf(tokens.accessToken()),
-                settings.clientId(),
-                tokens));
+        String idHash = hash(sessionId);
+        AuthSession session = AuthSession.create(idHash, subject, settings.clientId(), tokens);
+        transactions.execute(status -> {
+            sessions.deleteOlderThan(now.minus(settings.sessionTtl()));
+            sessions.save(session);
+            return null;
+        });
         return new LoginResult(sessionId, tokens, loginState.redirectUri());
     }
 
@@ -164,10 +187,12 @@ public class AuthenticationUseCases {
     }
 
     /** Drops the local session and asks the provider to forget the refresh token. */
-    @Transactional
     public void closeSession(String sessionId, AuthSession session) {
         if (sessionId != null) {
-            sessions.deleteById(hash(sessionId));
+            transactions.execute(status -> {
+                sessions.deleteById(hash(sessionId));
+                return null;
+            });
         }
         if (session == null) {
             return;
@@ -181,17 +206,34 @@ public class AuthenticationUseCases {
         }
     }
 
-    /** Replaces the tokens of a session, keeping the same session id. */
-    @Transactional
+    /**
+     * Replaces the tokens of a session, keeping the same session id.
+     *
+     * <p>The call is serialized per session: refresh tokens are rotating, and two
+     * parallel requests must not consume the same token and log the browser out.
+     */
     public TokenSet refresh(AuthSession session) {
-        String refreshToken = session.refreshToken();
-        if (refreshToken == null || refreshToken.isBlank()) {
-            throw DomainException.validation("auth_session_unrenewable", "The session has no refresh token");
+        // A bounded stripe table keeps the lock map from growing with the number
+        // of sessions. Requests of different sessions may share a stripe, which
+        // only delays them; requests of one session stay serialized.
+        ReentrantLock lock = refreshLocks[Math.floorMod(session.idHash().hashCode(), refreshLocks.length)];
+        lock.lock();
+        try {
+            AuthSession current = sessions.findById(session.idHash()).orElse(session);
+            String refreshToken = current.refreshToken();
+            if (refreshToken == null || refreshToken.isBlank()) {
+                throw DomainException.validation("auth_session_unrenewable", "The session has no refresh token");
+            }
+            TokenSet tokens = requireProvider().refresh(refreshToken);
+            transactions.execute(status -> {
+                current.apply(tokens);
+                sessions.save(current);
+                return null;
+            });
+            return tokens;
+        } finally {
+            lock.unlock();
         }
-        TokenSet tokens = requireProvider().refresh(refreshToken);
-        session.apply(tokens);
-        sessions.save(session);
-        return tokens;
     }
 
     private IdentityProvider requireProvider() {

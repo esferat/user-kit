@@ -21,7 +21,10 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   security:
     dev:
-      enabled: true
+      # The env var wins: an externally reachable stand can turn the token
+      # endpoint off even when it runs the dev profile. docker compose keeps the
+      # local default of true and passes DEV_AUTH_ENABLED from .env.
+      enabled: ${DEV_AUTH_ENABLED:true}
     oauth:
       # The dev stack runs on plain HTTP, so a Secure cookie would never arrive
       cookie-secure: false

@@ -6,6 +6,7 @@ import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -82,6 +83,21 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException exception, HttpServletRequest request) {
         return build(HttpStatus.FORBIDDEN.value(), "forbidden", "Access is denied", request, List.of());
+    }
+
+    /**
+     * Two requests changed the same row without an {@code If-Match} header. The
+     * storage lock is a regular conflict, not an internal error.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleOptimisticLock(
+            OptimisticLockingFailureException exception, HttpServletRequest request) {
+        return build(
+                HttpStatus.CONFLICT.value(),
+                "conflict",
+                "The resource has been modified by someone else, reload and try again",
+                request,
+                List.of());
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

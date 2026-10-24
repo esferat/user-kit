@@ -133,6 +133,21 @@ class SessionTokenFilterTest {
     }
 
     @Test
+    @DisplayName("keeps the session when the provider cannot renew the token")
+    void keepsSessionWhenRefreshFails() throws Exception {
+        MockHttpServletRequest request = request();
+        AuthSession session = session(Instant.now().plusSeconds(60));
+        when(sessions.findSession("session-1")).thenReturn(Optional.of(session));
+        when(cookies.read(request, AuthCookies.ACCESS_TOKEN)).thenReturn(Optional.of("access-1"));
+        when(sessions.refresh(session)).thenThrow(new IllegalStateException("provider down"));
+
+        filter().doFilter(request, response, (req, res) -> assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull());
+
+        verify(sessions, never()).closeSession(any(), any());
+        verify(cookies, never()).clear(response);
+    }
+
+    @Test
     @DisplayName("passes a request without a session cookie on untouched")
     void passesAnonymousRequest() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/config");

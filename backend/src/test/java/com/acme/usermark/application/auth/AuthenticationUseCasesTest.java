@@ -27,9 +27,33 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 @ExtendWith(MockitoExtension.class)
 class AuthenticationUseCasesTest {
+
+    private static final class TrackingTransactions implements TransactionOperations {
+
+        private boolean active;
+
+        @Override
+        public <T> T execute(TransactionCallback<T> action) {
+            boolean previous = active;
+            active = true;
+            try {
+                return action.doInTransaction(null);
+            } finally {
+                active = previous;
+            }
+        }
+
+        private boolean active() {
+            return active;
+        }
+    }
+
+    private final TrackingTransactions transactions = new TrackingTransactions();
 
     @Mock
     private SessionRepository sessions;
@@ -45,7 +69,7 @@ class AuthenticationUseCasesTest {
     @BeforeEach
     void setUp() {
         lenient().when(identityProvider.isEnabled()).thenReturn(true);
-        useCases = new AuthenticationUseCases(sessions, loginStates, identityProvider, settings());
+        useCases = new AuthenticationUseCases(sessions, loginStates, identityProvider, settings(), transactions);
     }
 
     private OAuthSettings settings() {
@@ -165,6 +189,23 @@ class AuthenticationUseCasesTest {
     }
 
     @Test
+    @DisplayName("calls the identity provider outside of a database transaction")
+    void callsProviderOutsideTransaction() {
+        LoginState loginState = new LoginState(
+                "hash", "https://app/", null, "verifier", Instant.now(), Instant.now().plusSeconds(60));
+        when(loginStates.findById(anyString())).thenReturn(Optional.of(loginState));
+        when(identityProvider.exchangeCode(anyString(), anyString(), anyString())).thenAnswer(invocation -> {
+            assertThat(transactions.active()).isFalse();
+            return tokens();
+        });
+        when(identityProvider.subjectOf(anyString())).thenReturn("subject-1");
+
+        useCases.completeLogin("state", "code");
+
+        assertThat(transactions.active()).isFalse();
+    }
+
+    @Test
     @DisplayName("removes only the sessions that outlived their TTL")
     void deletesExpiredSessions() {
         when(loginStates.findById(anyString()))
@@ -191,6 +232,29 @@ class AuthenticationUseCasesTest {
         assertThat(renewed.accessToken()).isEqualTo("access-1");
         assertThat(session.accessTokenExpiresAt()).isEqualTo(renewed.expiresAt());
         verify(sessions).save(session);
+    }
+
+    @Test
+    @DisplayName("re-reads the rotated refresh token before calling the provider")
+    void refreshesTheCurrentToken() {
+        AuthSession stale = AuthSession.create("hash", "subject-1", "user-kit-bff", tokens());
+        AuthSession current = AuthSession.create(
+                "hash",
+                "subject-1",
+                "user-kit-bff",
+                new TokenSet(
+                        "access-2",
+                        "refresh-2",
+                        "id-2",
+                        Instant.now().plusSeconds(300),
+                        Instant.now().plusSeconds(1800)));
+        when(sessions.findById("hash")).thenReturn(Optional.of(current));
+        when(identityProvider.refresh("refresh-2")).thenReturn(tokens());
+
+        useCases.refresh(stale);
+
+        verify(identityProvider).refresh("refresh-2");
+        verify(sessions).save(current);
     }
 
     @Test

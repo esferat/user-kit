@@ -72,8 +72,17 @@ public class SessionTokenFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        String accessToken = accessToken(request, response, session);
+        String accessToken = accessToken(request, response, session).token();
         if (accessToken != null && authenticate(session, accessToken)) {
+            chain.doFilter(request, response);
+            return;
+        }
+        if (accessToken == null) {
+            // The provider did not renew the token. The session may still be valid
+            // (for example the provider is temporarily down), so the cookies stay:
+            // the next request retries the refresh instead of logging the browser
+            // out on a transient failure.
+            log.info("The session of subject {} has no usable access token right now", session.subject());
             chain.doFilter(request, response);
             return;
         }
@@ -84,22 +93,24 @@ public class SessionTokenFilter extends OncePerRequestFilter {
     }
 
     /** The token of the cookie, renewed first when it is about to expire. */
-    private String accessToken(HttpServletRequest request, HttpServletResponse response, AuthSession session) {
+    private TokenAttempt accessToken(HttpServletRequest request, HttpServletResponse response, AuthSession session) {
         String cookieToken = cookies.read(request, AuthCookies.ACCESS_TOKEN)
                 .filter(token -> !token.isBlank())
                 .orElse(null);
         if (cookieToken != null && session.accessTokenExpiresAt().isAfter(Instant.now().plus(refreshWindow))) {
-            return cookieToken;
+            return new TokenAttempt(cookieToken);
         }
         try {
             TokenSet tokens = authentication.refresh(session);
             cookies.writeAccessToken(response, tokens);
-            return tokens.accessToken();
+            return new TokenAttempt(tokens.accessToken());
         } catch (RuntimeException exception) {
             log.info("The session of subject {} could not be refreshed: {}", session.subject(), exception.getMessage());
-            return null;
+            return new TokenAttempt(null);
         }
     }
+
+    private record TokenAttempt(String token) {}
 
     /**
      * Puts the authentication of the session into the security context. A command

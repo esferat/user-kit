@@ -10,19 +10,19 @@ import com.acme.usermark.application.file.FileSettings;
 import com.acme.usermark.application.file.FileUseCases;
 import com.acme.usermark.application.file.UpdateFileCommand;
 import com.acme.usermark.config.AppProperties;
-import com.acme.usermark.domain.shared.DomainException;
+import com.acme.usermark.domain.shared.ContentTypes;
+import com.acme.usermark.domain.shared.PageQuery;
 import com.acme.usermark.domain.shared.PageResult;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /** Classic REST JSON API of file objects, including the media stream of a file. */
 @RestController
@@ -70,11 +71,7 @@ public class FileController {
             @RequestParam(defaultValue = "-createdAt") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        List<FileDto> rows = files.listVisibleTo(caller()).stream()
-                .filter(file -> matchesSearch(file, search))
-                .sorted(fileSorter(sort))
-                .toList();
-        return PageResult.of(rows, page, cappedSize(size));
+        return files.listVisibleTo(caller(), search, sort, new PageQuery(page, cappedSize(size)));
     }
 
     @GetMapping("/{id}")
@@ -94,12 +91,17 @@ public class FileController {
 
     @GetMapping(path = "/{id}/content", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     @Operation(summary = "Downloads the content of a file")
-    public ResponseEntity<byte[]> download(@PathVariable UUID id) {
+    public ResponseEntity<StreamingResponseBody> download(@PathVariable UUID id) {
         FileUseCases.Download download = files.download(id, caller());
         FileDto file = download.file();
+        StreamingResponseBody body = output -> {
+            try (InputStream content = download.content()) {
+                content.transferTo(output);
+            }
+        };
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(file.contentType()))
-                .contentLength(download.content().length)
+                .contentType(contentType(file.contentType()))
+                .contentLength(file.sizeBytes())
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.attachment()
@@ -107,7 +109,16 @@ public class FileController {
                                 .build()
                                 .toString())
                 .header(HttpHeaders.ETAG, file.etag())
-                .body(download.content());
+                .body(body);
+    }
+
+    private static MediaType contentType(String stored) {
+        try {
+            return MediaType.parseMediaType(stored);
+        } catch (InvalidMediaTypeException exception) {
+            // Legacy rows may carry a value that was stored before upload validation.
+            return MediaType.parseMediaType(ContentTypes.DEFAULT);
+        }
     }
 
     @PatchMapping("/{id}")
@@ -170,41 +181,6 @@ public class FileController {
             ReadOnlyFields.reject("Files", "createdAt", createdAt);
             ReadOnlyFields.reject("Files", "updatedAt", updatedAt);
         }
-    }
-
-    /** Подстрока из имени, описания или владельца, регистронезависимо. */
-    static boolean matchesSearch(FileDto file, String search) {
-        String term = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
-        if (term.isEmpty()) {
-            return true;
-        }
-        return containsIgnoreCase(file.name(), term)
-                || containsIgnoreCase(file.description(), term)
-                || containsIgnoreCase(file.ownerEmail(), term);
-    }
-
-    private static boolean containsIgnoreCase(String value, String term) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(term);
-    }
-
-    /** Сортировщик списка файлов; свойство с ведущим минусом — по убыванию. */
-    static Comparator<FileDto> fileSorter(String sort) {
-        return switch (sort == null ? "" : sort.trim()) {
-            case "", "-createdAt" -> Comparator.comparing(FileDto::createdAt).reversed();
-            case "createdAt" -> Comparator.comparing(FileDto::createdAt);
-            case "name" -> Comparator.comparing(FileDto::name, String.CASE_INSENSITIVE_ORDER);
-            case "-name" -> Comparator.comparing(FileDto::name, String.CASE_INSENSITIVE_ORDER).reversed();
-            case "sizeBytes" -> Comparator.comparingLong(FileDto::sizeBytes);
-            case "-sizeBytes" -> Comparator.comparingLong(FileDto::sizeBytes).reversed();
-            case "updatedAt" -> Comparator.comparing(FileDto::updatedAt);
-            case "-updatedAt" -> Comparator.comparing(FileDto::updatedAt).reversed();
-            case "ownerEmail" -> Comparator.comparing(
-                    FileDto::ownerEmail, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
-            case "-ownerEmail" -> Comparator.comparing(
-                            FileDto::ownerEmail, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
-                    .reversed();
-            default -> throw DomainException.validation("invalid_sort", "Unknown sort property: " + sort);
-        };
     }
 
     private int cappedSize(int size) {

@@ -4,9 +4,15 @@ import com.acme.usermark.adapters.out.persistence.account.UserAccountRow;
 import com.acme.usermark.adapters.out.persistence.account.UserAccountRowRepository;
 import com.acme.usermark.domain.file.FileObject;
 import com.acme.usermark.domain.file.FileRepository;
-import java.util.List;
+import com.acme.usermark.domain.shared.DomainException;
+import com.acme.usermark.domain.shared.PageQuery;
+import com.acme.usermark.domain.shared.PageResult;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 
@@ -31,13 +37,20 @@ public class JpaFileRepository implements FileRepository {
     }
 
     @Override
-    public List<FileObject> findAll() {
-        return rows.findAllWithOwner().stream().map(FileMapper::toDomain).toList();
-    }
-
-    @Override
-    public List<FileObject> findAllByOwner(UUID ownerId) {
-        return rows.findAllByOwnerWithOwner(ownerId).stream().map(FileMapper::toDomain).toList();
+    public PageResult<FileObject> search(
+            String search, UUID ownerId, boolean allOwners, String sort, PageQuery page) {
+        String term = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
+        Page<FileObjectRow> found = rows.search(
+                term,
+                "%" + term + "%",
+                ownerId,
+                allOwners,
+                PageRequest.of(page.page(), page.size(), fileSort(sort)));
+        return PageResult.of(
+                found.getContent().stream().map(FileMapper::toDomain).toList(),
+                found.getTotalElements(),
+                found.getNumber(),
+                found.getSize());
     }
 
     @Override
@@ -67,5 +80,23 @@ public class JpaFileRepository implements FileRepository {
     @Override
     public long count() {
         return rows.count();
+    }
+
+    /** Whitelist of the sort properties of the file list; an unknown value is a 400. */
+    static Sort fileSort(String sort) {
+        String value = sort == null ? "" : sort.trim();
+        boolean descending = value.startsWith("-");
+        String property = descending ? value.substring(1) : value;
+        if (property.isEmpty()) {
+            property = "createdAt";
+            descending = true;
+        }
+        Sort.Direction direction = descending ? Sort.Direction.DESC : Sort.Direction.ASC;
+        return switch (property) {
+            case "name" -> Sort.by(new Sort.Order(direction, property).ignoreCase());
+            case "ownerEmail" -> Sort.by(new Sort.Order(direction, "owner.email").ignoreCase());
+            case "createdAt", "updatedAt", "sizeBytes" -> Sort.by(direction, property);
+            default -> throw DomainException.validation("invalid_sort", "Unknown sort property: " + sort);
+        };
     }
 }

@@ -129,7 +129,7 @@ public class ProfileUseCases {
             throw DomainException.notFound("The account has no avatar");
         }
         String contentType = account.avatarContentType() == null ? AVATAR_CONTENT_TYPE : account.avatarContentType();
-        return new AvatarContent(contentType, storage.get(key));
+        return new AvatarContent(contentType, storage.getBytes(key));
     }
 
     /** One rendition of the avatar and the type it is stored with. */

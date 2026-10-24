@@ -4,15 +4,16 @@ import com.acme.usermark.adapters.in.security.CallerResolver;
 import com.acme.usermark.adapters.in.web.ReadOnlyFields;
 import com.acme.usermark.application.account.AccountAdminUseCases;
 import com.acme.usermark.application.account.AccountDto;
+import com.acme.usermark.application.account.CallerContext;
+import com.acme.usermark.application.account.CurrentAccountService;
 import com.acme.usermark.application.account.UpdateAccountCommand;
 import com.acme.usermark.config.AppProperties;
 import com.acme.usermark.domain.shared.DomainException;
+import com.acme.usermark.domain.shared.PageQuery;
 import com.acme.usermark.domain.shared.PageResult;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,12 +32,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserAdminController {
 
     private final AccountAdminUseCases accounts;
+    private final CurrentAccountService currentAccounts;
     private final CallerResolver callers;
     private final AppProperties properties;
 
     public UserAdminController(
-            AccountAdminUseCases accounts, CallerResolver callers, AppProperties properties) {
+            AccountAdminUseCases accounts,
+            CurrentAccountService currentAccounts,
+            CallerResolver callers,
+            AppProperties properties) {
         this.accounts = accounts;
+        this.currentAccounts = currentAccounts;
         this.callers = callers;
         this.properties = properties;
     }
@@ -47,19 +53,15 @@ public class UserAdminController {
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "email") String sort,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        callers.current();
-        List<AccountDto> rows = accounts.findAll().stream()
-                .filter(user -> matchesSearch(user, search))
-                .sorted(userSorter(sort))
-                .toList();
-        return PageResult.of(rows, page, cappedSize(size));
+            @RequestParam(defaultValue = "100") int size) {
+        requireAdmin();
+        return accounts.list(search, sort, new PageQuery(page, cappedSize(size)));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Returns a single user account")
     public AccountDto get(@PathVariable UUID id) {
-        callers.current();
+        requireAdmin();
         return accounts.get(id);
     }
 
@@ -69,7 +71,7 @@ public class UserAdminController {
             @PathVariable UUID id,
             @RequestBody(required = false) UserPatch patch,
             @RequestHeader(value = "If-Match", required = false) String ifMatch) {
-        callers.current();
+        requireAdmin();
         if (patch != null) {
             patch.rejectReadOnly();
         }
@@ -79,6 +81,19 @@ public class UserAdminController {
                         patch == null ? null : patch.roles(),
                         patch == null ? null : patch.enabled(),
                         ifMatch));
+    }
+
+    /**
+     * The application owns the roles: the admin authority of the token only seeded
+     * the local account. Every call resolves the account again, so a user whose
+     * admin role was revoked loses access without waiting for a new token.
+     */
+    private CallerContext requireAdmin() {
+        CallerContext caller = currentAccounts.resolve(callers.current());
+        if (!caller.admin()) {
+            throw DomainException.forbidden("Only an administrator may access the user accounts");
+        }
+        return caller;
     }
 
     /**
@@ -109,43 +124,6 @@ public class UserAdminController {
             ReadOnlyFields.reject("Users", "createdAt", createdAt);
             ReadOnlyFields.reject("Users", "updatedAt", updatedAt);
         }
-    }
-
-    /** Подстрока из email, имени для отображения или имени пользователя. */
-    static boolean matchesSearch(AccountDto user, String search) {
-        String term = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
-        if (term.isEmpty()) {
-            return true;
-        }
-        return containsIgnoreCase(user.email(), term)
-                || containsIgnoreCase(user.displayName(), term)
-                || containsIgnoreCase(user.username(), term);
-    }
-
-    private static boolean containsIgnoreCase(String value, String term) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(term);
-    }
-
-    /** Сортировщик списка пользователей; свойство с ведущим минусом — по убыванию. */
-    static Comparator<AccountDto> userSorter(String sort) {
-        return switch (sort == null ? "" : sort.trim()) {
-            case "", "email" -> Comparator.comparing(AccountDto::email, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
-            case "-email" -> Comparator.comparing(AccountDto::email, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
-                    .reversed();
-            case "displayName" -> Comparator.comparing(
-                    AccountDto::displayName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
-            case "-displayName" -> Comparator.comparing(
-                            AccountDto::displayName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
-                    .reversed();
-            case "username" -> Comparator.comparing(AccountDto::username, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
-            case "-username" -> Comparator.comparing(AccountDto::username, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
-                    .reversed();
-            case "createdAt" -> Comparator.comparing(AccountDto::createdAt);
-            case "-createdAt" -> Comparator.comparing(AccountDto::createdAt).reversed();
-            case "updatedAt" -> Comparator.comparing(AccountDto::updatedAt);
-            case "-updatedAt" -> Comparator.comparing(AccountDto::updatedAt).reversed();
-            default -> throw DomainException.validation("invalid_sort", "Unknown sort property: " + sort);
-        };
     }
 
     private int cappedSize(int size) {

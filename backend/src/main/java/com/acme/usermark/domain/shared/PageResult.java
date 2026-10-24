@@ -10,13 +10,20 @@ public record PageResult<T>(List<T> items, long total, int page, int size) {
 
     public PageResult {
         items = List.copyOf(items);
+        page = Math.max(page, 0);
+        size = Math.max(size, 1);
     }
 
     /** Cuts the page out of an already filtered and sorted list. */
     public static <T> PageResult<T> of(List<T> source, int page, int size) {
-        int pageSize = Math.max(size, 1);
-        int from = Math.min(Math.max(page, 0) * pageSize, source.size());
-        int to = Math.min(from + pageSize, source.size());
-        return new PageResult<>(source.subList(from, to), source.size(), page, size);
+        PageQuery query = new PageQuery(page, size);
+        int from = (int) Math.min(query.offset(), source.size());
+        int to = (int) Math.min((long) from + query.size(), source.size());
+        return new PageResult<>(source.subList(from, to), source.size(), query.page(), query.size());
+    }
+
+    /** Wraps a page that was already read from the storage. */
+    public static <T> PageResult<T> of(List<T> items, long total, int page, int size) {
+        return new PageResult<>(items, total, page, size);
     }
 }

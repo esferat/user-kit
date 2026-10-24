@@ -4,15 +4,18 @@ import com.acme.usermark.application.account.CallerContext;
 import com.acme.usermark.domain.file.FileObject;
 import com.acme.usermark.domain.file.FileRepository;
 import com.acme.usermark.domain.file.FileStorage;
+import com.acme.usermark.domain.shared.ContentTypes;
 import com.acme.usermark.domain.shared.DomainException;
 import com.acme.usermark.domain.shared.Etag;
+import com.acme.usermark.domain.shared.PageQuery;
+import com.acme.usermark.domain.shared.PageResult;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class FileUseCases {
 
     private static final DateTimeFormatter KEY_DATE = DateTimeFormatter.ofPattern("yyyy/MM").withZone(ZoneOffset.UTC);
-    private static final String DEFAULT_CONTENT_TYPE = "application/octet-stream";
     private static final int MAX_NAME_LENGTH = 512;
 
     private final FileRepository files;
@@ -39,10 +41,14 @@ public class FileUseCases {
     }
 
     @Transactional(readOnly = true)
-    public List<FileDto> listVisibleTo(CallerContext caller) {
-        return (caller.admin() ? files.findAll() : files.findAllByOwner(caller.id())).stream()
-                .map(FileDto::from)
-                .toList();
+    public PageResult<FileDto> listVisibleTo(CallerContext caller, String search, String sort, PageQuery page) {
+        PageResult<FileObject> found = files.search(
+                search, caller.admin() ? null : caller.id(), caller.admin(), sort, page);
+        return PageResult.of(
+                found.items().stream().map(FileDto::from).toList(),
+                found.total(),
+                found.page(),
+                found.size());
     }
 
     @Transactional(readOnly = true)
@@ -68,9 +74,7 @@ public class FileUseCases {
         }
 
         String name = sanitizeName(command.name());
-        String contentType = command.contentType() == null || command.contentType().isBlank()
-                ? DEFAULT_CONTENT_TYPE
-                : command.contentType();
+        String contentType = ContentTypes.normalize(command.contentType());
 
         UUID id = UUID.randomUUID();
         String key = "files/" + KEY_DATE.format(Instant.now()) + "/" + id + "/" + name;
@@ -98,11 +102,17 @@ public class FileUseCases {
         FileObject file = requireVisible(id, caller);
         Etag.verify(command.ifMatch(), file.version());
 
+        boolean changed = false;
         if (command.name() != null) {
             file.rename(requireValidName(command.name()));
+            changed = true;
         }
         if (command.description() != null) {
             file.describe(sanitizeDescription(command.description()));
+            changed = true;
+        }
+        if (!changed) {
+            return FileDto.from(file);
         }
         file.touch();
         return FileDto.from(files.save(file));
@@ -167,6 +177,6 @@ public class FileUseCases {
         }
     }
 
-    /** A file and the bytes it is stored under. */
-    public record Download(FileDto file, byte[] content) {}
+    /** A file and the stream of its content; the web adapter closes the stream. */
+    public record Download(FileDto file, InputStream content) {}
 }

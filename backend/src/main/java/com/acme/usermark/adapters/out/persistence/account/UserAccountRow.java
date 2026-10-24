@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
+import org.hibernate.annotations.BatchSize;
 
 /**
  * Row of the {@code user_account} table. The persistence adapter owns the
@@ -37,9 +38,10 @@ public class UserAccountRow {
     @Column(name = "display_name", nullable = false, length = 255)
     private String displayName;
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "user_account_role", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "role", nullable = false, length = 32)
+    @BatchSize(size = 50)
     private Set<String> roles = new LinkedHashSet<>();
 
     @Column(name = "enabled", nullable = false)
