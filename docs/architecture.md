@@ -7,11 +7,9 @@ This document describes how the components fit together, which decisions were ta
 ```
                             ┌──────────────────────────────────────────────┐
    browser  ──────────────► │ edge (nginx, 80 + 443)                       │
-                            │  user-kit.local       /       → frontend-antd│
+                            │  user-kit.local       /       → next:3000    │
                             │  user-kit.local       /api/   → backend:8080 │
                             │  user-kit.local       /auth/  → keycloak     │
-                            │  user-kit.mui.local   /       → frontend-mui │
-                            │  user-kit.mui.local   /auth/  → 308 canonical│
                             │  user-kit.next.local  /       → next:3000    │
                             │  user-kit.next.local  /auth/  → 308 canonical│
                             │  user-kit.kibana.local/       → kibana       │
@@ -35,11 +33,10 @@ This document describes how the components fit together, which decisions were ta
                                  └────────────────────────────┘
 ```
 
-`frontend-antd/` and `frontend-mui/` implement the same screens on top of the same REST API, but with
-different component libraries (Ant Design + MobX, Material UI + Redux Toolkit). `fullstack-next/` is a
-Next.js application on its own domain and is still the default scaffold. All domains talk to the same
+`frontend-main/` implements all screens on top of the REST API (Ant Design components). The same
+application is served on two domains: the canonical one and its own. All domains talk to the same
 backend but keep their own cookie session, because the cookies are scoped to the host. The identity
-provider lives on the canonical domain only, so the other domains redirect `/auth` to it and every
+provider lives on the canonical domain only, so the other domain redirects `/auth` to it and every
 application sees the same `iss`. `SERVER_NAME_KIBANA` is not an application: the edge proxies it to the
 Kibana container of the logging stack, so the log UI shares the TLS edge of the applications.
 
@@ -48,8 +45,7 @@ Kibana container of the logging stack, so the log UI shares the TLS edge of the 
 | Layer       | Where                                                        | Responsibility                                                        |
 | ----------- | ------------------------------------------------------------ | --------------------------------------------------------------------- |
 | Edge        | `nginx/templates`                                            | TLS termination, proxy, security headers, host routing                |
-| Frontends   | `frontend-antd/`, `frontend-mui/`                            | UI, state (MobX / Redux), session, API calls                          |
-| Next.js     | `fullstack-next/`                                            | Full stack app (scaffold), served by the edge on the third domain     |
+| Frontend    | `frontend-main/`                                            | UI, state, session, API calls, served by the edge on both domains     |
 | API         | `backend/.../adapters/in/web`                                | REST controllers, DTO mapping, error shape                            |
 | Application | `backend/.../application`                                    | Use cases, transactions, validation, orchestration of the ports       |
 | Domain      | `backend/.../domain`                                         | Aggregates, rules, ports (repositories, storage, identity provider)   |
@@ -99,13 +95,13 @@ file zone needs the owner row of the account zone, and the profile zone needs th
 
 ## Key decisions
 
-### Two React frontends instead of one
+### One React application on two domains
 
-`frontend-antd/` and `frontend-mui/` are complete implementations of the same screens with two
-different component libraries and two different state libraries (MobX versus Redux Toolkit). They
-share the API contract and the `shared/api/http.ts` helper but not a UI package: the duplication is
-deliberate so each application stays idiomatic for its library. A change to the REST contract has to
-be mirrored in both.
+`frontend-main/` is the only frontend: a Next.js application with Ant Design screens, served by the
+edge both on the canonical domain and on its own domain. Two host names are kept because the
+identity provider, the canonical domain and the application domain are separate concerns in the
+deployment story; the cookie sessions stay host scoped, so a login on one domain does not leak to the
+other.
 
 ### REST instead of OData
 

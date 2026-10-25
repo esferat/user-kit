@@ -1,4 +1,4 @@
-# fullstack-next
+# frontend-main
 
 Next.js 16 (App Router, React 19, Ant Design 6) application of the `user-kit` monorepo. The edge serves
 it on `user-kit.next.local`; locally `pnpm dev` runs it on `http://localhost:3000` and the Next dev

@@ -2,13 +2,13 @@
 
 **Статус:** действует. Базовая точка — 2026-10-23.
 **Роль проекта:** поставщик (provider) HTTP-контракта `/api/v1` и владелец схемы БД.
-**Потребители:** `frontend-antd`, `frontend-mui`, `fullstack-next`, `scripts/smoke.ps1`,
+**Потребители:** `frontend-main`, `scripts/smoke.ps1`,
 внешние клиенты через OpenAPI.
 
 Этот документ описывает контракт **по коду**, а не по намерениям. Повествование и примеры —
 в [`../../docs/api.md`](../../docs/api.md); здесь — таблицы, из которых можно сверять
-совместимость. Публичный базовый URL стенда: `https://user-kit.local` (тот же API отдают
-`user-kit.mui.local` и `user-kit.next.local`).
+совместимость. Публичный базовый URL стенда: `https://user-kit.local` (тот же API отдаёт
+`user-kit.next.local`).
 
 ## 1. Общие соглашения
 
@@ -340,7 +340,7 @@ Refresh token хранится только в БД (`auth_session.refresh_token
 | `docs/api.md` | `GET /api/v1/files/{id}` не описан | эндпоинт есть |
 | Vite-фронтенды | — | не читают `checksum` у файла и поля аватара у профиля |
 | Vite-фронтенды | — | `PATCH /api/v1/users/{id}` уходит без `If-Match` (в `UserDto` нет `etag`) |
-| `fullstack-next` | — | форма аватара предлагает WebP, бэкенд его отклоняет (`invalid_image`) |
+| `frontend-main` | — | форма аватара предлагает WebP, бэкенд его отклоняет (`invalid_image`) |
 
 ## 11. Журнал версий
 

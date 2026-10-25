@@ -2,11 +2,8 @@
 
 Reference implementation of a small but production-shaped web application:
 
-- **Frontends** – two Vite + React 19 + TypeScript applications: `frontend-antd/` with Ant Design 6
-  and MobX, `frontend-mui/` with Material UI 7 and Redux Toolkit. Both render the same screens and
-  talk to the same backend.
-- **Full stack app** – `fullstack-next/`, a Next.js 16 application on its own domain. It is still the
-  stock `create-next-app` scaffold; the edge, TLS and compose wiring around it is in place.
+- **App** – `frontend-main/`, a Next.js 16 + React 19 + TypeScript application with Ant Design 6,
+  served on the canonical domain and on its own domain.
 - **Backend** – Spring Boot 4.1 / Java 21, a classic REST JSON API (`PageResult{items,total,page,size}`,
   query parameters for search and sorting, `If-Match`/`ETag` for concurrency).
 - **Database** – PostgreSQL 17 with Flyway migrations.
@@ -57,10 +54,9 @@ administrators additionally manage all files and the role assignment of all acco
 ```
                             ┌──────────────────────────────────────────────┐
    browser  ──────────────► │ edge (nginx, 80 + 443)                       │
-                            │  user-kit.local       /       → frontend-antd│
+                            │  user-kit.local       /       → frontend-main│
                             │  user-kit.local       /api/, /auth/          │
-                            │  user-kit.mui.local   /       → frontend-mui │
-                            │  user-kit.next.local  /       → fullstack-next│
+                            │  user-kit.next.local  /       → frontend-main│
                             │  user-kit.kibana.local/       → kibana        │
                             │  /api/v1/, /v3/api-docs, /swagger-ui → backend│
                             │  /healthz                     → answered here │
@@ -85,7 +81,7 @@ administrators additionally manage all files and the role assignment of all acco
 The frontends never talk to the database or the object storage directly; every read and write goes
 through the backend, which owns authorization, validation and the mapping from entities to DTOs. The
 session cookies are scoped to the host, so each domain keeps its own login; the identity provider
-lives on the canonical domain only and the others redirect `/auth` to it.
+lives on the canonical domain only and the other application domain redirects `/auth` to it.
 
 ## Quick start
 
@@ -99,18 +95,18 @@ pwsh ./scripts/generate-dev-cert.ps1 # creates a self-signed certificate for all
 docker compose up -d --build
 ```
 
-The stack serves three applications: `SERVER_NAME` (default `user-kit.local`, Ant Design, canonical),
-`SERVER_NAME_MUI` (default `user-kit.mui.local`, Material UI) and `SERVER_NAME_NEXT` (default
-`user-kit.next.local`, Next.js). They all talk to the same backend but keep their own sessions,
-because the cookies are scoped to the host. `SERVER_NAME_KIBANA` (default `user-kit.kibana.local`)
+The stack serves the application on two domains: `SERVER_NAME` (default `user-kit.local`, canonical,
+hosts `/auth`) and `SERVER_NAME_NEXT` (default `user-kit.next.local`, Next.js). They talk to the same
+backend but keep their own sessions, because the cookies are scoped to the host.
+`SERVER_NAME_KIBANA` (default `user-kit.kibana.local`)
 puts the log UI behind the same TLS edge. Add all names to
 `C:\Windows\System32\drivers\etc\hosts` (Windows) or `/etc/hosts` (Linux/macOS):
 
 ```
-127.0.0.1 user-kit.local user-kit.mui.local user-kit.next.local user-kit.kibana.local
+127.0.0.1 user-kit.local user-kit.next.local user-kit.kibana.local
 ```
 
-Open <https://user-kit.local>, <https://user-kit.mui.local>, <https://user-kit.next.local> or
+Open <https://user-kit.local>, <https://user-kit.next.local> or
 <https://user-kit.kibana.local> and accept the self-signed certificate. Because the development
 certificate is not issued by a trusted CA, every `curl` example in this repository uses `-k`.
 
@@ -131,9 +127,9 @@ database and hands the browser two httpOnly cookies. The frontend bundle contain
 provider configuration and no token, which is why the login has no mode to choose. A login always
 returns to the domain it started on: the backend picks the callback of that origin from
 `OIDC_CLIENT_REDIRECT_URIS` and stores it in the login state, so the token exchange sends the same
-`redirect_uri` the provider saw. What the bundle does carry is configured at build time: Vite inlines
-the `VITE_*` variables into the bundle and Compose passes them as build arguments, for example
-`VITE_ANTD_THEME`, `VITE_MUI_THEME` and `VITE_DEFAULT_LOCALE`. Setting `DEV_AUTH_ENABLED=false`
+`redirect_uri` the provider saw. What the bundle does carry is configured at build time: Next.js
+inlines the `NEXT_PUBLIC_*` variables into the bundle and Compose passes them as build arguments, for
+example `NEXT_PUBLIC_API_BASE_URL`. Setting `DEV_AUTH_ENABLED=false`
 removes the local login; the login dialog of Keycloak then is the only way in.
 
 For the local login the backend offers a second method next to the dialog. With `DEV_AUTH_ENABLED=true`
@@ -142,9 +138,8 @@ token in a cookie, no password involved.
 
 | URL                                                | Description                                                                |
 | -------------------------------------------------- | -------------------------------------------------------------------------- |
-| <https://user-kit.local/>                          | Ant Design application, the canonical domain                               |
-| <https://user-kit.mui.local/>                      | Material UI application                                                    |
-| <https://user-kit.next.local/>                     | Next.js full stack application                                             |
+| <https://user-kit.local/>                          | The application, the canonical domain                                      |
+| <https://user-kit.next.local/>                     | The application on its own domain                                         |
 | <https://user-kit.kibana.local/>                   | Kibana, the log exploration UI of the logging stack                        |
 | <https://user-kit.local/auth/>                     | Keycloak, the identity provider of the stack, only on the canonical domain |
 | <https://user-kit.local/swagger-ui/index.html>     | Swagger UI                                                                 |
@@ -250,47 +245,23 @@ docker compose up -d postgres object-storage
 ### Frontend
 
 ```bash
-cd frontend-antd                # or frontend-mui
-npm ci
-cp .env.example .env.local      # VITE_API_BASE_URL only, the login lives in the backend
-npm run dev                    # frontend-antd: http://localhost:5174
-                               # frontend-mui:  http://localhost:5175
-```
-
-The dev server proxies `/api` to `http://localhost:8080`, so the browser only talks to one origin. The
-login round trip goes through the backend, so `OIDC_CLIENT_REDIRECT_URIS` must contain
-`http://localhost:5174/api/v1/auth/callback` (respectively `:5175`) for that setup, otherwise the
-provider rejects the redirect after the login form. The proxy keeps the `Origin` header of
-`http://localhost:5174`, and the `dev` profile of the backend allows that origin by default through
-`app.cors.allowed-origins`. Set `CORS_ALLOWED_ORIGINS` when the proxy points somewhere else.
-
-| Script                                    | Purpose                                                             |
-| ----------------------------------------- | ------------------------------------------------------------------- |
-| `npm run dev`                             | Vite dev server with hot reload                                     |
-| `npm run lint` / `npm run lint:fix`       | ESLint 9 flat config, includes the Feature Sliced Design boundaries |
-| `npm run format` / `npm run format:check` | Prettier                                                            |
-| `npm run typecheck`                       | `tsc --noEmit`                                                      |
-| `npm run build`                           | typecheck + production build into `dist/`                           |
-| `npm test`                                | Vitest single run                                                   |
-| `npm run test:watch`                      | Vitest in watch mode                                                |
-| `npm run test:coverage`                   | Vitest with V8 coverage, writes `coverage/lcov.info`                |
-| `npm run check`                           | format:check + lint + typecheck + test                              |
-
-The sources follow [Feature Sliced Design](https://feature-sliced.design) (`src/app`, `src/pages`,
-`src/widgets`, `src/features`, `src/entities`, `src/shared`). The Ant Design application keeps its
-state in MobX stores, the Material UI application uses Redux Toolkit slices; both are explained in
-[docs/frontend.md](docs/frontend.md).
-
-### Full stack Next.js
-
-```bash
-cd fullstack-next
+cd frontend-main
 corepack enable
 pnpm install
 pnpm dev                       # http://localhost:3000
 ```
 
-The Docker image is built from the same folder with `output: "standalone"` and runs `node server.js`.
+The dev server is served by Next.js itself; the API is reached at the same origin when the stack
+runs behind the edge, or directly at `http://localhost:8080` when the backend runs as a local
+process (`NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 pnpm dev`). The login round trip goes
+through the backend, so `OIDC_CLIENT_REDIRECT_URIS` must contain
+`http://localhost:3000/api/v1/auth/callback` for that setup, otherwise the provider rejects the
+redirect after the login form, and `app.cors.allowed-origins` of the dev profile allows that origin
+by default (`CORS_ALLOWED_ORIGINS` overrides it).
+
+The sources follow [Feature Sliced Design](https://feature-sliced.design) (`src/app`, `src/pages`,
+`src/widgets`, `src/features`, `src/entities`, `src/shared`), see
+[docs/frontend.md](docs/frontend.md).
 
 ### Backend
 
@@ -367,15 +338,11 @@ export DEV_AUTH_SECRET=dev-only-secret-change-me-0123456789abcdef
 
 | Variable              | Default | Description                                          |
 | --------------------- | ------- | ---------------------------------------------------- |
-| `VITE_API_BASE_URL`   | empty   | Empty means same origin; used for split deployments  |
-| `VITE_ANTD_THEME`     | `light` | Ant Design theme alias of the canonical frontend     |
-| `VITE_MUI_THEME`      | `light` | Material UI theme alias of the second frontend       |
-| `VITE_DEFAULT_LOCALE` | `ru`    | `ru` or `en`, the user can switch the language       |
-| `VITE_DEV_ROLE`       | `user`  | Role requested by the local login of the dev profile |
+| `VITE_API_BASE_URL`   | empty   | Build argument of `NEXT_PUBLIC_API_BASE_URL`; empty means same origin |
 
 The frontend has no identity provider configuration: the backend reports the available login methods
-through `GET /api/v1/auth/config`. Because Vite inlines these variables, a change requires
-`docker compose up -d --build frontend-antd frontend-mui`.
+through `GET /api/v1/auth/config`. Because Next.js inlines these variables, a change requires
+`docker compose up -d --build frontend-main`.
 
 ## API overview
 
@@ -422,9 +389,8 @@ Details and examples are in [`docs/api.md`](docs/api.md).
 docker run --rm -v userkit-m2:/root/.m2 -v "$PWD/backend:/workspace" -w /workspace \
   maven:3.9-eclipse-temurin-21 mvn -B -ntp clean test
 
-# frontends: lint, formatting, typecheck, unit tests and the production build
-cd frontend-antd && npm run check && npm run build
-cd ../frontend-mui && npm run check && npm run build
+# frontend: lint, typecheck, unit tests and the production build
+cd frontend-main && pnpm lint && pnpm build
 ```
 
 ## Repository layout
@@ -439,9 +405,7 @@ user-kit/
 │       │                   out/storage, out/identity, out/dev
 │       ├── config/         security, JWT/OIDC/S3 wiring, properties
 │       └── UserKitApplication.java
-├── frontend-antd/          Vite + React 19 + TypeScript + MobX + Ant Design (canonical)
-├── frontend-mui/           Vite + React 19 + TypeScript + Redux Toolkit + Material UI
-├── fullstack-next/         Next.js 16 application, standalone output
+├── frontend-main/         Next.js 16 application with antd, standalone output
 ├── nginx/                  edge template and certificates directory
 ├── keycloak/realm/         realm import of the local identity provider
 ├── scripts/                development helper scripts
@@ -450,16 +414,16 @@ user-kit/
 └── .env.example            template for local configuration
 ```
 
-Both Vite frontends follow Feature Sliced Design inside `src/`:
+The application follows Feature Sliced Design inside `src/`:
 
 ```
-frontend-antd/src/
-├── app/            composition root, services, error boundary
+frontend-main/src/
+├── app/            composition root, routes
 ├── pages/          documents, login, users
 ├── widgets/        app shell, documents and users table
-├── features/       auth, upload, download, role, theme and locale switch
+├── features/       auth, upload, download, role, games
 ├── entities/       user and file domain with their REST API calls
-└── shared/         http client, configuration, i18n, hooks, format, router, UI
+└── shared/         http client, configuration, i18n, hooks, format, UI
 ```
 
 ## Documentation
@@ -473,10 +437,6 @@ frontend-antd/src/
 
 ## Limitations
 
-- The Next.js application is still the default `create-next-app` scaffold; it is served correctly but
-  does not implement any screens yet.
-- The React frontends run one state library each (MobX in `frontend-antd`, Redux Toolkit in
-  `frontend-mui`); there is no single shared UI package, so library specific parts are duplicated.
 - The OIDC provider is the local Keycloak of the compose stack; a production setup must point
   `OIDC_ISSUER_URI` and `KEYCLOAK_HOSTNAME` at a real realm.
 - The development certificate is self-signed; use a trusted certificate in production.

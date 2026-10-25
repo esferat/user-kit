@@ -8,7 +8,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-# AGENTS.md — fullstack-next
+# AGENTS.md — frontend-main
 
 Next.js 16.4 (Turbopack), React 19.3, antd 6, three.js 0.186, Phaser 4. Пакетный менеджер — **pnpm**
 (`pnpm-workspace.yaml` в корне проекта). Домен в стенде: `https://user-kit.next.local`.

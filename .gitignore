@@ -8,25 +8,11 @@ nginx/certs/*
 !nginx/certs/.gitkeep
 
 # Frontend
-frontend-antd/node_modules
-frontend-antd/dist
-frontend-antd/coverage
-frontend-antd/.vite
-frontend-antd/.env
-frontend-antd/.env.local
-frontend-antd/.env.*.local
-frontend-mui/node_modules
-frontend-mui/dist
-frontend-mui/coverage
-frontend-mui/.vite
-frontend-mui/.env
-frontend-mui/.env.local
-frontend-mui/.env.*.local
-fullstack-next/node_modules
-fullstack-next/.next
-fullstack-next/.env
-fullstack-next/.env.local
-fullstack-next/.env.*.local
+frontend-main/node_modules
+frontend-main/.next
+frontend-main/.env
+frontend-main/.env.local
+frontend-main/.env.*.local
 
 # Backend
 backend/target

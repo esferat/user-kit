@@ -1,7 +1,6 @@
 param(
     [string]$ServerName = $(if ($env:SERVER_NAME) { $env:SERVER_NAME } else { 'user-kit.local' }),
     [string]$AltServerName = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.local' }),
-    [string]$MuiServerName = $(if ($env:SERVER_NAME_MUI) { $env:SERVER_NAME_MUI } else { 'user-kit.mui.local' }),
     [string]$NextServerName = $(if ($env:SERVER_NAME_NEXT) { $env:SERVER_NAME_NEXT } else { 'user-kit.next.local' }),
     [string]$KibanaServerName = $(if ($env:SERVER_NAME_KIBANA) { $env:SERVER_NAME_KIBANA } else { 'user-kit.kibana.local' }),
     [string]$Address = '127.0.0.1',
@@ -27,21 +26,18 @@ param(
 # enabled with DEV_AUTH_ENABLED=true.
 #
 # $ServerName is the canonical domain: it hosts the identity provider and the
-# first frontend. $AltServerName is the second frontend, $MuiServerName the third
-# and $NextServerName the Next.js application, all three reach the provider only
-# through a redirect. $KibanaServerName is the reverse proxy in front of the log
-# UI. The last blocks check that every domain keeps its own login.
+# application. $AltServerName and $NextServerName reach the provider only through
+# a redirect. $KibanaServerName is the reverse proxy in front of the log UI. The
+# last blocks check that every domain keeps its own login.
 
 $ErrorActionPreference = 'Stop'
 $base = "https://$ServerName"
 $altBase = "https://$AltServerName"
-$muiBase = "https://$MuiServerName"
 $nextBase = "https://$NextServerName"
 $kibanaBase = "https://$KibanaServerName"
 $resolve = @(
     '--resolve', "${ServerName}:443:${Address}",
     '--resolve', "${AltServerName}:443:${Address}",
-    '--resolve', "${MuiServerName}:443:${Address}",
     '--resolve', "${NextServerName}:443:${Address}",
     '--resolve', "${KibanaServerName}:443:${Address}",
     '-s')
@@ -438,11 +434,10 @@ function Test-KibanaDomain {
 }
 
 Write-Host ''
-Write-Host "Additional application domains: $altBase, $muiBase, $nextBase, $kibanaBase" -ForegroundColor Cyan
+Write-Host "Additional application domains: $altBase, $nextBase, $kibanaBase" -ForegroundColor Cyan
 Write-Host ''
 
 Test-ApplicationDomain $AltServerName $altBase
-Test-ApplicationDomain $MuiServerName $muiBase
 Test-NextDomain $NextServerName $nextBase
 Test-KibanaDomain $KibanaServerName $kibanaBase
 

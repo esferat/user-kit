@@ -1,6 +1,6 @@
 # AGENTS.md — user-kit
 
-Монорепозиторий: три фронтенда, один REST-бэкенд, локальная инфраструктура (Keycloak, PostgreSQL,
+Монорепозиторий: одно Next.js-приложение, один REST-бэкенд, локальная инфраструктура (Keycloak, PostgreSQL,
 S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/Logstash). Приложение управляет
 **файлами**: загрузка, список, скачивание, аватар, администрирование пользователей.
 
@@ -12,9 +12,7 @@ S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/L
 | Путь | Стек | Назначение |
 | --- | --- | --- |
 | `backend/` | Spring Boot 4.1.1, Java 21, Maven, Flyway, PostgreSQL, гексагональная архитектура | REST API `/api/v1`, OAuth-клиент, файловое хранилище |
-| `frontend-antd/` | Vite 8, React 19, Ant Design 6, MobX | Канонический SPA на `user-kit.local` |
-| `frontend-mui/` | Vite 8, React 19, Material UI 7, Redux Toolkit | Второй SPA на `user-kit.mui.local` |
-| `fullstack-next/` | Next.js 16.4, React 19, antd 6, three.js, Phaser | Полноценное приложение на `user-kit.next.local` (профиль, админка, игры) |
+| `frontend-main/` | Next.js 16.4, React 19, antd 6, three.js, Phaser | Единственное приложение: `user-kit.local` и `user-kit.next.local` (профиль, админка, игры) |
 | `nginx/` | nginx 1.27 | TLS-edge: терминация, редирект, прокси |
 | `keycloak/realm/` | Keycloak 26 | Импорт realm'а локального IdP |
 | `logstash/` | Logstash | Доставка логов backend/Keycloak/nginx в Elasticsearch |
@@ -25,13 +23,12 @@ S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/L
 
 | Домен | Что отдаёт |
 | --- | --- |
-| `https://user-kit.local` | frontend-antd + `/api/`, `/auth/` (Keycloak), `/healthz` |
-| `https://user-kit.mui.local` | frontend-mui |
-| `https://user-kit.next.local` | fullstack-next |
+| `https://user-kit.local` | frontend-main + `/api/`, `/auth/` (Keycloak), `/healthz` |
+| `https://user-kit.next.local` | frontend-main (без `/auth`, он редиректится на канонический домен) |
 | `https://user-kit.kibana.local` | Kibana |
 
 Порты: edge `80/443`, backend `8080`, Keycloak `8180`, PostgreSQL `5432`, Silo `9001`,
-Elasticsearch `9200`, Kibana `5601`; dev-серверы: vite `5174`/`5175`, next `3000`.
+Elasticsearch `9200`, Kibana `5601`; dev-сервер: next `3000`.
 
 ## Команды
 
@@ -43,7 +40,7 @@ cp .env.example .env                  # конфигурация окружен�
 ```
 
 Локальная разработка (сервисы в Docker, код из исходников) — см. README, раздел «Local development»:
-`docker compose up -d postgres object-storage`, затем `pnpm dev` (next), `npm run dev` (vite),
+`docker compose up -d postgres object-storage`, затем `pnpm dev` (next),
 `mvn spring-boot:run -Dspring-boot.run.profiles=dev` (backend).
 
 ## Общие правила
@@ -54,11 +51,11 @@ cp .env.example .env                  # конфигурация окружен�
 - **Формат ответов API:** коллекции — `PageResult{items,total,page,size}`, параметры `page`, `size`,
   `search`, `sort`; конкурентные изменения — `If-Match`/`ETag`; ошибка — единый JSON
   `{timestamp,status,code,message,path,violations}`.
-- **Vite-фронтенды следуют Feature Sliced Design**
-  (`app → pages → widgets → features → entities → shared`). Границы слоёв проверяет их ESLint:
-  слой не импортирует выше себя, чужие слайсы — только через публичный API (`index.ts`), глубокие
-  импорты запрещены. В `fullstack-next` та же раскладка, но без автопроверки — держи руками.
-- **Версии зафиксированы:** Next 16, React 19, antd 6, Vite 8, Spring Boot 4.1, Java 21,
+- **`frontend-main` следует Feature Sliced Design**
+  (`app → pages → widgets → features → entities → shared`). Границы слоёв ESLint не проверяет —
+  держи руками: слой не импортирует выше себя, чужие слайсы — только через публичный API
+  (`index.ts`), глубокие импорты запрещены.
+- **Версии зафиксированы:** Next 16, React 19, antd 6, Spring Boot 4.1, Java 21,
   PostgreSQL 17, Elasticsearch 8.15. Не обновляй major-версии без запроса.
 - **Бэкенд — гексагональная архитектура:** `domain/` (чистый Java, порты) → `application/`
   (use cases) → `adapters/` (JPA, S3, OIDC, REST). Зависимости только внутрь; подробности в
@@ -74,8 +71,8 @@ cp .env.example .env                  # конфигурация окружен�
 
 - Сертификат самоподписанный → для `curl` нужен `-k`, в браузере — «принять и перейти».
 - Имена доменов должны быть в `C:\Windows\System32\drivers\etc\hosts` (или `/etc/hosts`).
-- `VITE_*` и `NEXT_PUBLIC_*` инлайнятся **на этапе сборки** — после правки переменной нужен
-  `docker compose up -d --build frontend-antd frontend-mui`.
+- `NEXT_PUBLIC_*` инлайнится **на этапе сборки** — после правки переменной нужен
+  `docker compose up -d --build frontend-main`.
 - Логи: Kibana, индексы `user-kit-backend-*`, `user-kit-keycloak-*`, `user-kit-nginx-*`.
 
 ## Проверка перед сдачей
@@ -83,10 +80,9 @@ cp .env.example .env                  # конфигурация окружен�
 | Область | Команда |
 | --- | --- |
 | backend | `docker run --rm -v userkit-m2:/root/.m2 -v "$PWD/backend:/workspace" -w /workspace maven:3.9-eclipse-temurin-21 mvn -B -ntp clean test` (с `clean`: без него сборка может пройти по устаревшим классам) |
-| frontend-antd / frontend-mui | `npm run check && npm run build` (format:check → lint → typecheck → vitest) |
-| fullstack-next | `pnpm lint`, `pnpm build` (tsc проверяется при сборке) |
+| frontend-main | `pnpm lint`, `pnpm build` (tsc проверяется при сборке) |
 | весь стек | `pwsh ./scripts/smoke.ps1` |
 
-Игры в `fullstack-next/src/features/*` (lines, match3) **не имеют тестов в репозитории** — их
+Игры в `frontend-main/src/features/*` (lines, match3) **не имеют тестов в репозитории** — их
 проверяют временными harness'ами на esbuild + puppeteer (логика движка выносится в чистые
 модули `game/engine.ts`, `game/*Storage.ts`, которые тестируются без браузера).

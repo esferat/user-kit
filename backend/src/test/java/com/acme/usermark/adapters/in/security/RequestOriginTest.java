@@ -13,11 +13,11 @@ class RequestOriginTest {
     void readsForwardedHeaders() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-Forwarded-Proto", "https");
-        request.addHeader("X-Forwarded-Host", "user-kit.mui.local");
+        request.addHeader("X-Forwarded-Host", "app.example.local");
         request.setServerName("backend");
         request.setServerPort(8080);
 
-        assertThat(RequestOrigin.of(request)).isEqualTo("https://user-kit.mui.local");
+        assertThat(RequestOrigin.of(request)).isEqualTo("https://app.example.local");
     }
 
     @Test
@@ -25,9 +25,9 @@ class RequestOriginTest {
     void readsFirstEntryOfChain() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-Forwarded-Proto", "https, http");
-        request.addHeader("X-Forwarded-Host", "user-kit.mui.local, internal");
+        request.addHeader("X-Forwarded-Host", "app.example.local, internal");
 
-        assertThat(RequestOrigin.of(request)).isEqualTo("https://user-kit.mui.local");
+        assertThat(RequestOrigin.of(request)).isEqualTo("https://app.example.local");
     }
 
     @Test
@@ -42,13 +42,13 @@ class RequestOriginTest {
     }
 
     @Test
-    @DisplayName("keeps the port of a development frontend")
+    @DisplayName("keeps the port of a development server")
     void keepsNonDefaultPort() {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("Host", "localhost:5174");
+        request.addHeader("Host", "localhost:3000");
         request.setScheme("http");
 
-        assertThat(RequestOrigin.of(request)).isEqualTo("http://localhost:5174");
+        assertThat(RequestOrigin.of(request)).isEqualTo("http://localhost:3000");
     }
 
     @Test
@@ -56,9 +56,9 @@ class RequestOriginTest {
     void normalizesCase() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-Forwarded-Proto", "HTTPS");
-        request.addHeader("X-Forwarded-Host", "User-Kit.Mui.Local");
+        request.addHeader("X-Forwarded-Host", "App.Example.Local");
 
-        assertThat(RequestOrigin.of(request)).isEqualTo("https://user-kit.mui.local");
+        assertThat(RequestOrigin.of(request)).isEqualTo("https://app.example.local");
     }
 
     @Test

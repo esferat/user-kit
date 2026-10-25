@@ -12,9 +12,7 @@ docker compose ps
 | Service          | Image                                       | Ports                       | Purpose                                                                      |
 | ---------------- | ------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------- |
 | `edge`           | `nginx:1.27-alpine`                         | 80, 443                     | TLS termination, reverse proxy, headers, the host names of all domains, access/error log files |
-| `frontend-antd`  | built from `frontend-antd/`                 | internal 80                 | static Ant Design assets, canonical domain                                   |
-| `frontend-mui`   | built from `frontend-mui/`                  | internal 80                 | static Material UI assets, second domain                                     |
-| `fullstack-next` | built from `fullstack-next/`                | internal 3000               | Next.js standalone server, third domain                                      |
+| `frontend-main` | built from `frontend-main/`                | internal 3000               | Next.js standalone server, canonical and second domain                    |
 | `backend`        | built from `backend/`                       | 8080                        | REST service                                                                 |
 | `keycloak`       | built from `keycloak/`                      | 8180, internal 8080         | identity provider, realm `user-kit`, writes its file log                     |
 | `postgres`       | `postgres:17-alpine`                        | internal 5432               | database with Flyway migrations                                              |
@@ -49,8 +47,8 @@ HTTPS with 308.
 ### Development certificate
 
 ```bash
-pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME, SERVER_NAME_MUI, SERVER_NAME_NEXT and SERVER_NAME_KIBANA
-pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -MuiDomain app2.local -NextDomain app3.local -KibanaDomain app4.local -Days 30
+pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME, SERVER_NAME_NEXT and SERVER_NAME_KIBANA
+pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -NextDomain app3.local -KibanaDomain app4.local -Days 30
 ```
 
 The script runs `alpine/openssl` in Docker, so no OpenSSL installation is needed. The certificate
@@ -80,9 +78,8 @@ included challenge location, mount the webroot of the certificate client into
 
 | Variable                                                    | Default                                                  | Purpose                                                                                      |
 | ----------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `SERVER_NAME`                                               | `user-kit.local`                                     | canonical `server_name`, hosts the Ant Design frontend and `/auth`                           |
-| `SERVER_NAME_MUI`                                           | `user-kit.mui.local`                                     | `server_name` of the Material UI frontend, `/auth` redirects to the canonical domain         |
-| `SERVER_NAME_NEXT`                                          | `user-kit.next.local`                                    | `server_name` of the Next.js frontend, `/auth` redirects to the canonical domain             |
+| `SERVER_NAME`                                               | `user-kit.local`                                     | canonical `server_name`, hosts the application and `/auth`                                   |
+| `SERVER_NAME_NEXT`                                          | `user-kit.next.local`                                    | `server_name` of the second application domain, `/auth` redirects to the canonical domain     |
 | `SERVER_NAME_KIBANA`                                        | `user-kit.kibana.local`                                  | `server_name` that reverse proxies Kibana, has no application routes of its own              |
 | `HTTP_PORT` / `HTTPS_PORT`                                  | `80` / `443`                                             | published ports of the edge                                                                  |
 | `MAX_UPLOAD_SIZE`                                           | `26m`                                                    | nginx `client_max_body_size`                                                                 |
@@ -114,18 +111,16 @@ included challenge location, mount the webroot of the certificate client into
 | `OIDC_CLIENT_ID`                                            | `user-kit-bff`                                           | confidential client of the realm                                                             |
 | `OIDC_CLIENT_SECRET`                                        | dev-only value                                           | client secret, change it for production                                                      |
 | `OIDC_CLIENT_ISSUER_URI`                                    | `http://keycloak:8080/auth/realms/user-kit`              | URL used for discovery, keep it while the public issuer is not reachable from the backend    |
-| `VITE_DEV_ROLE`                                             | `admin`                                                  | build argument, role used by the local dev login                                             |
-| `VITE_ANTD_THEME`                                           | `light`                                                  | build argument of the Ant Design frontend                                                    |
-| `VITE_MUI_THEME`                                            | `light`                                                  | build argument of the Material UI frontend                                                   |
-| `VITE_DEFAULT_LOCALE`                                       | `ru`                                                     | build argument, `ru` or `en`; the user can switch the language                               |
+| `VITE_API_BASE_URL`                                         | empty                                                    | build argument, becomes `NEXT_PUBLIC_API_BASE_URL` of the frontend                           |
 | `LOG_FILE`                                                  | `/var/log/user-kit/backend.log`                          | backend log file Logstash tails; empty keeps the console only                                |
 | `ELASTIC_VERSION`                                           | `8.15.3`                                                 | one image tag for Elasticsearch, Logstash and Kibana                                         |
 | `ELASTICSEARCH_PORT`                                        | `9200`                                                   | published Elasticsearch API port                                                             |
 | `KIBANA_PORT`                                               | `5601`                                                   | published Kibana UI port                                                                     |
 
-The `VITE_*` variables are build time configuration: Vite inlines them into the bundle and Compose
-forwards them as build arguments to the `frontend-antd` and `frontend-mui` images. A change therefore
-needs `docker compose up -d --build frontend-antd frontend-mui`, not a restart. Identity provider
+The `NEXT_PUBLIC_*` variables are build time configuration: Next.js inlines them into the bundle and
+Compose forwards them as build arguments (through `VITE_API_BASE_URL`) to the `frontend-main` image.
+A change therefore
+needs `docker compose up -d --build frontend-main`, not a restart. Identity provider
 settings are no longer part of the bundle: the backend owns the login and reports the available methods
 through `/api/v1/auth/config`, so a provider change is a restart of the backend.
 
@@ -170,7 +165,7 @@ and remove the `KIBANA_PORT` and `ELASTICSEARCH_PORT` mappings so only the edge 
 ## Production checklist
 
 - [ ] `SERVER_NAME` points to a real host and DNS resolves to the edge container;
-      `SERVER_NAME_MUI`, `SERVER_NAME_NEXT` and `SERVER_NAME_KIBANA` do the same for the other domains.
+      `SERVER_NAME_NEXT` and `SERVER_NAME_KIBANA` do the same for the other domains.
 - [ ] A trusted TLS certificate is mounted and covers all names, `ssl_stapling` is enabled if the
       issuer supports OCSP.
 - [ ] `SPRING_PROFILES_ACTIVE` is not `dev`, `DEV_AUTH_ENABLED=false`, `DEV_AUTH_SECRET` is random.
@@ -216,11 +211,10 @@ and the size cap), rejected input, optimistic locking, role administration and d
 line per check and exits with `1` if anything deviates from the expected status.
 
 ```bash
-pwsh ./scripts/smoke.ps1                                   # SERVER_NAME, SERVER_NAME_MUI, SERVER_NAME_NEXT, SERVER_NAME_KIBANA
+pwsh ./scripts/smoke.ps1                                   # SERVER_NAME, SERVER_NAME_NEXT, SERVER_NAME_KIBANA
 pwsh ./scripts/smoke.ps1 -ServerName app.local
-pwsh ./scripts/smoke.ps1 -MuiServerName app3.local          # second domain, must exist
-pwsh ./scripts/smoke.ps1 -NextServerName app4.local         # third domain, must exist
-pwsh ./scripts/smoke.ps1 -KibanaServerName app5.local       # log UI domain, must exist
+pwsh ./scripts/smoke.ps1 -NextServerName app3.local         # second domain, must exist
+pwsh ./scripts/smoke.ps1 -KibanaServerName app4.local       # log UI domain, must exist
 pwsh ./scripts/smoke.ps1 -SkipCertificateCheck             # only with a trusted certificate
 pwsh ./scripts/smoke.ps1 -AuthMode oidc                    # tokens from the identity provider
 pwsh ./scripts/smoke.ps1 -AuthMode dev                      # tokens from /api/v1/dev/token

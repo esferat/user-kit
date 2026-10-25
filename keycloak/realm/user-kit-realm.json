@@ -290,26 +290,16 @@
       "baseUrl": "/",
       "redirectUris": [
         "https://user-kit.local/api/v1/auth/callback",
-        "https://user-kit.local/api/v1/auth/callback",
-        "https://user-kit.mui.local/api/v1/auth/callback",
-        "http://localhost:5174/api/v1/auth/callback",
-        "http://localhost:5174/api/v1/auth/callback",
-        "http://localhost:5175/api/v1/auth/callback",
         "https://user-kit.next.local/api/v1/auth/callback",
         "http://localhost:3000/api/v1/auth/callback"
       ],
       "webOrigins": [
         "https://user-kit.local",
-        "https://user-kit.local",
-        "https://user-kit.mui.local",
-        "http://localhost:5174",
-        "http://localhost:5174",
-        "http://localhost:5175",
         "https://user-kit.next.local",
         "http://localhost:3000"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "https://user-kit.local/*##https://user-kit.local/*##https://user-kit.mui.local/*##http://localhost:5174/*##http://localhost:5174/*##http://localhost:5175/*##https://user-kit.next.local/*##http://localhost:3000/*",
+        "post.logout.redirect.uris": "https://user-kit.local/*##https://user-kit.next.local/*##http://localhost:3000/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.session.required": "true"
       },

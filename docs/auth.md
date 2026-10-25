@@ -129,7 +129,7 @@ merged in that order. Entries are lower cased and trimmed, unknown values are ig
 collapses to `["admin"]`. A token without any recognised role receives the base `user` role, so a wrong
 claim mapping can never lock a user out completely and can never escalate privileges.
 
-`frontend-antd/src/entities/user/model/roles.ts` implements the same order for the UI, so the navigation and the API
+`frontend-main/src/entities/user/model/roles.ts` implements the same order for the UI, so the navigation and the API
 agree on the role of the session.
 
 ### Provider setup (Keycloak)
@@ -224,8 +224,7 @@ issuer that no client can reach:
 | Variable                 | Default                           | Meaning                                                                  |
 | ------------------------ | --------------------------------- | ------------------------------------------------------------------------ |
 | `SERVER_NAME`            | `user-kit.local`              | canonical public host of the edge container, the one that serves `/auth` |
-| `SERVER_NAME_MUI`        | `user-kit.mui.local`              | second public host, its `/auth` redirects to the canonical domain        |
-| `SERVER_NAME_NEXT`       | `user-kit.next.local`             | third public host, its `/auth` redirects to the canonical domain         |
+| `SERVER_NAME_NEXT`       | `user-kit.next.local`             | second public host, its `/auth` redirects to the canonical domain         |
 | `KEYCLOAK_RELATIVE_PATH` | `/auth`                           | prefix below `SERVER_NAME`                                               |
 | `KEYCLOAK_HOSTNAME`      | `https://user-kit.local/auth` | public base URL of Keycloak, **including** the prefix                    |
 
@@ -318,13 +317,12 @@ first administrator. Afterwards roles can be maintained through `PATCH /api/v1/u
 
 ## Frontend behaviour
 
-- `frontend-antd/src/features/auth/cookie/cookieAuthProvider.ts` is the only provider: it reads
+- `frontend-main/src/features/auth/cookie/cookieAuthProvider.ts` is the only provider: it reads
   `/api/v1/auth/config`, navigates to `/api/v1/auth/login` (or `/api/v1/auth/register` for the
   registration button) and calls `/api/v1/auth/dev-login` when the backend offers the local login.
-  `frontend-mui` mirrors it.
-- `frontend-*/src/shared/api/http.ts` sends every request with `credentials: 'include'` and adds
+- `frontend-main/src/shared/api/http.ts` sends every request with `credentials: 'include'` and adds
   `X-XSRF-TOKEN` for unsafe methods. It never attaches an `Authorization` header.
-- `frontend-*/src/entities/user/model/roles.ts` maps claims to the two roles, mirroring the backend, so both sides
+- `frontend-main/src/entities/user/model/roles.ts` maps claims to the two roles, mirroring the backend, so both sides
   agree on what `admin` means.
 - There is no silent renew in the frontend: the backend refreshes before the token expires. A rejected
   refresh makes `/api/v1/me` answer `401`, which brings the login screen back.
