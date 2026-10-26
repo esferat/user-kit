@@ -1,0 +1,21 @@
+{
+  "extends": "@modern-js/tsconfig/base",
+  "compilerOptions": {
+    "target": "esnext",
+    "types": ["@modern-js/app-tools/types", "node"],
+    "declaration": false,
+    "jsx": "preserve",
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@shared/*": ["./shared/*"],
+      "@entities/*": ["./src/entities/*"],
+      "@features/*": ["./src/features/*"],
+      "@widgets/*": ["./src/widgets/*"],
+      "@api/*": ["./api/lambda/*"],
+      "*": ["./@mf-types/*"]
+    }
+  },
+  "include": ["src", "shared", "api", "modern.config.ts", "module-federation.config.ts"],
+  "exclude": ["**/node_modules"]
+}

@@ -2,6 +2,7 @@ param(
     [string]$ServerName = $(if ($env:SERVER_NAME) { $env:SERVER_NAME } else { 'user-kit.local' }),
     [string]$AltServerName = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.local' }),
     [string]$NextServerName = $(if ($env:SERVER_NAME_NEXT) { $env:SERVER_NAME_NEXT } else { 'user-kit.next.local' }),
+    [string]$ProfileServerName = $(if ($env:SERVER_NAME_PROFILE) { $env:SERVER_NAME_PROFILE } else { 'user-kit.profile.local' }),
     [string]$KibanaServerName = $(if ($env:SERVER_NAME_KIBANA) { $env:SERVER_NAME_KIBANA } else { 'user-kit.kibana.local' }),
     [string]$Address = '127.0.0.1',
     [switch]$SkipCertificateCheck,
@@ -27,18 +28,21 @@ param(
 #
 # $ServerName is the canonical domain: it hosts the identity provider and the
 # application. $AltServerName and $NextServerName reach the provider only through
-# a redirect. $KibanaServerName is the reverse proxy in front of the log UI. The
-# last blocks check that every domain keeps its own login.
+# a redirect. $ProfileServerName is the profile microfrontend. $KibanaServerName
+# is the reverse proxy in front of the log UI. The last blocks check that every
+# domain keeps its own login.
 
 $ErrorActionPreference = 'Stop'
 $base = "https://$ServerName"
 $altBase = "https://$AltServerName"
 $nextBase = "https://$NextServerName"
+$profileBase = "https://$ProfileServerName"
 $kibanaBase = "https://$KibanaServerName"
 $resolve = @(
     '--resolve', "${ServerName}:443:${Address}",
     '--resolve', "${AltServerName}:443:${Address}",
     '--resolve', "${NextServerName}:443:${Address}",
+    '--resolve', "${ProfileServerName}:443:${Address}",
     '--resolve', "${KibanaServerName}:443:${Address}",
     '-s')
 if (-not $SkipCertificateCheck) {
@@ -183,25 +187,30 @@ Show 'GET /swagger-ui/index.html' (HttpCode @() "$base/swagger-ui/index.html")
 Show 'GET /api/v1/me without token' (HttpCode @() "$base/api/v1/me") '401'
 Show 'GET /api/v1/files without token' (HttpCode @() "$base/api/v1/files") '401'
 Show 'GET /api/v1/users as user' (HttpCode $U "$base/api/v1/users") '403'
+# The BFF of the profile microfrontend is proxied on the canonical domain too:
+# the Module Federation component renders here, where the session cookie lives.
+Show 'GET /profile-api/profile (microfrontend BFF)' (HttpCode @() "$base/profile-api/profile") '200'
 
-# The SPA bundle must not carry identity provider settings any more: the backend
-# owns the login, so the only thing the frontend needs is the API base URL.
+# The frontend is a Next.js application: index.html references chunks below
+# /_next/static instead of one bundle. That entry must not carry identity
+# provider settings any more: the backend owns the login, so the only thing the
+# frontend needs is the API base URL.
 $indexHtml = (Http @() "$base/") -join "`n"
-$entry = [regex]::Match($indexHtml, 'src="(?<src>/assets/index-[^"]+\.js)"').Groups['src'].Value
+$entry = [regex]::Match($indexHtml, 'src="(?<src>/_next/static/[^"]+\.js)"').Groups['src'].Value
 $bundlePath = Join-Path $env:TEMP 'user-kit-bundle.js'
 if ($entry) {
     Http @('-o', $bundlePath) "$base$entry" | Out-Null
     $bundle = [System.IO.File]::ReadAllText($bundlePath)
-    Show 'GET /assets/index-*.js (SPA bundle)' (HttpCode @() "$base$entry") ("bytes=" + $bundle.Length)
-    ShowCheck 'SPA bundle carries no identity provider' (-not $bundle.Contains($issuer))
-    ShowCheck 'SPA bundle carries no OIDC client library' (-not $bundle.Contains('oidc-client-ts'))
+    Show 'GET /_next/static/*.js (entry chunk)' (HttpCode @() "$base$entry") ("bytes=" + $bundle.Length)
+    ShowCheck 'entry chunk carries no identity provider' (-not $bundle.Contains($issuer))
+    ShowCheck 'entry chunk carries no OIDC client library' (-not $bundle.Contains('oidc-client-ts'))
 } else {
-    ShowCheck 'SPA entry script referenced by index.html' $false
+    ShowCheck 'entry script referenced by index.html' $false
 }
 
 # The backend tells the frontend which login methods it offers.
 $authConfig = (Http @() "$base/api/v1/auth/config") | ConvertFrom-Json
-Show 'GET /api/v1/auth/config' '200' ("mode=" + $authConfig.mode)
+ShowCheck 'GET /api/v1/auth/config answers with a mode' ([bool]$authConfig.mode) ("mode=" + $authConfig.mode)
 $expectedMode = if ($mode -eq 'oidc') { 'oidc' } elseif ($authConfig.devEnabled) { 'dev' } else { 'none' }
 ShowCheck 'auth config reports the expected mode' ($authConfig.mode -eq $expectedMode) ("mode=" + $authConfig.mode)
 ShowCheck 'auth config reports self registration' ($authConfig.registrationEnabled -eq ($authConfig.mode -eq 'oidc')) ("registrationEnabled=" + $authConfig.registrationEnabled)
@@ -210,7 +219,7 @@ Show 'GET /api/v1/auth/register starts the registration' (HttpCode @('-o', 'NUL'
 Show 'POST /api/v1/auth/logout without CSRF token' (HttpCode @('-X', 'POST', '-H', 'Content-Type: application/json', '--data-binary', '{}') "$base/api/v1/auth/logout") '403'
 
 $me = (Http $A "$base/api/v1/me") | ConvertFrom-Json
-Show 'GET /api/v1/me (admin token)' '200' ("roles=" + ($me.roles -join ',') + " id=" + $me.id)
+ShowCheck 'GET /api/v1/me (admin token)' ([bool]$me.id) ("roles=" + ($me.roles -join ',') + " id=" + $me.id)
 
 # The profile of the caller: the base data and the avatar, which the backend
 # normalizes and stores in the object storage as two PNG renditions.
@@ -287,7 +296,7 @@ try {
     Show 'GET /api/v1/files (REST list)' (HttpCode $A "$base/api/v1/files")
 
     $list = (Http $A "$base/api/v1/files?search=smoke&sort=-createdAt&page=0&size=5") | ConvertFrom-Json
-    Show 'GET /api/v1/files with search/sort/page/size' '200' ("total=" + $list.total + " returned=" + $list.items.Count)
+    ShowCheck 'GET /api/v1/files with search/sort/page/size' ($list.total -ge 1 -and $list.items.Count -ge 1) ("total=" + $list.total + " returned=" + $list.items.Count)
     ShowCheck 'page result echoes the requested page size' ($list.size -eq 5 -and $list.page -eq 0) ("page=" + $list.page + " size=" + $list.size)
     ShowCheck 'search result contains the uploaded file' (@($list.items | Where-Object { $_.id -eq $file.id }).Count -ge 1)
 
@@ -298,10 +307,10 @@ try {
 
     [System.IO.File]::WriteAllText($patchBody, '{"name":"renamed.txt","description":"renamed by the smoke test"}')
     $patched = (Http ($A + @('-H', 'Content-Type: application/json', '-H', 'If-Match: W/\"0\"', '-X', 'PATCH', '--data-binary', "@$patchBody")) "$base/api/v1/files/$($file.id)") | ConvertFrom-Json
-    Show 'PATCH /api/v1/files/{id} with If-Match' '200' ("name=" + $patched.name + " etag=" + $patched.etag)
+    ShowCheck 'PATCH /api/v1/files/{id} with If-Match renames the file' ($patched.name -eq 'renamed.txt') ("name=" + $patched.name + " etag=" + $patched.etag)
     Show 'PATCH /api/v1/files/{id} with a stale If-Match' (HttpCode ($A + @('-H', 'Content-Type: application/json', '-H', 'If-Match: W/\"999\"', '-X', 'PATCH', '--data-binary', "@$patchBody")) "$base/api/v1/files/$($file.id)") '412'
     $noMatch = (Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$patchBody")) "$base/api/v1/files/$($file.id)") | ConvertFrom-Json
-    Show 'PATCH /api/v1/files/{id} without If-Match' '200' ("etag=" + $noMatch.etag)
+    ShowCheck 'PATCH /api/v1/files/{id} without If-Match returns an etag' ([bool]$noMatch.etag) ("etag=" + $noMatch.etag)
     [System.IO.File]::WriteAllText($patchBody, '{"ownerId":"00000000-0000-0000-0000-000000000000"}')
     Show 'PATCH /api/v1/files/{id} read-only property' (HttpCode ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$patchBody")) "$base/api/v1/files/$($file.id)") '400'
     [System.IO.File]::WriteAllText($patchBody, '{"etag":"W/\"2\""}')
@@ -310,16 +319,19 @@ try {
     Show 'PATCH /api/v1/files/{id} unknown property' (HttpCode ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$patchBody")) "$base/api/v1/files/$($file.id)") '400'
 
     $content = ((Http $A "$base/api/v1/files/$($file.id)/content") -replace "`r?`n", '')
-    Show 'GET /api/v1/files/{id}/content' '200' ("content='" + $content + "'")
+    ShowCheck 'GET /api/v1/files/{id}/content returns the uploaded text' ($content -like '*hello*') ("content='" + $content + "'")
 
+    # The account of the second user has to exist before the administration
+    # endpoints can change it, so its owner calls the API once.
+    Http $U "$base/api/v1/me" | Out-Null
     $users = (Http $A "$base/api/v1/users?sort=email&page=0&size=100") | ConvertFrom-Json
-    Show 'GET /api/v1/users (admin)' '200' ("total=" + $users.total + " returned=" + $users.items.Count)
+    ShowCheck 'GET /api/v1/users (admin)' ($users.total -ge 1 -and $users.items.Count -ge 1) ("total=" + $users.total + " returned=" + $users.items.Count)
     ShowCheck 'user list contains the calling admin' (@($users.items | Where-Object { $_.id -eq $me.id }).Count -ge 1)
     Show 'GET /api/v1/users with an unknown sort' (HttpCode $A "$base/api/v1/users?sort=bogus") '400'
 
     [System.IO.File]::WriteAllText($rolesBody, '{"roles":["admin","user"]}')
     $promoted = (Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody")) "$base/api/v1/users/$($me.id)") | ConvertFrom-Json
-    Show 'PATCH /api/v1/users/{id} roles' '200' ("roles=" + ($promoted.roles -join ','))
+    ShowCheck 'PATCH /api/v1/users/{id} roles' ($promoted.roles -contains 'admin') ("roles=" + ($promoted.roles -join ','))
     [System.IO.File]::WriteAllText($rolesBody, '{"roles":["root"]}')
     Show 'PATCH /api/v1/users/{id} unsupported role' (HttpCode ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody")) "$base/api/v1/users/$($me.id)") '400'
     [System.IO.File]::WriteAllText($rolesBody, '{"username":"admin-user"}')
@@ -328,12 +340,30 @@ try {
     Show 'PATCH /api/v1/users/{id} etag in body' (HttpCode ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody")) "$base/api/v1/users/$($me.id)") '400'
     [System.IO.File]::WriteAllText($rolesBody, '{"ownerId":"00000000-0000-0000-0000-000000000000"}')
     Show 'PATCH /api/v1/users/{id} unknown property' (HttpCode ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody")) "$base/api/v1/users/$($me.id)") '400'
-    [System.IO.File]::WriteAllText($rolesBody, '{"enabled":false}')
-    $disabled = (Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody")) "$base/api/v1/users/$($me.id)") | ConvertFrom-Json
-    Show 'PATCH /api/v1/users/{id} enabled=false' '200' ("enabled=" + $disabled.enabled)
-    [System.IO.File]::WriteAllText($rolesBody, '{"enabled":true}')
-    $restored = (Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody")) "$base/api/v1/users/$($me.id)") | ConvertFrom-Json
-    Show 'PATCH /api/v1/users/{id} enabled=true' '200' ("enabled=" + $restored.enabled)
+    # `enabled = false` blocks every call of that account, regardless of the
+    # token (docs/auth.md), so the toggle belongs to a second account: an
+    # administrator who disables themselves could no longer send the request
+    # that re-enables them.
+    $target = @($users.items | Where-Object { $_.username -eq $UserName }) | Select-Object -First 1
+    ShowCheck 'user list contains the account to disable' ([bool]$target) ("username=" + $UserName)
+    if ($target) {
+        [System.IO.File]::WriteAllText($rolesBody, '{"enabled":false}')
+        $disabledCode = Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody",
+                '-o', $patchBody, '-w', '%{http_code}')) "$base/api/v1/users/$($target.id)"
+        $disabled = (Get-Content -Raw -LiteralPath $patchBody) | ConvertFrom-Json
+        Show 'PATCH /api/v1/users/{id} enabled=false' $disabledCode '200' ("enabled=" + $disabled.enabled)
+
+        # The token of the owner was issued before, but the account is locked out.
+        Show 'GET /api/v1/me of the disabled account' (HttpCode $U "$base/api/v1/me") '403'
+
+        [System.IO.File]::WriteAllText($rolesBody, '{"enabled":true}')
+        $restoredCode = Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody",
+                '-o', $patchBody, '-w', '%{http_code}')) "$base/api/v1/users/$($target.id)"
+        $restored = (Get-Content -Raw -LiteralPath $patchBody) | ConvertFrom-Json
+        Show 'PATCH /api/v1/users/{id} enabled=true' $restoredCode '200' ("enabled=" + $restored.enabled)
+
+        Show 'GET /api/v1/me of the re-enabled account' (HttpCode $U "$base/api/v1/me") '200'
+    }
 
     Show 'DELETE /api/v1/files/{id} with a stale If-Match' (HttpCode ($A + @('-H', 'If-Match: W/"999"', '-X', 'DELETE')) "$base/api/v1/files/$($file.id)") '412'
     Show 'DELETE /api/v1/files/{id}' (HttpCode ($A + @('-X', 'DELETE')) "$base/api/v1/files/$($file.id)") '204'
@@ -356,8 +386,8 @@ function Test-ApplicationDomain {
     Show "$Name GET /api/v1/auth/config" (HttpCode @() "$BaseUrl/api/v1/auth/config")
 
     $index = (Http @() "$BaseUrl/") -join "`n"
-    $entry = [regex]::Match($index, 'src="(?<src>/assets/index-[^"]+\.js)"').Groups['src'].Value
-    ShowCheck "$Name index.html references a bundle" ([bool]$entry) ("entry=" + $entry)
+    $entry = [regex]::Match($index, 'src="(?<src>/_next/static/[^"]+\.js)"').Groups['src'].Value
+    ShowCheck "$Name index.html references a Next.js chunk" ([bool]$entry) ("entry=" + $entry)
 
     if ($mode -eq 'oidc') {
         # The identity provider lives on the canonical domain. A login of any
@@ -417,6 +447,36 @@ function Test-NextDomain {
     }
 }
 
+function Test-ProfileDomain {
+    param([string]$Name, [string]$BaseUrl)
+
+    # The profile microfrontend: its own Modern.js server under /, its BFF below
+    # /profile-api and the Module Federation assets below /static. The identity
+    # provider is only reachable through the canonical domain.
+    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz")
+    Show "$Name GET / (Modern.js index)" (HttpCode @() "$BaseUrl/") '200'
+    Show "$Name GET /profile/edit (local route)" (HttpCode @() "$BaseUrl/profile/edit") '200'
+
+    # The entry the host application loads through Module Federation. Its
+    # publicPath points at this very domain, so it has to answer here.
+    $manifest = (Http @() "$BaseUrl/static/mf-manifest.json") -join "`n"
+    Show "$Name GET /static/mf-manifest.json" (HttpCode @() "$BaseUrl/static/mf-manifest.json") '200'
+    ShowCheck "$Name manifest points at its own domain" ($manifest.Contains($BaseUrl)) ''
+    Show "$Name GET /static/remoteEntry.js" (HttpCode @() "$BaseUrl/static/remoteEntry.js") '200'
+
+    # The BFF of this service, reachable on both application domains so the host
+    # can keep its calls same origin.
+    $me = (Http @() "$BaseUrl/profile-api/profile") -join "`n"
+    Show "$Name GET /profile-api/profile" (HttpCode @() "$BaseUrl/profile-api/profile") '200'
+    ShowCheck "$Name BFF answers with a safe result" ($me.Contains('"data"')) ''
+
+    if ($mode -eq 'oidc') {
+        $authRedirect = Get-Location "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration"
+        Show "$Name GET /auth/... redirects to the canonical domain" (HttpCode @() "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration") '308'
+        ShowCheck "$Name /auth redirect keeps the path" ($authRedirect -eq "$base/auth/realms/$Realm/.well-known/openid-configuration") ("location=" + $authRedirect)
+    }
+}
+
 function Test-KibanaDomain {
     param([string]$Name, [string]$BaseUrl)
 
@@ -434,11 +494,12 @@ function Test-KibanaDomain {
 }
 
 Write-Host ''
-Write-Host "Additional application domains: $altBase, $nextBase, $kibanaBase" -ForegroundColor Cyan
+Write-Host "Additional application domains: $altBase, $nextBase, $profileBase, $kibanaBase" -ForegroundColor Cyan
 Write-Host ''
 
 Test-ApplicationDomain $AltServerName $altBase
 Test-NextDomain $NextServerName $nextBase
+Test-ProfileDomain $ProfileServerName $profileBase
 Test-KibanaDomain $KibanaServerName $kibanaBase
 
 Write-Host ''

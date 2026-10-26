@@ -28,11 +28,10 @@ src/
 │   │   └── games/{chess,checkers,match3,lines}/page.tsx
 ├── features/
 │   ├── auth/          api, model, ui                # сессия, логин, store
-│   ├── profile-edit/  api, ui
 │   ├── match3/        game, model, ui               # Phaser
 │   └── lines/         game, ui                      # three.js
 ├── entities/user/     model (types, roles), ui
-├── shared/            api (http-клиент), config, lib (initials, message)
+├── shared/            api (http-клиент), config, lib (initials, message, remote — Module Federation)
 └── widgets/app-shell/ model (navigation), ui
 ```
 
@@ -56,6 +55,12 @@ src/
   (`lines:settings`, `lines:stats`); значения валидируются при чтении.
 - **API** — через `shared/api/http.ts`; `NEXT_PUBLIC_API_BASE_URL` пустой = same-origin
   (nginx проксирует `/api` на бэкенд). Сессия в cookie, токенов в браузере нет.
+- **Микрофронтенд `user-profile`** подключён через Module Federation: `shared/lib/remote.ts`
+  делает `init` (remote `user_profile`, entry — `mf-manifest.json` с `NEXT_PUBLIC_PROFILE_BASE_URL`)
+  и `loadRemote('user_profile/ProfileEdit')`. React и ReactDOM регистрируются в share scope как
+  singleton с `lib` — без этого у компонента remote свой экземпляр React и хуки падают. Грузится
+  компонент только на клиенте, сбой загрузки показывается `Alert`'ом на `/profile/edit`.
+  antd не шарится намеренно — remote собирает свою копию.
 - Комментарии и JSDoc — на русском.
 
 ## Команды

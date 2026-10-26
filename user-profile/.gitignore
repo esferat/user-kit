@@ -1,0 +1,28 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build output of `modern build`, `modern deploy` and the dev server
+dist
+.output
+.mf
+.rspack-cache
+source.alias
+@mf-types
+
+# Secrets and local configuration
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Tooling
+.idea
+.vscode
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

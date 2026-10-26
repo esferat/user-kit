@@ -13,6 +13,7 @@ docker compose ps
 | ---------------- | ------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------- |
 | `edge`           | `nginx:1.27-alpine`                         | 80, 443                     | TLS termination, reverse proxy, headers, the host names of all domains, access/error log files |
 | `frontend-main` | built from `frontend-main/`                | internal 3000               | Next.js standalone server, canonical and second domain                    |
+| `user-profile`  | built from `user-profile/`                  | internal 3001               | Modern.js microfrontend of the profile editor, its own domain             |
 | `backend`        | built from `backend/`                       | 8080                        | REST service                                                                 |
 | `keycloak`       | built from `keycloak/`                      | 8180, internal 8080         | identity provider, realm `user-kit`, writes its file log                     |
 | `postgres`       | `postgres:17-alpine`                        | internal 5432               | database with Flyway migrations                                              |
@@ -29,9 +30,9 @@ writes its log file, Logstash reads it read only), `elasticsearch-data` and `log
 the file offsets across restarts).
 
 Health checks: PostgreSQL uses `pg_isready`, Keycloak queries `/auth/health/ready` on its management
-port, Silo queries `/minio/health/live` (Silo keeps the reserved routes of the MinIO server), the
-backend calls `/actuator/health` and waits up to 45
-seconds for the first start, the Vite images check their index page and the Next.js image its root.
+port, Silo queries `/minio/health/live` (Silo keeps the reserved routes of the MinIO server), and the
+backend calls `/actuator/health` and waits up to 45 seconds for the first start. The two frontends
+(`frontend-main`, `user-profile`) have no health check: the edge starts them with `service_started`.
 Elasticsearch has to answer on its HTTP API (a single node reports yellow as soon as an index has a
 replica, so requiring green would stall the stack), Logstash and Kibana wait for it. The
 backend therefore only starts after PostgreSQL and Keycloak are healthy, and it retries the bucket
@@ -47,8 +48,8 @@ HTTPS with 308.
 ### Development certificate
 
 ```bash
-pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME, SERVER_NAME_NEXT and SERVER_NAME_KIBANA
-pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -NextDomain app3.local -KibanaDomain app4.local -Days 30
+pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME, SERVER_NAME_NEXT, SERVER_NAME_PROFILE and SERVER_NAME_KIBANA
+pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -NextDomain app2.local -ProfileDomain app3.local -KibanaDomain app4.local -Days 30
 ```
 
 The script runs `alpine/openssl` in Docker, so no OpenSSL installation is needed. The certificate
@@ -80,6 +81,7 @@ included challenge location, mount the webroot of the certificate client into
 | ----------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `SERVER_NAME`                                               | `user-kit.local`                                     | canonical `server_name`, hosts the application and `/auth`                                   |
 | `SERVER_NAME_NEXT`                                          | `user-kit.next.local`                                    | `server_name` of the second application domain, `/auth` redirects to the canonical domain     |
+| `SERVER_NAME_PROFILE`                                       | `user-kit.profile.local`                                 | `server_name` of the profile microfrontend; also the origin `frontend-main` is told about as `NEXT_PUBLIC_PROFILE_BASE_URL` |
 | `SERVER_NAME_KIBANA`                                        | `user-kit.kibana.local`                                  | `server_name` that reverse proxies Kibana, has no application routes of its own              |
 | `HTTP_PORT` / `HTTPS_PORT`                                  | `80` / `443`                                             | published ports of the edge                                                                  |
 | `MAX_UPLOAD_SIZE`                                           | `26m`                                                    | nginx `client_max_body_size`                                                                 |
@@ -118,11 +120,14 @@ included challenge location, mount the webroot of the certificate client into
 | `KIBANA_PORT`                                               | `5601`                                                   | published Kibana UI port                                                                     |
 
 The `NEXT_PUBLIC_*` variables are build time configuration: Next.js inlines them into the bundle and
-Compose forwards them as build arguments (through `VITE_API_BASE_URL`) to the `frontend-main` image.
+Compose forwards them as build arguments (through `VITE_API_BASE_URL` and `SERVER_NAME_PROFILE`) to
+the `frontend-main` image.
 A change therefore
 needs `docker compose up -d --build frontend-main`, not a restart. Identity provider
 settings are no longer part of the bundle: the backend owns the login and reports the available methods
-through `/api/v1/auth/config`, so a provider change is a restart of the backend.
+through `/api/v1/auth/config`, so a provider change is a restart of the backend. The microfrontend has
+the same rule for its own build argument `PROFILE_ASSET_PREFIX`, which is written into
+`mf-manifest.json` as the public path of the remote.
 
 Backend only settings are documented in the README, for example `FILES_MAX_SIZE_BYTES`,
 `CORS_ALLOWED_ORIGINS` and `REST_MAX_PAGE_SIZE`.

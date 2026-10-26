@@ -5,6 +5,11 @@ export interface AppConfig {
    * проксирует `/api` на бэкенд, поэтому абсолютный адрес не нужен.
    */
   apiBaseUrl: string;
+  /**
+   * База микрофронтенда `user-profile` (remote Module Federation). Адрес другой
+   * домен: remote отдаёт свой `mf-manifest.json` и чанки оттуда.
+   */
+  profileBaseUrl: string;
 }
 
 /** Убирает хвостовой слэш, чтобы склейка путей не давала двойной слэш. */
@@ -17,4 +22,10 @@ export function normalizeBaseUrl(value: string): string {
 // переменной должно быть статичным, а не через объект окружения.
 const apiBaseUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? '');
 
-export const appConfig: AppConfig = { apiBaseUrl };
+// Значение по умолчанию совпадает с SERVER_NAME_PROFILE edge-nginx: именно под
+// этим доменом публикуется user-profile и отдаёт свои чанки.
+const profileBaseUrl = normalizeBaseUrl(
+  process.env.NEXT_PUBLIC_PROFILE_BASE_URL ?? 'https://user-kit.profile.local',
+);
+
+export const appConfig: AppConfig = { apiBaseUrl, profileBaseUrl };

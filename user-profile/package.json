@@ -1,0 +1,42 @@
+{
+  "name": "user-profile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "modern dev",
+    "build": "modern build",
+    "deploy": "modern deploy",
+    "serve": "modern serve",
+    "start": "modern serve",
+    "lint": "rs lint",
+    "format": "rs fmt",
+    "format:check": "rs fmt --check",
+    "check": "rs check",
+    "prepare": "rs hooks"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.3.0"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.9.2",
+    "@modern-js/plugin-bff": "3.10.3",
+    "@modern-js/runtime": "3.10.3",
+    "@modern-js/server-runtime": "^3.10.3",
+    "@module-federation/modern-js-v3": "2.9.2",
+    "@tanstack/react-query": "5.104.5",
+    "antd": "6.6.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-hook-form": "7.91.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@modern-js/app-tools": "3.10.3",
+    "@modern-js/tsconfig": "3.10.3",
+    "@types/node": "^20",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "rstack": "0.8.2",
+    "typescript": "~5.7.3"
+  }
+}

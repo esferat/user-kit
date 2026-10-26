@@ -10,8 +10,10 @@ This document describes how the components fit together, which decisions were ta
                             │  user-kit.local       /       → next:3000    │
                             │  user-kit.local       /api/   → backend:8080 │
                             │  user-kit.local       /auth/  → keycloak     │
+                            │  user-kit.local       /profile-api/ → profile│
                             │  user-kit.next.local  /       → next:3000    │
                             │  user-kit.next.local  /auth/  → 308 canonical│
+                            │  user-kit.profile.local/      → profile:3001 │
                             │  user-kit.kibana.local/       → kibana       │
                             │  /api/v1/, /v3/api-docs, /swagger-ui → backend│
                             │  /healthz                     → answered here │
@@ -33,11 +35,17 @@ This document describes how the components fit together, which decisions were ta
                                  └────────────────────────────┘
 ```
 
-`frontend-main/` implements all screens on top of the REST API (Ant Design components). The same
-application is served on two domains: the canonical one and its own. All domains talk to the same
-backend but keep their own cookie session, because the cookies are scoped to the host. The identity
+`frontend-main/` implements the screens of the application on top of the REST API (Ant Design
+components). It is served by the edge on two domains: the canonical one and its own. All domains talk
+to the same backend but keep their own cookie session, because the cookies are scoped to the host. The
+identity
 provider lives on the canonical domain only, so the other domain redirects `/auth` to it and every
-application sees the same `iss`. `SERVER_NAME_KIBANA` is not an application: the edge proxies it to the
+application sees the same `iss`.
+
+The profile editor is the exception: it lives in `user-profile/`, a separate application on
+`SERVER_NAME_PROFILE` with its own BFF (`/profile-api/`). The edge proxies that prefix on the
+canonical domain too, so the component, rendered inside `frontend-main`, keeps its calls same origin
+where the session cookie lives. `SERVER_NAME_KIBANA` is not an application: the edge proxies it to the
 Kibana container of the logging stack, so the log UI shares the TLS edge of the applications.
 
 ## Layers

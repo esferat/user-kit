@@ -1,0 +1,14 @@
+node_modules
+dist
+.output
+.mf
+.rspack-cache
+.git
+.gitignore
+Dockerfile
+.dockerignore
+npm-debug.log*
+*.log
+.env
+.env.local
+.env.*.local

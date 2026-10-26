@@ -291,15 +291,17 @@
       "redirectUris": [
         "https://user-kit.local/api/v1/auth/callback",
         "https://user-kit.next.local/api/v1/auth/callback",
+        "https://user-kit.profile.local/api/v1/auth/callback",
         "http://localhost:3000/api/v1/auth/callback"
       ],
       "webOrigins": [
         "https://user-kit.local",
         "https://user-kit.next.local",
+        "https://user-kit.profile.local",
         "http://localhost:3000"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "https://user-kit.local/*##https://user-kit.next.local/*##http://localhost:3000/*",
+        "post.logout.redirect.uris": "https://user-kit.local/*##https://user-kit.next.local/*##https://user-kit.profile.local/*##http://localhost:3000/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.session.required": "true"
       },

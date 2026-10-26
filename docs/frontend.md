@@ -149,11 +149,32 @@ the shell follows too.
 Ant Design creates its css-in-js cache with `Math.random()`, a value `cacheComponents` forbids
 during prerender. The client tree therefore streams behind the `<Suspense>` in the root layout.
 
+## Module Federation host
+
+The profile editor lives in the separate microfrontend `user-profile/` (own domain, own BFF) and is
+loaded into `/profile/edit` through Module Federation:
+
+- `src/shared/lib/remote.ts` calls `init()` from `@module-federation/runtime` with the remote
+  `user_profile` (`${NEXT_PUBLIC_PROFILE_BASE_URL}/static/mf-manifest.json`) and registers `react`
+  and `react-dom` as singletons taken from the host. The shared entries carry `lib`, which marks them
+  loaded: the host stays the owner of the framework instance and the remote cannot put its own copy
+  into the same slot. Two React instances would crash the remote component with an invalid hook call.
+- The page loads the expose in an effect and renders it only on the client: the manifest and the
+  chunks come from another origin, the server never sees them. A failed load shows an `Alert` with
+  the reason instead of an empty page.
+- `antd` is deliberately not shared: the remote bundles its own copy together with its `rc-*`
+  internals, and sharing would tie the host to the version pinned in the other project.
+
+The browser fetches `mf-manifest.json` cross origin, so the profile virtual host sends CORS headers
+(the chunks are plain script tags and need none). `/profile-api/` is proxied on the canonical domain
+too, so the component keeps its BFF calls same origin, where the host-only session cookie lives.
+
 ## Build time configuration
 
 Next.js inlines every `NEXT_PUBLIC_*` variable into the bundle at build time, so the configuration
 is fixed when the image is built. `docker-compose.yml` passes `VITE_API_BASE_URL` to the build as
-`NEXT_PUBLIC_API_BASE_URL` (`frontend-main/Dockerfile`, `ARG`):
+`NEXT_PUBLIC_API_BASE_URL` and derives `NEXT_PUBLIC_PROFILE_BASE_URL` from `SERVER_NAME_PROFILE`
+(`frontend-main/Dockerfile`, `ARG`):
 
 ```yaml
 frontend-main:
@@ -161,12 +182,13 @@ frontend-main:
     context: ./frontend-main
     args:
       NEXT_PUBLIC_API_BASE_URL: ${VITE_API_BASE_URL:-}
+      NEXT_PUBLIC_PROFILE_BASE_URL: https://${SERVER_NAME_PROFILE:-user-kit.profile.local}
 ```
 
 Consequences worth keeping in mind:
 
 - A change to any `NEXT_PUBLIC_*` variable requires `docker compose up -d --build frontend-main`;
-  a plain restart keeps the old bundle.
+  a plain restart keeps the old bundle. The same applies to a moved `user-profile` origin.
 - Identity provider settings are **not** build arguments, so a provider change only needs a backend
   restart. `scripts/smoke.ps1` verifies that the deployed bundle contains neither the realm issuer
   nor an OIDC client library.

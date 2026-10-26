@@ -119,8 +119,8 @@ services:
       # browser and the state row keeps the exact callback of that login. The
       # default lists all domains of this stack, override them to shrink the
       # allowlist; .env carries the same entries.
-      OIDC_CLIENT_REDIRECT_URIS: ${OIDC_CLIENT_REDIRECT_URIS:-https://user-kit.local/api/v1/auth/callback,https://user-kit.next.local/api/v1/auth/callback}
-      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS:-https://user-kit.local/,https://user-kit.next.local/}
+      OIDC_CLIENT_REDIRECT_URIS: ${OIDC_CLIENT_REDIRECT_URIS:-https://user-kit.local/api/v1/auth/callback,https://user-kit.next.local/api/v1/auth/callback,https://user-kit.profile.local/api/v1/auth/callback}
+      OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS: ${OIDC_CLIENT_POST_LOGOUT_REDIRECT_URIS:-https://user-kit.local/,https://user-kit.next.local/,https://user-kit.profile.local/}
       # Singular values stay as the fallback of the lists above, they are what a
       # login state without a callback of its own falls back to.
       OIDC_CLIENT_REDIRECT_URI: ${OIDC_CLIENT_REDIRECT_URI:-https://user-kit.local/api/v1/auth/callback}
@@ -167,10 +167,32 @@ services:
       context: ./frontend-main
       args:
         NEXT_PUBLIC_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        # Origin of the user-profile microfrontend, inlined while building so the
+        # host knows where to fetch mf-manifest.json from.
+        NEXT_PUBLIC_PROFILE_BASE_URL: https://${SERVER_NAME_PROFILE:-user-kit.profile.local}
     environment:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: 0.0.0.0
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Microfrontend of the profile editor: Modern.js, its own domain and its own
+  # BFF. frontend-main loads it through Module Federation.
+  user-profile:
+    build:
+      context: ./user-profile
+      args:
+        # Inlined into mf-manifest.json as publicPath while building, so it has
+        # to match the domain the edge publishes this service under.
+        PROFILE_ASSET_PREFIX: https://${SERVER_NAME_PROFILE:-user-kit.profile.local}
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      HOST: 0.0.0.0
+      # Read at run time by the BFF routes, never baked into the bundle.
+      BACKEND_BASE_URL: http://backend:8080
     depends_on:
       - backend
     restart: unless-stopped
@@ -242,6 +264,7 @@ services:
     image: nginx:1.27-alpine
     depends_on:
       - frontend-main
+      - user-profile
       - backend
       - keycloak
       - kibana
@@ -250,10 +273,13 @@ services:
       # of the tokens is a single origin for all frontends.
       SERVER_NAME: ${SERVER_NAME:-user-kit.local}
       SERVER_NAME_NEXT: ${SERVER_NAME_NEXT:-user-kit.next.local}
+      # Own domain of the profile microfrontend.
+      SERVER_NAME_PROFILE: ${SERVER_NAME_PROFILE:-user-kit.profile.local}
       # Reverse proxy in front of Kibana, so the log UI is reachable over the
       # same TLS edge as the applications instead of the published 5601 port.
       SERVER_NAME_KIBANA: ${SERVER_NAME_KIBANA:-user-kit.kibana.local}
       UPSTREAM_FRONTEND_MAIN: frontend-main:3000
+      UPSTREAM_USER_PROFILE: user-profile:3001
       UPSTREAM_BACKEND: backend:8080
       UPSTREAM_KEYCLOAK: keycloak:8080
       UPSTREAM_KIBANA: kibana:5601

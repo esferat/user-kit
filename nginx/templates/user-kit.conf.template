@@ -27,6 +27,12 @@ upstream frontend_upstream {
     keepalive 16;
 }
 
+upstream user_profile_upstream {
+    # Producer of the profile microfrontend: its own Node server and its BFF.
+    server ${UPSTREAM_USER_PROFILE};
+    keepalive 16;
+}
+
 upstream backend_upstream {
     server ${UPSTREAM_BACKEND};
     keepalive 16;
@@ -49,7 +55,7 @@ upstream kibana_upstream {
 server {
     listen 80;
     listen [::]:80;
-    server_name ${SERVER_NAME} ${SERVER_NAME_NEXT} ${SERVER_NAME_KIBANA};
+    server_name ${SERVER_NAME} ${SERVER_NAME_NEXT} ${SERVER_NAME_PROFILE} ${SERVER_NAME_KIBANA};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -134,6 +140,21 @@ server {
         proxy_intercept_errors off;
     }
 
+    # BFF of the profile microfrontend. It is proxied on the canonical domain so
+    # the Module Federation component, rendered inside this origin, keeps its
+    # calls same-origin: the session cookie is host only and is never sent to
+    # another domain.
+    location /profile-api/ {
+        proxy_pass http://user_profile_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Connection "";
+        proxy_read_timeout 120s;
+    }
+
     location / {
         proxy_pass http://frontend_upstream;
         proxy_http_version 1.1;
@@ -208,8 +229,100 @@ server {
         return 308 https://${SERVER_NAME}$request_uri;
     }
 
+    # Same BFF proxy as on the canonical domain, see there.
+    location /profile-api/ {
+        proxy_pass http://user_profile_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Connection "";
+        proxy_read_timeout 120s;
+    }
+
     location / {
         proxy_pass http://frontend_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+
+# Domain of the profile microfrontend. It serves the Modern.js application, its
+# own BFF under /profile-api and the Module Federation assets under /static.
+# frontend-main on another origin fetches mf-manifest.json from here, so the
+# block sends CORS headers; the chunks themselves are plain script tags.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME_PROFILE};
+
+    ssl_certificate /etc/nginx/certs/server.crt;
+    ssl_certificate_key /etc/nginx/certs/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_stapling off;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+    add_header Access-Control-Allow-Headers "*" always;
+
+    client_max_body_size ${MAX_UPLOAD_SIZE};
+    charset utf-8;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml application/xml;
+
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+    }
+
+    # Backend API: needed for the login of this origin. The identity provider
+    # itself lives on the canonical domain, see its block.
+    location /api/ {
+        proxy_pass http://backend_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Connection "";
+        proxy_read_timeout 120s;
+    }
+
+    # The identity provider lives on the canonical domain only, see its block.
+    location /auth/ {
+        return 308 https://${SERVER_NAME}$request_uri;
+    }
+
+    # BFF of this very service, so a page opened directly on this domain keeps
+    # its calls same-origin as well.
+    location /profile-api/ {
+        proxy_pass http://user_profile_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Connection "";
+        proxy_read_timeout 120s;
+    }
+
+    location / {
+        proxy_pass http://user_profile_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

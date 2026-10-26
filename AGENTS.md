@@ -13,6 +13,7 @@ S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/L
 | --- | --- | --- |
 | `backend/` | Spring Boot 4.1.1, Java 21, Maven, Flyway, PostgreSQL, гексагональная архитектура | REST API `/api/v1`, OAuth-клиент, файловое хранилище |
 | `frontend-main/` | Next.js 16.4, React 19, antd 6, three.js, Phaser | Единственное приложение: `user-kit.local` и `user-kit.next.local` (профиль, админка, игры) |
+| `user-profile/` | Modern.js 3.10, React 19, antd 6, TanStack Query, zod, FSD | Микрофронтенд правки профиля: `user-kit.profile.local`, remote Module Federation для `frontend-main` |
 | `nginx/` | nginx 1.27 | TLS-edge: терминация, редирект, прокси |
 | `keycloak/realm/` | Keycloak 26 | Импорт realm'а локального IdP |
 | `logstash/` | Logstash | Доставка логов backend/Keycloak/nginx в Elasticsearch |
@@ -25,10 +26,11 @@ S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/L
 | --- | --- |
 | `https://user-kit.local` | frontend-main + `/api/`, `/auth/` (Keycloak), `/healthz` |
 | `https://user-kit.next.local` | frontend-main (без `/auth`, он редиректится на канонический домен) |
+| `https://user-kit.profile.local` | user-profile (микрофронтенд: страницы, `/profile-api/`, чанки Module Federation) |
 | `https://user-kit.kibana.local` | Kibana |
 
 Порты: edge `80/443`, backend `8080`, Keycloak `8180`, PostgreSQL `5432`, Silo `9001`,
-Elasticsearch `9200`, Kibana `5601`; dev-сервер: next `3000`.
+Elasticsearch `9200`, Kibana `5601`, user-profile `3001`; dev-сервер: next `3000`.
 
 ## Команды
 

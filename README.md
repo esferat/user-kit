@@ -48,6 +48,7 @@ administrators additionally manage all files and the role assignment of all acco
 | Edge              | TLS 1.2/1.3, HSTS, security headers, request size limit, gzip, ACME challenge location                         |
 | Logging           | log files of backend, Keycloak and nginx, Logstash pipeline, Elasticsearch indices `user-kit-backend-*`, `user-kit-keycloak-*`, `user-kit-nginx-*`, Kibana at `https://user-kit.kibana.local` |
 | Operations        | Health endpoint, structured logs, demo seed data, smoke script, Docker Compose full stack                      |
+| Microfrontends    | `user-profile` (Modern.js, own domain and BFF) loaded into `frontend-main` through Module Federation           |
 
 ## Architecture
 
@@ -56,7 +57,9 @@ administrators additionally manage all files and the role assignment of all acco
    browser  ──────────────► │ edge (nginx, 80 + 443)                       │
                             │  user-kit.local       /       → frontend-main│
                             │  user-kit.local       /api/, /auth/          │
+                            │  user-kit.local       /profile-api/ → user-profile│
                             │  user-kit.next.local  /       → frontend-main│
+                            │  user-kit.profile.local/      → user-profile │
                             │  user-kit.kibana.local/       → kibana        │
                             │  /api/v1/, /v3/api-docs, /swagger-ui → backend│
                             │  /healthz                     → answered here │
@@ -98,15 +101,18 @@ docker compose up -d --build
 The stack serves the application on two domains: `SERVER_NAME` (default `user-kit.local`, canonical,
 hosts `/auth`) and `SERVER_NAME_NEXT` (default `user-kit.next.local`, Next.js). They talk to the same
 backend but keep their own sessions, because the cookies are scoped to the host.
+`SERVER_NAME_PROFILE` (default `user-kit.profile.local`) serves the profile microfrontend, which
+`frontend-main` loads into `/profile/edit` through Module Federation, and
 `SERVER_NAME_KIBANA` (default `user-kit.kibana.local`)
 puts the log UI behind the same TLS edge. Add all names to
 `C:\Windows\System32\drivers\etc\hosts` (Windows) or `/etc/hosts` (Linux/macOS):
 
 ```
-127.0.0.1 user-kit.local user-kit.next.local user-kit.kibana.local
+127.0.0.1 user-kit.local user-kit.next.local user-kit.profile.local user-kit.kibana.local
 ```
 
-Open <https://user-kit.local>, <https://user-kit.next.local> or
+Open <https://user-kit.local>, <https://user-kit.next.local>,
+<https://user-kit.profile.local> or
 <https://user-kit.kibana.local> and accept the self-signed certificate. Because the development
 certificate is not issued by a trusted CA, every `curl` example in this repository uses `-k`.
 
@@ -140,6 +146,7 @@ token in a cookie, no password involved.
 | -------------------------------------------------- | -------------------------------------------------------------------------- |
 | <https://user-kit.local/>                          | The application, the canonical domain                                      |
 | <https://user-kit.next.local/>                     | The application on its own domain                                         |
+| <https://user-kit.profile.local/>                  | The profile microfrontend, also serves the Module Federation assets      |
 | <https://user-kit.kibana.local/>                   | Kibana, the log exploration UI of the logging stack                        |
 | <https://user-kit.local/auth/>                     | Keycloak, the identity provider of the stack, only on the canonical domain |
 | <https://user-kit.local/swagger-ui/index.html>     | Swagger UI                                                                 |
