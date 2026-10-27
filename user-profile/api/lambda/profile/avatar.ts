@@ -16,6 +16,35 @@ async function failureOf(response: Response): Promise<string> {
 }
 
 /**
+ * Возвращает настоящее `FormData` для переноса в бэкенд.
+ *
+ * Клиент присылает обычный `FormData`, но Hono разбирает multipart-тело **до**
+ * хендлера (`c.req.parseBody()` в `getHonoInput`), и в аргумент приходит
+ * плоский объект с null-prototype — так hono защищает от `__proto__`-ключей.
+ * Прямой такой объект в `fetch` не сериализуется и падает с «Cannot convert
+ * object to primitive value», поэтому поля перекладываются в настоящий
+ * `FormData`: имена полей и файлы (вместе с именем файла) сохраняются.
+ * `req.raw.formData()` здесь недоступен — тело уже прочитано Hono.
+ */
+function toFormData(parsed: FormData | Record<string, unknown>): FormData {
+  if (parsed instanceof FormData) {
+    return parsed;
+  }
+  const form = new FormData();
+  for (const [name, value] of Object.entries(parsed)) {
+    const entries = Array.isArray(value) ? value : [value];
+    for (const entry of entries) {
+      if (entry instanceof Blob) {
+        form.append(name, entry);
+      } else if (entry !== undefined && entry !== null) {
+        form.append(name, String(entry));
+      }
+    }
+  }
+  return form;
+}
+
+/**
  * Переносит запрос на аватар в бэкенд. Тело уходит как есть: для multipart
  * границу (boundary) приписывает fetch, поэтому `Content-Type` не ставится.
  */
@@ -40,7 +69,9 @@ async function postHandler({
 }: {
   formData: FormData;
 }): Promise<SafeReadResult<MeResponse>> {
-  return safeRead(() => forwardAvatar('POST', formData));
+  // Тип параметра — FormData, как у клиента; на сервере Hono уже разобрал
+  // тело, поэтому форма приводится обратно (см. toFormData).
+  return safeRead(() => forwardAvatar('POST', toFormData(formData)));
 }
 
 /**

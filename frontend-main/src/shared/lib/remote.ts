@@ -24,6 +24,12 @@ let federationStarted = false;
  *
  * antd намеренно не шарится: у remote он собран своей копией с внутренними
  * `rc-*`, а шаринг привязал бы хост к версии из `package.json` remote.
+ *
+ * `react-dom/client` регистрируется отдельным ключом: точное совпадение
+ * `react-dom` sub-path не покрывает, и без этой записи remote собрал бы свою
+ * копию клиентского рендерера. Его проверка `react.version === своя версия`
+ * и падала: хост отдаёт React, вшитый в Next (canary), а remote — npm-сборку.
+ * Подробности: module-federation/core#4727.
  */
 async function startFederation(): Promise<void> {
   if (federationStarted) {
@@ -32,14 +38,21 @@ async function startFederation(): Promise<void> {
   federationStarted = true;
 
   // Рантайм подгружается только на клиенте: на сервере ему нечего делать,
-  // а страница его и не вызывает (загрузка идёт в эффекте).
+  // а страница его и не вызывает (загрузка идёт в эффекте). Тот же приём и для
+  // react-dom/client: у его типов нет поля version, версия берётся у пакета
+  // react-dom — это одна и та же сборка.
   const { init } = await import('@module-federation/runtime');
+  const ReactDomClient = await import('react-dom/client');
 
   init({
     name: 'frontend_main',
     remotes: [
       { name: REMOTE_NAME, entry: `${appConfig.profileBaseUrl}/static/mf-manifest.json` },
     ],
+    // Стратегия выбора провайдера: уже загруженный экземпляр важнее версии.
+    // Дефолт `version-first` мог подставить remote-копию, если бы та оказалась
+    // «новее», а пара react/react-dom должна быть всегда одна — хостовая.
+    shareStrategy: 'loaded-first',
     shared: {
       react: {
         version: React.version,
@@ -49,6 +62,11 @@ async function startFederation(): Promise<void> {
       'react-dom': {
         version: ReactDom.version,
         lib: () => ReactDom,
+        shareConfig: { singleton: true, requiredVersion: false },
+      },
+      'react-dom/client': {
+        version: ReactDom.version,
+        lib: () => ReactDomClient,
         shareConfig: { singleton: true, requiredVersion: false },
       },
     },

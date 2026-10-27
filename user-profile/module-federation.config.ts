@@ -15,6 +15,10 @@ export default createModuleFederationConfig({
   shared: {
     react: { singleton: true, requiredVersion: false },
     'react-dom': { singleton: true, requiredVersion: false },
+    // `react-dom/client` — отдельный sub-path: точный ключ `react-dom` его не
+    // перехватывает, иначе remote бандлит свою копию клиентского рендерера,
+    // которая спорит с общим React (module-federation/core#4727).
+    'react-dom/client': { singleton: true, requiredVersion: false },
     antd: { singleton: true, requiredVersion: false },
   },
 });

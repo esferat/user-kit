@@ -180,10 +180,10 @@ if ($mode -eq 'oidc') {
 $A = @('-H', "Authorization: Bearer $token")
 $U = @('-H', "Authorization: Bearer $userToken")
 
-Show 'GET /healthz' (HttpCode @() "$base/healthz")
-Show 'GET / (SPA index)' (HttpCode @() "$base/")
-Show 'GET /v3/api-docs' (HttpCode @() "$base/v3/api-docs")
-Show 'GET /swagger-ui/index.html' (HttpCode @() "$base/swagger-ui/index.html")
+Show 'GET /healthz' (HttpCode @() "$base/healthz") '200'
+Show 'GET / (SPA index)' (HttpCode @() "$base/") '200'
+Show 'GET /v3/api-docs' (HttpCode @() "$base/v3/api-docs") '200'
+Show 'GET /swagger-ui/index.html' (HttpCode @() "$base/swagger-ui/index.html") '200'
 Show 'GET /api/v1/me without token' (HttpCode @() "$base/api/v1/me") '401'
 Show 'GET /api/v1/files without token' (HttpCode @() "$base/api/v1/files") '401'
 Show 'GET /api/v1/users as user' (HttpCode $U "$base/api/v1/users") '403'
@@ -328,7 +328,6 @@ try {
     ShowCheck 'GET /api/v1/users (admin)' ($users.total -ge 1 -and $users.items.Count -ge 1) ("total=" + $users.total + " returned=" + $users.items.Count)
     ShowCheck 'user list contains the calling admin' (@($users.items | Where-Object { $_.id -eq $me.id }).Count -ge 1)
     Show 'GET /api/v1/users with an unknown sort' (HttpCode $A "$base/api/v1/users?sort=bogus") '400'
-
     [System.IO.File]::WriteAllText($rolesBody, '{"roles":["admin","user"]}')
     $promoted = (Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody")) "$base/api/v1/users/$($me.id)") | ConvertFrom-Json
     ShowCheck 'PATCH /api/v1/users/{id} roles' ($promoted.roles -contains 'admin') ("roles=" + ($promoted.roles -join ','))
@@ -344,8 +343,17 @@ try {
     # token (docs/auth.md), so the toggle belongs to a second account: an
     # administrator who disables themselves could no longer send the request
     # that re-enables them.
-    $target = @($users.items | Where-Object { $_.username -eq $UserName }) | Select-Object -First 1
-    ShowCheck 'user list contains the account to disable' ([bool]$target) ("username=" + $UserName)
+    # The demo data seeds accounts that share a username with the live users,
+    # so the target is identified by the subject of the token of that user
+    # rather than by the name.
+    $userSubject = if ($userClaims) { $userClaims.sub } else { $null }
+    $candidates = @($users.items | Where-Object { $_.username -eq $UserName })
+    $target = if ($userSubject) {
+        @($candidates | Where-Object { $_.subject -eq $userSubject }) | Select-Object -First 1
+    } else {
+        $candidates | Select-Object -First 1
+    }
+    ShowCheck 'user list contains the account to disable' ([bool]$target) ("subject=" + $userSubject)
     if ($target) {
         [System.IO.File]::WriteAllText($rolesBody, '{"enabled":false}')
         $disabledCode = Http ($A + @('-H', 'Content-Type: application/json', '-X', 'PATCH', '--data-binary', "@$rolesBody",
@@ -379,11 +387,11 @@ function Test-ApplicationDomain {
     # A non canonical domain serves its own SPA and the same API. Only the
     # identity provider lives on the canonical domain, so the browser reaches it
     # from there through a redirect.
-    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz")
-    Show "$Name GET / (SPA index)" (HttpCode @() "$BaseUrl/")
-    Show "$Name GET /v3/api-docs" (HttpCode @() "$BaseUrl/v3/api-docs")
+    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz") '200'
+    Show "$Name GET / (SPA index)" (HttpCode @() "$BaseUrl/") '200'
+    Show "$Name GET /v3/api-docs" (HttpCode @() "$BaseUrl/v3/api-docs") '200'
     Show "$Name GET /api/v1/me without token" (HttpCode @() "$BaseUrl/api/v1/me") '401'
-    Show "$Name GET /api/v1/auth/config" (HttpCode @() "$BaseUrl/api/v1/auth/config")
+    Show "$Name GET /api/v1/auth/config" (HttpCode @() "$BaseUrl/api/v1/auth/config") '200'
 
     $index = (Http @() "$BaseUrl/") -join "`n"
     $entry = [regex]::Match($index, 'src="(?<src>/_next/static/[^"]+\.js)"').Groups['src'].Value
@@ -421,16 +429,16 @@ function Test-NextDomain {
 
     # The Next.js full stack app: its own server under /, the same REST API below
     # /api and the identity provider on the canonical domain.
-    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz")
+    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz") '200'
     # The root is the public landing page: it opens without a session cookie,
     # while the private routes still answer with a redirect to the login screen.
     Show "$Name GET / (public landing page)" (HttpCode @() "$BaseUrl/") '200'
     Show "$Name GET /profile (redirects to the login screen)" (HttpCode @() "$BaseUrl/profile") '307'
     Show "$Name GET /profile/edit (redirects to the login screen)" (HttpCode @() "$BaseUrl/profile/edit") '307'
     Show "$Name GET /games/chess (redirects to the login screen)" (HttpCode @() "$BaseUrl/games/chess") '307'
-    Show "$Name GET /login (Next.js page)" (HttpCode @() "$BaseUrl/login")
+    Show "$Name GET /login (Next.js page)" (HttpCode @() "$BaseUrl/login") '200'
     Show "$Name GET /api/v1/me without token" (HttpCode @() "$BaseUrl/api/v1/me") '401'
-    Show "$Name GET /api/v1/auth/config" (HttpCode @() "$BaseUrl/api/v1/auth/config")
+    Show "$Name GET /api/v1/auth/config" (HttpCode @() "$BaseUrl/api/v1/auth/config") '200'
 
     $index = (Http @() "$BaseUrl/login") -join "`n"
     ShowCheck "$Name login page references a Next.js chunk" ($index -like '*/_next/static/*') ''
@@ -447,13 +455,20 @@ function Test-NextDomain {
     }
 }
 
+# A valid 1x1 PNG for the multipart check of the microfrontend BFF: the route
+# has to rebuild the FormData that Hono already parsed, otherwise the upload
+# dies inside the BFF with a transport error instead of reaching the backend.
+$avatarProbe = Join-Path $env:TEMP 'user-kit-smoke-avatar.png'
+[IO.File]::WriteAllBytes($avatarProbe, [Convert]::FromBase64String(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='))
+
 function Test-ProfileDomain {
     param([string]$Name, [string]$BaseUrl)
 
     # The profile microfrontend: its own Modern.js server under /, its BFF below
     # /profile-api and the Module Federation assets below /static. The identity
     # provider is only reachable through the canonical domain.
-    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz")
+    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz") '200'
     Show "$Name GET / (Modern.js index)" (HttpCode @() "$BaseUrl/") '200'
     Show "$Name GET /profile/edit (local route)" (HttpCode @() "$BaseUrl/profile/edit") '200'
 
@@ -470,6 +485,17 @@ function Test-ProfileDomain {
     Show "$Name GET /profile-api/profile" (HttpCode @() "$BaseUrl/profile-api/profile") '200'
     ShowCheck "$Name BFF answers with a safe result" ($me.Contains('"data"')) ''
 
+    # Multipart upload without a session: the backend answers 401, which comes
+    # back as a safe result. An answer that quotes the backend URL would mean the
+    # parsed body never left the BFF - Hono hands the route an object without a
+    # prototype, and fetch cannot turn that into a request body. The script stays
+    # ASCII on purpose: PowerShell reads it without a BOM.
+    $uploadArgs = @('-X', 'POST', '-F', "file=@$avatarProbe;type=image/png")
+    $avatar = (Http $uploadArgs "$BaseUrl/profile-api/profile/avatar") -join "`n"
+    Show "$Name POST /profile-api/profile/avatar" (HttpCode $uploadArgs "$BaseUrl/profile-api/profile/avatar") '200'
+    ShowCheck "$Name avatar upload reaches the backend" `
+        ($avatar.Contains('"error"') -and -not $avatar.Contains('/api/v1/me/avatar')) $avatar
+
     if ($mode -eq 'oidc') {
         $authRedirect = Get-Location "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration"
         Show "$Name GET /auth/... redirects to the canonical domain" (HttpCode @() "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration") '308'
@@ -483,7 +509,7 @@ function Test-KibanaDomain {
     # The reverse proxy in front of Kibana: nginx answers /healthz itself,
     # everything else goes to the log UI. Kibana redirects the root to its
     # default space and reports its state on /api/status.
-    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz")
+    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz") '200'
 
     $rootCode = HttpCode @() "$BaseUrl/"
     ShowCheck "$Name GET / (Kibana UI)" ($rootCode -eq '302' -or $rootCode -eq '200') "code=$rootCode"

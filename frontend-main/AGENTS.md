@@ -57,9 +57,15 @@ src/
   (nginx проксирует `/api` на бэкенд). Сессия в cookie, токенов в браузере нет.
 - **Микрофронтенд `user-profile`** подключён через Module Federation: `shared/lib/remote.ts`
   делает `init` (remote `user_profile`, entry — `mf-manifest.json` с `NEXT_PUBLIC_PROFILE_BASE_URL`)
-  и `loadRemote('user_profile/ProfileEdit')`. React и ReactDOM регистрируются в share scope как
-  singleton с `lib` — без этого у компонента remote свой экземпляр React и хуки падают. Грузится
-  компонент только на клиенте, сбой загрузки показывается `Alert`'ом на `/profile/edit`.
+  и `loadRemote('user_profile/ProfileEdit')`. React, ReactDOM **и `react-dom/client`** регистрируются
+  в share scope как singleton с `lib` — без этого у компонента remote свой экземпляр React и хуки
+  падают, а `react-dom/client` пришлось бы шарить отдельным ключом: точный ключ `react-dom` sub-path
+  не покрывает, и remote собрал бы свою копию, которая спорит со вшитым в Next canary React
+  («Incompatible React versions», module-federation/core#4727). Стратегия выбора провайдера —
+  явный `shareStrategy: 'loaded-first'` в `init`: уже загруженный экземпляр хоста важнее версии.
+  Импорты в `remote.ts` ленивые,
+  чтобы серверный бандл не трогал `react-dom/client`. Грузится компонент только на клиенте, сбой
+  загрузки показывается `Alert`'ом на `/profile/edit`.
   antd не шарится намеренно — remote собирает свою копию.
 - Комментарии и JSDoc — на русском.
 

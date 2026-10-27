@@ -43,6 +43,16 @@ src/
 - **Патч профиля** отправляет только `displayName` и `email`: бэкенд отклоняет любые
   read-only поля (`read_only_property`).
 - **Аватар принимаем только PNG/JPEG** — бэкенд декодирует через ImageIO, WebP/GIF отвергает.
+- **multipart на сервере приходит не `FormData`.** Hono разбирает тело до хендлера
+  (`c.req.parseBody()` → объект с null-prototype), и `fetch` на нём падает с «Cannot convert
+  object to primitive value». Роут аватара перекладывает поля в настоящий `FormData`
+  (`toFormData` в `api/lambda/profile/avatar.ts`); `req.raw.formData()` не работает — тело уже
+  прочитано. Тип параметра хендлера остаётся `FormData` — его же видит клиент.
+- **MF-шаринг задан явно** в `module-federation.config.ts`: `react`, `react-dom` и
+  `react-dom/client` — singleton. `react-dom/client` — отдельный ключ: точный `react-dom` sub-path
+  не покрывает, и remote собрал бы свою копию клиентского рендерера, которая спорит со вшитым в
+  Next canary React хоста («Incompatible React versions», module-federation/core#4727). `antd`
+  шарится тоже, но хост его в share scope не отдаёт — у него своя копия.
 - Комментарии и JSDoc — на русском.
 
 ## Команды

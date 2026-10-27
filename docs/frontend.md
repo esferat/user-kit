@@ -155,10 +155,20 @@ The profile editor lives in the separate microfrontend `user-profile/` (own doma
 loaded into `/profile/edit` through Module Federation:
 
 - `src/shared/lib/remote.ts` calls `init()` from `@module-federation/runtime` with the remote
-  `user_profile` (`${NEXT_PUBLIC_PROFILE_BASE_URL}/static/mf-manifest.json`) and registers `react`
-  and `react-dom` as singletons taken from the host. The shared entries carry `lib`, which marks them
-  loaded: the host stays the owner of the framework instance and the remote cannot put its own copy
-  into the same slot. Two React instances would crash the remote component with an invalid hook call.
+  `user_profile` (`${NEXT_PUBLIC_PROFILE_BASE_URL}/static/mf-manifest.json`) and registers `react`,
+  `react-dom` and `react-dom/client` as singletons taken from the host. The shared entries carry
+  `lib`, which marks them loaded: the host stays the owner of the framework instance and the remote
+  cannot put its own copy into the same slot. Two React instances would crash the remote component
+  with an invalid hook call.
+- `react-dom/client` needs its own key: an exact share key `react-dom` does not match the sub-path,
+  so the remote would otherwise bundle its own client renderer. App Router always renders through
+  the React copy compiled into Next (`next/dist/compiled/react`, a canary), while the remote builds
+  against npm React — and `react-dom/client` verifies `react.version` against its own build, which
+  threw `Incompatible React versions` (module-federation/core#4727). Sharing the sub-path makes the
+  remote consume the host pair, canary and canary. The host entries are imported lazily, so the
+  server bundle never touches `react-dom/client`.
+- Sharing runs with `shareStrategy: 'loaded-first'`: an already loaded instance wins over a higher
+  version, so the host pair (React from the copy compiled into Next) is always the one in use.
 - The page loads the expose in an effect and renders it only on the client: the manifest and the
   chunks come from another origin, the server never sees them. A failed load shows an `Alert` with
   the reason instead of an empty page.

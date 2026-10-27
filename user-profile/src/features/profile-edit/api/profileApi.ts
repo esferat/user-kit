@@ -17,7 +17,7 @@ export function updateProfile(
 /** `POST` аватара: файл уходит как есть, две версии делает бэкенд. */
 export function uploadAvatar(file: File): Promise<SafeReadResult<MeResponse>> {
   const formData = new FormData();
-  // Имя поля `file` законтракчено с `MeController`.
+  // Имя поля `file` контракт с `MeController`.
   formData.append('file', file);
   return uploadHandler({ formData });
 }

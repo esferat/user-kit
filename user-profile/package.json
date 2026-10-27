@@ -25,8 +25,6 @@
     "@module-federation/modern-js-v3": "2.9.2",
     "@tanstack/react-query": "5.104.5",
     "antd": "6.6.6",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
     "react-hook-form": "7.91.0",
     "zod": "4.6.7"
   },
@@ -38,5 +36,9 @@
     "@types/react-dom": "^19.1.6",
     "rstack": "0.8.2",
     "typescript": "~5.7.3"
+  },
+  "peerDependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   }
 }
