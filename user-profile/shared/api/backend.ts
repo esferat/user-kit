@@ -1,12 +1,15 @@
 /**
  * Серверный прокси BFF → бэкенд. Модуль импортируется только из api/lambda,
  * клиентский бандл сюда не попадает: здесь process.env и сеть контейнера.
+ * Каждый вызов попадает в лог (`./logger`), формат строки — как у бэкенда.
  *
  * Запрос приходит с cookie браузера, и они уходят в бэкенд как есть — сессия
  * живёт на бэкенде, токены в браузер не возвращаются. CSRF-токен читается из
  * cookie запроса и повторяется в заголовке, который бэкенд требует для
  * изменяющих методов.
  */
+
+import { asError, logger } from './logger';
 
 const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL ?? 'http://backend:8080';
 
@@ -24,7 +27,10 @@ export interface BackendRequest {
 }
 
 /** Извлекает одно значение cookie из заголовка Cookie входящего запроса. */
-export function readCookieHeader(cookieHeader: string | null | undefined, name: string): string | null {
+export function readCookieHeader(
+  cookieHeader: string | null | undefined,
+  name: string,
+): string | null {
   if (!cookieHeader) {
     return null;
   }
@@ -67,16 +73,33 @@ export async function backendFetch(
   }
 
   const url = `${BACKEND_BASE_URL}${normalizedPath}`;
+  const started = Date.now();
   try {
-    return await fetch(url, {
+    const response = await fetch(url, {
       method,
       headers,
       body: request.body ?? null,
     });
+    // Каждый вызов BFF виден в логе: статус и длительность — в контексте,
+    // 5xx поднимается до error, 4xx остаётся обычным исходом запроса
+    // (клиент получает его безопасной строкой).
+    const context = {
+      method,
+      path: normalizedPath,
+      status: response.status,
+      ms: Date.now() - started,
+    };
+    if (response.status >= 500) {
+      logger.error(context, 'Backend call failed');
+    } else {
+      logger.info(context, 'Backend call');
+    }
+    return response;
   } catch (cause) {
     // Транспортная ошибка (бэкенд недоступен, DNS, таймаут): наружу уходит
-    // человеческая причина, а не «fetch failed».
-    const reason = cause instanceof Error ? cause.message : String(cause);
+    // человеческая причина, а не «fetch failed». В лог её пишет `logFailure`
+    // роута, который ловит исключение, — одна причина даёт одну строку.
+    const reason = asError(cause).message;
     throw new Error(`Бэкенд недоступен (${url}): ${reason}`, { cause });
   }
 }

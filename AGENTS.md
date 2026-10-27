@@ -17,6 +17,7 @@ S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/L
 | `nginx/` | nginx 1.27 | TLS-edge: терминация, редирект, прокси |
 | `keycloak/realm/` | Keycloak 26 | Импорт realm'а локального IdP |
 | `logstash/` | Logstash | Доставка логов backend/Keycloak/nginx в Elasticsearch |
+| `vector/` | Vector 0.60 | Доставка логов фронтендов (frontend-main, user-profile) в Elasticsearch |
 | `scripts/` | PowerShell | `generate-dev-cert.ps1` (сертификаты), `smoke.ps1` (e2e-проверка стека) |
 | `docs/` | — | Единственный источник правды по API, архитектуре и фронтендам |
 
@@ -75,7 +76,8 @@ cp .env.example .env                  # конфигурация окружен�
 - Имена доменов должны быть в `C:\Windows\System32\drivers\etc\hosts` (или `/etc/hosts`).
 - `NEXT_PUBLIC_*` инлайнится **на этапе сборки** — после правки переменной нужен
   `docker compose up -d --build frontend-main`.
-- Логи: Kibana, индексы `user-kit-backend-*`, `user-kit-keycloak-*`, `user-kit-nginx-*`.
+- Логи: Kibana, индексы `user-kit-backend-*`, `user-kit-keycloak-*`, `user-kit-nginx-*`,
+  `user-kit-frontend-main-*`, `user-kit-user-profile-*`.
 
 ## Проверка перед сдачей
 

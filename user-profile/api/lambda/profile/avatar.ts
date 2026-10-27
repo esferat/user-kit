@@ -1,6 +1,8 @@
 import { useHonoContext } from '@modern-js/server-runtime';
 
 import { backendFetch } from '@shared/api/backend';
+import { BackendRefusal } from '@shared/api/errors';
+import { logFailure } from '@shared/api/logger';
 import { safeRead, type SafeReadResult } from '@shared/lib';
 import { type MeResponse } from '@shared/model';
 
@@ -55,7 +57,7 @@ async function forwardAvatar(method: string, body: BodyInit | null): Promise<MeR
     rawBody: true,
   });
   if (!response.ok) {
-    throw new Error(await failureOf(response));
+    throw new BackendRefusal(await failureOf(response));
   }
   return (await response.json()) as MeResponse;
 }
@@ -71,7 +73,10 @@ async function postHandler({
 }): Promise<SafeReadResult<MeResponse>> {
   // Тип параметра — FormData, как у клиента; на сервере Hono уже разобрал
   // тело, поэтому форма приводится обратно (см. toFormData).
-  return safeRead(() => forwardAvatar('POST', toFormData(formData)));
+  return safeRead(
+    () => forwardAvatar('POST', toFormData(formData)),
+    logFailure('POST /profile-api/profile/avatar failed'),
+  );
 }
 
 /**
@@ -82,7 +87,10 @@ async function postHandler({
  * Короткое `del` серверная часть Modern.js тоже читает как `DELETE`.
  */
 async function deleteHandler(): Promise<SafeReadResult<MeResponse>> {
-  return safeRead(() => forwardAvatar('DELETE', null));
+  return safeRead(
+    () => forwardAvatar('DELETE', null),
+    logFailure('DELETE /profile-api/profile/avatar failed'),
+  );
 }
 
 export { postHandler as post, deleteHandler as del };

@@ -32,8 +32,16 @@ src/
 │   └── lines/         game, ui                      # three.js
 ├── entities/user/     model (types, roles), ui
 ├── shared/            api (http-клиент), config, lib (initials, message, remote — Module Federation)
+├── instrumentation.ts  старт сервера и ошибки серверных запросов (Next hooks)
 └── widgets/app-shell/ model (navigation), ui
 ```
+
+`shared/lib/logger.ts` — серверный логгер Pino: строка в формате бэкенда
+`[LEVEL]-[yyyy-MM-dd HH:mm:ss.SSS]- message` (UTC) в stdout и в `LOG_FILE`. Модуль **не выведен** из
+`shared/lib/index.ts` и импортируется только серверными файлами (`src/instrumentation.ts` и подобными)
+прямым путём — иначе `node:fs` попадёт в клиентский граф импортов. `LOG_LEVEL` задаёт уровень
+(по умолчанию `info`). Формат строки разбирает `vector/vector.toml` — форма меняется только вместе с
+ним.
 
 Алиас `@/*` → `src/*`. Структура повторяет Feature Sliced Design
 (`app → widgets → features → entities → shared`), но жёстких правил границ в ESLint здесь нет —
@@ -67,6 +75,11 @@ src/
   чтобы серверный бандл не трогал `react-dom/client`. Грузится компонент только на клиенте, сбой
   загрузки показывается `Alert`'ом на `/profile/edit`.
   antd не шарится намеренно — remote собирает свою копию.
+- **Логи** пишет `shared/lib/logger` (Pino): строка в формате бэкенда
+  `[LEVEL]-[yyyy-MM-dd HH:mm:ss.SSS]- message` (UTC), в stdout и в `LOG_FILE`, уровень — `LOG_LEVEL`.
+  Падения серверных запросов ловит `onRequestError` в `src/instrumentation.ts`, который подключает
+  логгер динамически и только в Node-runtime. Ошибки, которые пользователь видит в UI, в лог не
+  дублируются — доступ-лог остаётся за nginx.
 - Комментарии и JSDoc — на русском.
 
 ## Команды

@@ -15,6 +15,8 @@ api/lambda/                 BFF-роуты, только сервер
   profile/avatar.ts          POST/DELETE аватара
 shared/                     общий слой FSD (Modern.js: общий для api/, server/, src/)
   api/backend.ts            серверный прокси к бэкенду — единственный, кто видит backend
+  api/logger.ts             серверный логгер Pino (формат строки — как у бэкенда)
+  api/errors.ts             BackendRefusal — отказ бэкенда, показываемый человеку
   config/  lib/  model/  ui/
 src/
   routes/                   conventional routing (layout, page, profile/edit)
@@ -53,6 +55,17 @@ src/
   не покрывает, и remote собрал бы свою копию клиентского рендерера, которая спорит со вшитым в
   Next canary React хоста («Incompatible React versions», module-federation/core#4727). `antd`
   шарится тоже, но хост его в share scope не отдаёт — у него своя копия.
+- **Логи — только на сервере**: логгер (`shared/api/logger.ts`) лежит рядом с `backend.ts` и, как он,
+  импортируется исключительно из `api/lambda` и слоя `shared/api`. Через `shared/lib/index.ts` его
+  выводить нельзя — клиент импортирует тот индекс значениями, и `node:fs` сломал бы клиентскую
+  сборку. Строки в формате бэкенда `[LEVEL]-[yyyy-MM-dd HH:mm:ss.SSS]- message` (UTC), уровень —
+  `LOG_LEVEL`, файл — `LOG_FILE`; формат разбирает `vector/vector.toml`.
+- **Падение роута логируется один раз**: `backend.ts` пишет каждый вызов бэкенда
+  (`Backend call` на info, `Backend call failed` на 5xx), а исключение роута — `logFailure` в
+  необязательном `onError` `safeAction`/`safeRead`. Отказ бэкенда роут бросает как `BackendRefusal`
+  (`shared/api/errors.ts`): `logFailure` пишет такие причины на debug, чтобы анонимные 401 не
+  выглядели падениями; транспортные ошибки в `backend.ts` не логируются — их пишет `logFailure`.
+  Новую причину добавляй через `BackendRefusal`/`onError`, а не своим `logger.error` в роуте.
 - Комментарии и JSDoc — на русском.
 
 ## Команды

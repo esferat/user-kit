@@ -24,6 +24,10 @@ RUN corepack enable && corepack prepare pnpm@12.10.1 --activate && pnpm run depl
 FROM base AS runner
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 -G nodejs modernjs
+# Directory for LOG_FILE. The frontend-logs volume is mounted here, and an empty
+# named volume is initialised from the image, so the owner has to be set before
+# the container starts as the unprivileged user below.
+RUN mkdir -p /var/log/user-kit && chown modernjs:nodejs /var/log/user-kit
 # `modern deploy` bundles the runnable server with its dependencies.
 COPY --from=builder --chown=modernjs:nodejs /app/.output ./.output
 USER modernjs

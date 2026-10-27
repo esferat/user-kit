@@ -18,16 +18,18 @@ docker compose ps
 | `keycloak`       | built from `keycloak/`                      | 8180, internal 8080         | identity provider, realm `user-kit`, writes its file log                     |
 | `postgres`       | `postgres:17-alpine`                        | internal 5432               | database with Flyway migrations                                              |
 | `object-storage` | `${SILO_IMAGE:-pgsty/silo}:${SILO_VERSION}` | console 9001, internal 9000 | S3 compatible file storage                                                   |
-| `elasticsearch`  | `docker.elastic.co/.../elasticsearch:${ELASTIC_VERSION}` | 9200            | log store, `user-kit-backend-*`, `user-kit-keycloak-*` and `user-kit-nginx-*` |
+| `elasticsearch`  | `docker.elastic.co/.../elasticsearch:${ELASTIC_VERSION}` | 9200            | log store, `user-kit-backend-*`, `user-kit-keycloak-*`, `user-kit-nginx-*`, `user-kit-frontend-main-*` and `user-kit-user-profile-*` |
 | `logstash`       | `docker.elastic.co/logstash/logstash:${ELASTIC_VERSION}` | internal 9600   | tails the backend, Keycloak and nginx logs and indexes them into Elasticsearch |
+| `vector`         | `timberio/vector:0.60.0-alpine`             | -                 | tails the Pino log files of the two frontends and indexes them into Elasticsearch |
 | `kibana`         | `docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}`     | 5601            | log exploration UI                                                           |
 
 Volumes `postgres-data` and `object-storage-data` keep the state across restarts. `docker compose
 down -v` deletes them. Keycloak uses `dev-file`, so its data lives inside the container and a
 recreated container imports `keycloak/realm/user-kit-realm.json` again. The logging stack adds
 `backend-logs` (the backend writes, Logstash reads), `keycloak-logs` and `nginx-logs` (each service
-writes its log file, Logstash reads it read only), `elasticsearch-data` and `logstash-data` (keeps
-the file offsets across restarts).
+writes its log file, Logstash reads it read only), `frontend-logs` (both frontends write, Vector reads
+it read only), `vector-data` (the file checkpoints of Vector, so a restart continues at the last
+offset), `elasticsearch-data` and `logstash-data` (keeps the file offsets across restarts).
 
 Health checks: PostgreSQL uses `pg_isready`, Keycloak queries `/auth/health/ready` on its management
 port, Silo queries `/minio/health/live` (Silo keeps the reserved routes of the MinIO server), and the
@@ -36,7 +38,8 @@ backend calls `/actuator/health` and waits up to 45 seconds for the first start.
 Elasticsearch has to answer on its HTTP API (a single node reports yellow as soon as an index has a
 replica, so requiring green would stall the stack), Logstash and Kibana wait for it. The
 backend therefore only starts after PostgreSQL and Keycloak are healthy, and it retries the bucket
-check and creation for 20 seconds so the storage may start in parallel.
+check and creation for 20 seconds so the storage may start in parallel. Vector waits for
+Elasticsearch to be healthy and for both frontend containers to be started.
 
 ## TLS
 
@@ -115,6 +118,7 @@ included challenge location, mount the webroot of the certificate client into
 | `OIDC_CLIENT_ISSUER_URI`                                    | `http://keycloak:8080/auth/realms/user-kit`              | URL used for discovery, keep it while the public issuer is not reachable from the backend    |
 | `VITE_API_BASE_URL`                                         | empty                                                    | build argument, becomes `NEXT_PUBLIC_API_BASE_URL` of the frontend                           |
 | `LOG_FILE`                                                  | `/var/log/user-kit/backend.log`                          | backend log file Logstash tails; empty keeps the console only                                |
+| `LOG_LEVEL`                                                 | `info`                                                   | level of the Pino loggers of both frontends (`trace`…`error`)                                |
 | `ELASTIC_VERSION`                                           | `8.15.3`                                                 | one image tag for Elasticsearch, Logstash and Kibana                                         |
 | `ELASTICSEARCH_PORT`                                        | `9200`                                                   | published Elasticsearch API port                                                             |
 | `KIBANA_PORT`                                               | `5601`                                                   | published Kibana UI port                                                                     |
@@ -155,17 +159,55 @@ own `grok`/`json` filter in
 java.nio.file.AccessDeniedException: /data/report.pdf
 ```
 
-Every document carries a `service` field (`backend`, `keycloak` or `nginx`) and the parsed
-`log.level`. Create the data views once in Kibana (**Stack Management → Data Views**): `user-kit-*`
+### Frontends (Vector)
+
+The two frontends have their own shipper, [`vector/vector.toml`](../vector/vector.toml), because
+their logs are written by Pino in the Node.js process rather than by the JVM. Both applications use
+the module `frontend-main/src/shared/lib/logger.ts` resp. `user-profile/shared/api/logger.ts`, which
+prints **the same line shape as the backend** (`[LEVEL]-[yyyy-MM-dd HH:mm:ss.SSS]- message`, UTC,
+a stack trace on the following lines) into the console and, when `LOG_FILE` is set, into that file
+inside the `frontend-logs` volume. Compose sets `LOG_FILE` to one file per service and `LOG_LEVEL`
+(default `info`) for both:
+
+| Source        | File inside the container               | Index                      |
+| ------------- | --------------------------------------- | -------------------------- |
+| frontend-main | `/var/log/user-kit/frontend-main.log`   | `user-kit-frontend-main-*` |
+| user-profile  | `/var/log/user-kit/user-profile.log`    | `user-kit-user-profile-*`  |
+
+Vector tails both files (offsets are kept in the `vector-data` volume), joins the stack trace onto
+its first line the way the multiline codec does for the backend, parses the first line with a regex
+and writes one document per event with the fields Kibana already knows: `@timestamp` (taken from the
+line, so the event carries its write time), `message`, `log.level`, `service` and `tags`. The
+shipped documents of the whole stack therefore share one schema, and a single `user-kit-*` data view
+in Kibana covers all five sources.
+
+The config can be checked without starting the stack:
+
+```bash
+docker run --rm -v "$PWD/vector:/etc/vector:ro" timberio/vector:0.60.0-alpine validate --no-environment /etc/vector/vector.toml
+docker run --rm -v "$PWD/vector:/etc/vector:ro" timberio/vector:0.60.0-alpine test /etc/vector/vector.toml
+```
+
+`validate` checks the topology, `test` runs the unit tests of the config: a plain line, a stack
+trace and a BFF line, each asserted against `service`, `log.level`, `message`, `@timestamp` and
+`tags`. Note that VRL writes a regex literal as `r'...'` — a `/.../` slash form is lexed as the
+division operator and fails to parse.
+
+Every document carries a `service` field (`backend`, `keycloak`, `nginx`, `frontend-main` or
+`user-profile`) and the parsed `log.level`. Create the data views once in Kibana (**Stack
+Management → Data Views**): `user-kit-*`
 for all sources at once, or one per source (`user-kit-backend-*`, `user-kit-keycloak-*`,
-`user-kit-nginx-*`), each with `@timestamp` as the time field. Open Kibana at `SERVER_NAME_KIBANA`
+`user-kit-nginx-*`, `user-kit-frontend-main-*`, `user-kit-user-profile-*`), each with `@timestamp` as
+the time field. Open Kibana at `SERVER_NAME_KIBANA`
 (`https://user-kit.kibana.local` by default), which the edge proxies to the Kibana container, or at the
-published `KIBANA_PORT`. The `date` filter of the pipeline sets `@timestamp` from the log line, so an
-event appears when it was written, not when Logstash read it.
+published `KIBANA_PORT`. The `date` filter of the Logstash pipeline and the `parse_timestamp` call in
+`vector/vector.toml` set `@timestamp` from the log line, so an
+event appears when it was written, not when the shipper read it.
 
 The dev stack runs Elasticsearch with `xpack.security.enabled=false` and without TLS. A production
 deployment has to enable its security, add the credentials to the Elasticsearch output of the pipeline
-and remove the `KIBANA_PORT` and `ELASTICSEARCH_PORT` mappings so only the edge reaches the log UI.
+and to the sinks of `vector/vector.toml`, and remove the `KIBANA_PORT` and `ELASTICSEARCH_PORT`
+mappings so only the edge reaches the log UI.
 
 ## Production checklist
 
@@ -212,7 +254,8 @@ and remove the `KIBANA_PORT` and `ELASTICSEARCH_PORT` mappings so only the edge 
 `scripts/smoke.ps1` verifies a running stack: TLS edge, the SPAs and the Next.js page, the Kibana log
 UI, OpenAPI, the discovery document of the identity provider, the roles of the tokens, authentication,
 authorization, upload into the object storage, the REST list query parameters (search, sort, page, size
-and the size cap), rejected input, optimistic locking, role administration and deletion. It prints one
+and the size cap), rejected input, optimistic locking, role administration, deletion and the presence
+of both frontend log indices in Elasticsearch. It prints one
 line per check and exits with `1` if anything deviates from the expected status.
 
 ```bash

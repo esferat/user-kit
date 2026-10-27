@@ -21,6 +21,10 @@ RUN corepack enable && corepack prepare pnpm@12.10.1 --activate && pnpm run buil
 FROM base AS runner
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+# Directory for LOG_FILE. The frontend-logs volume is mounted here, and an empty
+# named volume is initialised from the image, so the owner has to be set before
+# the container starts as the unprivileged user below.
+RUN mkdir -p /var/log/user-kit && chown nextjs:nodejs /var/log/user-kit
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static

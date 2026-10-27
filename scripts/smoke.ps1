@@ -30,7 +30,8 @@ param(
 # application. $AltServerName and $NextServerName reach the provider only through
 # a redirect. $ProfileServerName is the profile microfrontend. $KibanaServerName
 # is the reverse proxy in front of the log UI. The last blocks check that every
-# domain keeps its own login.
+# domain keeps its own login and that the vector service has shipped the log
+# files of both frontends into Elasticsearch.
 
 $ErrorActionPreference = 'Stop'
 $base = "https://$ServerName"
@@ -519,6 +520,25 @@ function Test-KibanaDomain {
     ShowCheck "$Name reports a Kibana version" ($status -like '*"version"*') ''
 }
 
+function Test-LogIndices {
+    # The two frontends write log files that the vector service ships into
+    # Elasticsearch next to the documents of Logstash. Each service keeps its
+    # own daily index, so the check waits until the first event has landed.
+    $esBase = "http://${Address}:$(if ($env:ELASTICSEARCH_PORT) { $env:ELASTICSEARCH_PORT } else { '9200' })"
+    foreach ($prefix in @('user-kit-frontend-main-', 'user-kit-user-profile-')) {
+        $found = ''
+        for ($attempt = 0; $attempt -lt 15 -and -not $found; $attempt++) {
+            # The answer is one index name per line: a prefix match on the line
+            # keeps a path quoted in an error body from counting as a hit.
+            $lines = Http @() "$esBase/_cat/indices?h=index"
+            $hit = @($lines | Where-Object { $_ -and $_.Trim().StartsWith($prefix) } | Select-Object -First 1)
+            if ($hit.Count -gt 0) { $found = $hit[0].Trim() }
+            if (-not $found) { Start-Sleep -Seconds 2 }
+        }
+        ShowCheck "ES index $prefix*" ($found -ne '') $found
+    }
+}
+
 Write-Host ''
 Write-Host "Additional application domains: $altBase, $nextBase, $profileBase, $kibanaBase" -ForegroundColor Cyan
 Write-Host ''
@@ -527,6 +547,7 @@ Test-ApplicationDomain $AltServerName $altBase
 Test-NextDomain $NextServerName $nextBase
 Test-ProfileDomain $ProfileServerName $profileBase
 Test-KibanaDomain $KibanaServerName $kibanaBase
+Test-LogIndices
 
 Write-Host ''
 if ($script:Failures -eq 0) {

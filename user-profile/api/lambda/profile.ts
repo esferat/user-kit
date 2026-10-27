@@ -2,6 +2,8 @@ import type { RequestOption } from '@modern-js/plugin-bff/server';
 import { useHonoContext } from '@modern-js/server-runtime';
 
 import { backendFetch } from '@shared/api/backend';
+import { BackendRefusal } from '@shared/api/errors';
+import { logFailure } from '@shared/api/logger';
 import { safeAction, safeRead, type SafeActionResult, type SafeReadResult } from '@shared/lib';
 import { profileDetailsSchema, type MeResponse, type ProfileDetails } from '@shared/model';
 
@@ -27,10 +29,10 @@ export async function get(): Promise<SafeReadResult<MeResponse>> {
   return safeRead(async () => {
     const response = await backendFetch('/api/v1/me', incomingCookie());
     if (!response.ok) {
-      throw new Error(await failureOf(response));
+      throw new BackendRefusal(await failureOf(response));
     }
     return (await response.json()) as MeResponse;
-  });
+  }, logFailure('GET /profile-api/profile failed'));
 }
 
 /**
@@ -41,17 +43,20 @@ export async function get(): Promise<SafeReadResult<MeResponse>> {
  */
 export async function patch({
   data,
-}: RequestOption<never, ProfileData>): Promise<
-  SafeActionResult<MeResponse, ProfileDetails>
-> {
-  return safeAction(profileDetailsSchema, data, async (value) => {
-    const response = await backendFetch('/api/v1/me', incomingCookie(), {
-      method: 'PATCH',
-      body: JSON.stringify({ displayName: value.displayName, email: value.email }),
-    });
-    if (!response.ok) {
-      throw new Error(await failureOf(response));
-    }
-    return (await response.json()) as MeResponse;
-  });
+}: RequestOption<never, ProfileData>): Promise<SafeActionResult<MeResponse, ProfileDetails>> {
+  return safeAction(
+    profileDetailsSchema,
+    data,
+    async (value) => {
+      const response = await backendFetch('/api/v1/me', incomingCookie(), {
+        method: 'PATCH',
+        body: JSON.stringify({ displayName: value.displayName, email: value.email }),
+      });
+      if (!response.ok) {
+        throw new BackendRefusal(await failureOf(response));
+      }
+      return (await response.json()) as MeResponse;
+    },
+    logFailure('PATCH /profile-api/profile failed'),
+  );
 }

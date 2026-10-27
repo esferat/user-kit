@@ -1,0 +1,186 @@
+# Ships the frontend logs of user-kit to Elasticsearch.
+#
+# Two sources, each written by its container into the shared frontend-logs
+# volume and tailed here, exactly like Logstash tails the backend:
+#
+#   * frontend-main - Pino line "[level]-[date]- message"
+#   * user-profile  - the same shape written by its BFF
+#
+# The line shape is the backend pattern (logging.pattern in
+# backend/src/main/resources/application.yml) and logstash/pipeline/logstash.conf
+# parses it for the backend, so the documents share the fields Kibana already
+# knows: @timestamp, message, log.level, service, tags.
+#
+# A stack trace continues on the following lines that do not start with "[";
+# the multiline options join them into one event before remap parses the first
+# line - the multiline codec of logstash.conf does the same for the backend.
+
+data_dir = "/var/lib/vector"
+
+# ------------------------------------------------------------------------------
+# Sources: tail the log files of both frontends
+# ------------------------------------------------------------------------------
+
+[sources.frontend_main]
+type = "file"
+include = ["/var/log/user-kit/frontend-main.log"]
+# Read from the start of a new file, offsets are checkpointed in vector-data.
+read_from = "beginning"
+
+[sources.frontend_main.multiline]
+# A new event starts with "[LEVEL]-[...]", everything until the next such line
+# belongs to it: stack trace lines and wrapped messages.
+mode = "halt_before"
+start_pattern = '^\['
+condition_pattern = '^\['
+timeout_ms = 1000
+
+[sources.user_profile]
+type = "file"
+include = ["/var/log/user-kit/user-profile.log"]
+read_from = "beginning"
+
+[sources.user_profile.multiline]
+mode = "halt_before"
+start_pattern = '^\['
+condition_pattern = '^\['
+timeout_ms = 1000
+
+# ------------------------------------------------------------------------------
+# Transforms: turn "[LEVEL]-[date]- message" into the fields of the backend
+# ------------------------------------------------------------------------------
+
+[transforms.parse_frontend_main]
+type = "remap"
+inputs = ["frontend_main"]
+source = '''
+# Shape of the line, see logging.pattern in the backend application.yml:
+#   [INFO]-[2026-10-27 10:00:00.123]- message
+# The multiline join keeps the stack trace in .message after the first line.
+.service = "frontend-main"
+.tags = ["frontend-main"]
+# VRL writes a regex literal as r'...': single quotes keep the backslashes
+# of the pattern untouched, /.../ would be lexed as the division operator.
+parsed, err = parse_regex(.message, r'^\[(?P<level>[A-Z]+)\]-\[(?P<log_time>[^\]]+)\]- (?P<body>[\s\S]*)$')
+if err == null {
+    .message = parsed.body
+    .log.level = parsed.level
+    # The logger writes UTC, the container of Vector runs in UTC as well.
+    ts, ts_err = parse_timestamp(parsed.log_time, "%Y-%m-%d %H:%M:%S%.3f", "UTC")
+    if ts_err == null {
+        ."@timestamp" = ts
+        del(.timestamp)
+    } else {
+        .tags = push(.tags, "_parsefailure")
+    }
+} else {
+    .tags = push(.tags, "_parsefailure")
+}
+'''
+
+[transforms.parse_user_profile]
+type = "remap"
+inputs = ["user_profile"]
+source = '''
+.service = "user-profile"
+.tags = ["user-profile"]
+# VRL writes a regex literal as r'...': single quotes keep the backslashes
+# of the pattern untouched, /.../ would be lexed as the division operator.
+parsed, err = parse_regex(.message, r'^\[(?P<level>[A-Z]+)\]-\[(?P<log_time>[^\]]+)\]- (?P<body>[\s\S]*)$')
+if err == null {
+    .message = parsed.body
+    .log.level = parsed.level
+    ts, ts_err = parse_timestamp(parsed.log_time, "%Y-%m-%d %H:%M:%S%.3f", "UTC")
+    if ts_err == null {
+        ."@timestamp" = ts
+        del(.timestamp)
+    } else {
+        .tags = push(.tags, "_parsefailure")
+    }
+} else {
+    .tags = push(.tags, "_parsefailure")
+}
+'''
+
+# ------------------------------------------------------------------------------
+# Sinks: one index per day per service, the naming Logstash already uses
+# ------------------------------------------------------------------------------
+
+[sinks.es_frontend_main]
+type = "elasticsearch"
+inputs = ["parse_frontend_main"]
+endpoints = ["http://elasticsearch:9200"]
+bulk.index = "user-kit-frontend-main-%Y.%m.%d"
+
+[sinks.es_user_profile]
+type = "elasticsearch"
+inputs = ["parse_user_profile"]
+endpoints = ["http://elasticsearch:9200"]
+bulk.index = "user-kit-user-profile-%Y.%m.%d"
+
+# ------------------------------------------------------------------------------
+# Unit tests: `vector test /etc/vector/vector.toml`
+# ------------------------------------------------------------------------------
+
+[[tests]]
+name = "frontend main line"
+
+[tests.input]
+insert_at = "parse_frontend_main"
+type = "log"
+log_fields = { message = '[INFO]-[2026-10-27 10:11:12.345]- Next.js server started {"runtime":"nodejs"}' }
+
+[[tests.outputs]]
+extract_from = "parse_frontend_main"
+expected_event_count = 1
+
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+assert_eq!(.service, "frontend-main")
+assert_eq!(.log.level, "INFO")
+assert_eq!(.message, "Next.js server started {\"runtime\":\"nodejs\"}")
+assert_eq!(format_timestamp!(."@timestamp", format: "%Y-%m-%d %H:%M:%S%.3f", timezone: "UTC"), "2026-10-27 10:11:12.345")
+assert_eq!(.tags, ["frontend-main"])
+'''
+
+[[tests]]
+name = "stack trace stays inside the message"
+
+[tests.input]
+insert_at = "parse_frontend_main"
+type = "log"
+log_fields = { message = "[ERROR]-[2026-10-27 10:11:12.345]- Request failed\nError: boom\n    at run (/app/server.js:1:1)" }
+
+[[tests.outputs]]
+extract_from = "parse_frontend_main"
+expected_event_count = 1
+
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+assert_eq!(.service, "frontend-main")
+assert_eq!(.log.level, "ERROR")
+assert_eq!(.message, "Request failed\nError: boom\n    at run (/app/server.js:1:1)")
+'''
+
+[[tests]]
+name = "user profile BFF line"
+
+[tests.input]
+insert_at = "parse_user_profile"
+type = "log"
+log_fields = { message = '[WARN]-[2026-10-27 10:11:12.345]- Backend call {"method":"GET","path":"/api/v1/me","status":503,"ms":12}' }
+
+[[tests.outputs]]
+extract_from = "parse_user_profile"
+expected_event_count = 1
+
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+assert_eq!(.service, "user-profile")
+assert_eq!(.log.level, "WARN")
+assert_eq!(.message, "Backend call {\"method\":\"GET\",\"path\":\"/api/v1/me\",\"status\":503,\"ms\":12}")
+assert_eq!(format_timestamp!(."@timestamp", format: "%Y-%m-%d %H:%M:%S%.3f", timezone: "UTC"), "2026-10-27 10:11:12.345")
+'''

@@ -174,6 +174,13 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: 0.0.0.0
+      # Pino writes "[level]-[date]- message" lines into this file, the vector
+      # service tails it; without the variable the logs go to the console only.
+      LOG_FILE: /var/log/user-kit/frontend-main.log
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # Shared with Vector, which reads the file read only
+      - frontend-logs:/var/log/user-kit
     depends_on:
       - backend
     restart: unless-stopped
@@ -193,13 +200,20 @@ services:
       HOST: 0.0.0.0
       # Read at run time by the BFF routes, never baked into the bundle.
       BACKEND_BASE_URL: http://backend:8080
+      # Same line format as the backend, tailed by the vector service below.
+      LOG_FILE: /var/log/user-kit/user-profile.log
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # Shared with Vector, which reads the file read only
+      - frontend-logs:/var/log/user-kit
     depends_on:
       - backend
     restart: unless-stopped
 
   # Central log store. Logstash tails the log files of the backend, Keycloak and
-  # the edge and indexes one document per event into this cluster, Kibana reads
-  # the user-kit-backend-*, user-kit-keycloak-* and user-kit-nginx-* indices.
+  # the edge, Vector tails the two frontends, and one document per event lands in
+  # this cluster. Kibana reads the user-kit-backend-*, user-kit-keycloak-*,
+  # user-kit-nginx-*, user-kit-frontend-main-* and user-kit-user-profile-* indices.
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.15.3}
     environment:
@@ -247,6 +261,28 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+    restart: unless-stopped
+
+  # The second shipper: tails the Pino log files of frontend-main and
+  # user-profile and indexes them next to the Logstash documents. The line
+  # format is the same "[level]-[date]- message" pattern the backend writes,
+  # see vector/vector.toml and logstash/pipeline/logstash.conf.
+  vector:
+    image: timberio/vector:0.60.0-alpine
+    command: --config /etc/vector/vector.toml
+    volumes:
+      - ./vector/vector.toml:/etc/vector/vector.toml:ro
+      # The log files the frontends write, read only here
+      - frontend-logs:/var/log/user-kit:ro
+      # Checkpoints of the file sources: a restart continues at the last offset
+      - vector-data:/var/lib/vector
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      frontend-main:
+        condition: service_started
+      user-profile:
+        condition: service_started
     restart: unless-stopped
 
   kibana:
@@ -301,5 +337,7 @@ volumes:
   backend-logs:
   keycloak-logs:
   nginx-logs:
+  frontend-logs:
+  vector-data:
   elasticsearch-data:
   logstash-data:
