@@ -5,7 +5,8 @@ react-hook-form 7 + `@hookform/resolvers`, zod 4, BFF (`@modern-js/plugin-bff`),
 Module Federation (`@module-federation/modern-js-v3`), FSD. Пакетный менеджер — **pnpm**
 (свой `pnpm-workspace.yaml` в каталоге проекта). Домен в стенде: `https://user-kit.profile.local`.
 
-Подключается в `frontend-main` как remote `user_profile`, expose — `./ProfileEdit`.
+Подключается в `frontend-main` как remote `user_profile`. Exposes: `./ProfilePage` (личный
+кабинет), `./ProfileEdit` (форма правки) и `./ProfileAvatar` (аватар в шапке хоста).
 
 ## Структура
 
@@ -21,7 +22,9 @@ shared/                     общий слой FSD (Modern.js: общий дл�
 src/
   routes/                   conventional routing (layout, page, profile/edit)
   entities/user/            запрос профиля, типы, ProfileAvatar, ProfileCard
-  features/profile-edit/    форма; index.tsx — точка входа MF
+  features/profile-view/    страница «Личный кабинет»; index.tsx — точка входа MF `./ProfilePage`
+  features/profile-edit/    форма; index.tsx — точка входа MF `./ProfileEdit`
+  features/profile-avatar/  аватар для шапки хоста; index.tsx — точка входа MF `./ProfileAvatar`
   widgets/profile-shell/    оболочка локального экрана
 ```
 
@@ -66,6 +69,22 @@ src/
   (`shared/api/errors.ts`): `logFailure` пишет такие причины на debug, чтобы анонимные 401 не
   выглядели падениями; транспортные ошибки в `backend.ts` не логируются — их пишет `logFailure`.
   Новую причину добавляй через `BackendRefusal`/`onError`, а не своим `logger.error` в роуте.
+- **Exposes рендерятся внутри хоста.** Каждая MF-точка входа (`features/*/index.tsx`) привозит
+  свои `AppProviders`: в чужом приложении нет ни своего QueryClient, ни контекста antd. Роутер
+  хоста не импортируется — переход задаётся колбэком (`onEdit` у `./ProfilePage`, хост передаёт
+  `router.push` из `next/navigation`). Локальные маршруты переиспользуют те же фичи:
+  `routes/page.tsx` рендерит `ProfileView` с `onEdit` от `useNavigate` Modern.js.
+- **Миниатюра в шапке хоста** — expose `./ProfileAvatar` (`features/profile-avatar`): читает профиль
+  через BFF и показывает `avatarThumbnailUrl`. Хост рисует его вместо локального `<Avatar>` и
+  держит локальную плашку с инициалами на данных сессии как запасной вариант.
+- **QueryClient в браузере — синглтон** (`shared/ui/AppProviders.tsx`, ключ `Symbol.for` в
+  `globalThis`): все exposes делят один кеш TanStack Query, поэтому `invalidateQueries` после
+  сохранения формы доходит до аватара в шапке и карточки профиля без шины. На сервере клиент
+  по-прежнему создаётся на каждый запрос — SSR не делится состоянием.
+- **Правка в соседней вкладке** — шина `entities/user/model/profileSync.ts` (BroadcastChannel
+  `user-kit:profile`): форма после успеха зовёт `publishProfileUpdated()`, `useProfileQuery`
+  подписан на событие и перечитывает профиль. В самой вкладке шина не нужна — там работает
+  синглтонный кеш; BroadcastChannel вкладке-отправителю сообщение не доставляет.
 - Комментарии и JSDoc — на русском.
 
 ## Команды

@@ -478,6 +478,9 @@ function Test-ProfileDomain {
     $manifest = (Http @() "$BaseUrl/static/mf-manifest.json") -join "`n"
     Show "$Name GET /static/mf-manifest.json" (HttpCode @() "$BaseUrl/static/mf-manifest.json") '200'
     ShowCheck "$Name manifest points at its own domain" ($manifest.Contains($BaseUrl)) ''
+    # The three exposes the host loads: profile page, edit form and the avatar
+    # of the application header.
+    ShowCheck "$Name manifest publishes all three exposes" ($manifest.Contains('ProfilePage') -and $manifest.Contains('ProfileEdit') -and $manifest.Contains('ProfileAvatar')) ''
     Show "$Name GET /static/remoteEntry.js" (HttpCode @() "$BaseUrl/static/remoteEntry.js") '200'
 
     # The BFF of this service, reachable on both application domains so the host

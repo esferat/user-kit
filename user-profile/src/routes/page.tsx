@@ -1,40 +1,22 @@
 import { Helmet } from '@modern-js/runtime/head';
-import { Link } from '@modern-js/runtime/router';
-import { Button, Space, Spin, Typography } from 'antd';
+import { useNavigate } from '@modern-js/runtime/router';
 
-import { ProfileCard, useProfileQuery } from '@entities/user';
-import { messageOfError } from '@shared/lib';
+import { ProfileView } from '@features/profile-view';
 
-/** Домашняя страница сервиса: карточка профиля и переход к правке. */
+/**
+ * Домашняя страница сервиса. Содержимое — та же фича `profile-view`, что
+ * публикуется в Module Federation для frontend-main, здесь она получает
+ * переход к правке от роутера этого приложения.
+ */
 export default function Index() {
-  const profile = useProfileQuery();
+  const navigate = useNavigate();
 
   return (
     <>
       <Helmet>
         <title>Личный кабинет — user-profile</title>
       </Helmet>
-      <Typography.Title level={2} style={{ marginTop: 0 }}>
-        Личный кабинет
-      </Typography.Title>
-      <Typography.Paragraph type="secondary">
-        Микрофронтенд user-profile. Профиль читается через собственный BFF, сессия живёт в
-        httpOnly cookie бэкенда.
-      </Typography.Paragraph>
-
-      <Space orientation="vertical" size="middle" style={{ display: 'flex' }}>
-        <Link to="/profile/edit">
-          <Button type="primary">Редактировать</Button>
-        </Link>
-
-        {profile.isPending && <Spin />}
-        {profile.isError && (
-          <Typography.Paragraph type="danger">
-            {messageOfError(profile.error, 'Не удалось прочитать профиль.')}
-          </Typography.Paragraph>
-        )}
-        {profile.data !== undefined && <ProfileCard profile={profile.data} />}
-      </Space>
+      <ProfileView onEdit={() => navigate('/profile/edit')} />
     </>
   );
 }

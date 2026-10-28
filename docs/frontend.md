@@ -151,8 +151,28 @@ during prerender. The client tree therefore streams behind the `<Suspense>` in t
 
 ## Module Federation host
 
-The profile editor lives in the separate microfrontend `user-profile/` (own domain, own BFF) and is
-loaded into `/profile/edit` through Module Federation:
+The profile area lives in the separate microfrontend `user-profile/` (own domain, own BFF) and is
+loaded into the host through Module Federation. Three exposes are used, each loaded by
+`src/shared/lib/remote.ts` and rendered by its own slot:
+
+| Expose | Where in the host | Props |
+| ------ | ----------------- | ----- |
+| `user_profile/ProfilePage` | `/profile` — the personal cabinet page | `onEdit` (host router pushes `/profile/edit`) |
+| `user_profile/ProfileEdit` | `/profile/edit` — the edit form | `onSaved` (optional) |
+| `user_profile/ProfileAvatar` | the avatar in the header menu | `name` — placeholder while the remote reads the profile |
+
+The host keeps a local fallback for the menu avatar (an antd `Avatar` with the initials and the
+thumbnail of the restored session): if the remote chunk is still loading or the microfrontend is
+down, the header still shows who is signed in. The page slots degrade to a skeleton / an `Alert`
+the same way.
+
+Saving a new avatar updates the header automatically. Inside one tab this is plain TanStack Query:
+`AppProviders` gives every expose the same browser-singleton `QueryClient`, so the
+`invalidateQueries` after a successful save reaches the menu avatar and the profile card. Across
+tabs the remote talks over a `BroadcastChannel` (`entities/user/model/profileSync.ts`): the edit
+form publishes, `useProfileQuery` subscribes and refetches. The backend versiones avatar URLs
+(`?v=<avatarUpdatedAt>`), so the refetched data carries a new image URL and the browser cache is
+not in the way.
 
 - `src/shared/lib/remote.ts` calls `init()` from `@module-federation/runtime` with the remote
   `user_profile` (`${NEXT_PUBLIC_PROFILE_BASE_URL}/static/mf-manifest.json`) and registers `react`,

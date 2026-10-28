@@ -12,11 +12,7 @@ export const roleSchema = z.enum(ROLES);
  * сервере (safe-action в BFF), поэтому правило валидации не расходится.
  */
 export const profileDetailsSchema = z.object({
-  displayName: z
-    .string()
-    .trim()
-    .min(1, 'Укажите имя')
-    .max(255, 'Не более 255 символов'),
+  displayName: z.string().trim().min(1, 'Укажите имя').max(255, 'Не более 255 символов'),
   email: z.email('Некорректная почта').or(z.literal('')),
 });
 

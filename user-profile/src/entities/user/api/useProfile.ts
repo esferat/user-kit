@@ -1,8 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { get } from '@api/profile';
 import { type MeResponse } from '@shared/model';
 
+import { subscribeProfileUpdated } from '../model/profileSync';
 import { profileKeys } from './profileKeys';
 
 /**
@@ -18,7 +20,24 @@ export async function fetchProfile(): Promise<MeResponse> {
   return result.data;
 }
 
-/** Профиль текущей сессии. */
+/**
+ * Профиль текущей сессии.
+ *
+ * Правка в соседней вкладке: слушает шину `profileSync` и перечитывает
+ * профиль, чтобы аватар в шапке и карточка показали новую версию. В самой
+ * вкладке, где сохраняют, этого не требуется — там форма после успеха
+ * инвалидирует кеш общего синглтонного QueryClient.
+ */
 export function useProfileQuery() {
+  const queryClient = useQueryClient();
+
+  useEffect(
+    () =>
+      subscribeProfileUpdated(
+        () => void queryClient.invalidateQueries({ queryKey: profileKeys.current }),
+      ),
+    [queryClient],
+  );
+
   return useQuery({ queryKey: profileKeys.current, queryFn: fetchProfile });
 }

@@ -1,8 +1,9 @@
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 
-// Микрофронтенд выступает производителем (remote): отдаёт форму правки профиля
-// и манифест со статикой. Потребитель — frontend-main, он подключает remote
-// через @module-federation/runtime, собственного плагина у Next.js нет.
+// Микрофронтенд выступает производителем (remote): отдаёт страницу профиля,
+// форму правки, аватар для шапки хоста и манифест со статикой. Потребитель —
+// frontend-main, он подключает exposes через @module-federation/runtime,
+// собственного плагина у Next.js нет.
 export default createModuleFederationConfig({
   name: 'user_profile',
   manifest: {
@@ -10,7 +11,12 @@ export default createModuleFederationConfig({
   },
   filename: 'static/remoteEntry.js',
   exposes: {
+    // Личный кабинет: карточка профиля и переход к правке
+    './ProfilePage': './src/features/profile-view/index.tsx',
+    // Форма правки профиля и аватара
     './ProfileEdit': './src/features/profile-edit/index.tsx',
+    // Миниатюра аватара для шапки хоста
+    './ProfileAvatar': './src/features/profile-avatar/index.tsx',
   },
   shared: {
     react: { singleton: true, requiredVersion: false },

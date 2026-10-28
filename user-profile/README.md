@@ -6,15 +6,15 @@
 
 ## Стек
 
-| Область | Технология |
-| --- | --- |
-| Фреймворк | Modern.js 3.10 (Rsbuild, React Router 7) |
-| UI | React 19.3, Ant Design 6.6 |
-| Данные | TanStack Query 5, react-hook-form 7, `@hookform/resolvers`, zod 4 |
-| BFF | `@modern-js/plugin-bff`, роуты в `api/lambda/*` |
-| Микрофронтенды | `@module-federation/modern-js-v3` (producer, `user_profile`) |
-| Качество | Rstack CLI (`rs lint`, `rs fmt`, `rs check`), SonarQube |
-| Слои | Feature Sliced Design |
+| Область        | Технология                                                        |
+| -------------- | ----------------------------------------------------------------- |
+| Фреймворк      | Modern.js 3.10 (Rsbuild, React Router 7)                          |
+| UI             | React 19.3, Ant Design 6.6                                        |
+| Данные         | TanStack Query 5, react-hook-form 7, `@hookform/resolvers`, zod 4 |
+| BFF            | `@modern-js/plugin-bff`, роуты в `api/lambda/*`                   |
+| Микрофронтенды | `@module-federation/modern-js-v3` (producer, `user_profile`)      |
+| Качество       | Rstack CLI (`rs lint`, `rs fmt`, `rs check`), SonarQube           |
+| Слои           | Feature Sliced Design                                             |
 
 Два замещения в исходном списке стека:
 
@@ -53,7 +53,8 @@ user-profile/
 **Валидация.** Схема `profileDetailsSchema` лежит в `shared/model` и используется в двух местах:
 `zodResolver` в форме (клиент) и `safeAction` в BFF-роуте (сервер). Правило не расходится.
 
-**Module Federation.** Проект — producer: `exposes: { './ProfileEdit': './src/features/profile-edit/index.tsx' }`.
+**Module Federation.** Проект — producer, три expose:
+`{ './ProfilePage': './src/features/profile-view/index.tsx', './ProfileEdit': './src/features/profile-edit/index.tsx', './ProfileAvatar': './src/features/profile-avatar/index.tsx' }`.
 Компонент самодостаточен — привозит свои `QueryClientProvider` и `ConfigProvider`, потому что
 рендерится внутри `frontend-main`. Потребитель подключает remote через `@module-federation/runtime`.
 
@@ -78,11 +79,11 @@ pnpm check     # rs lint + rs fmt --check
 
 Файл `.env.example` — шаблон.
 
-| Переменная | Время | Значение |
-| --- | --- | --- |
-| `PROFILE_ASSET_PREFIX` | сборка | публичный адрес статики, попадает в `mf-manifest.json` как `publicPath` |
-| `BACKEND_BASE_URL` | рантайм | адрес бэкенда для BFF, по умолчанию `http://backend:8080` |
-| `PORT` | рантайм | порт сервера, по умолчанию `3001` |
+| Переменная             | Время   | Значение                                                                |
+| ---------------------- | ------- | ----------------------------------------------------------------------- |
+| `PROFILE_ASSET_PREFIX` | сборка  | публичный адрес статики, попадает в `mf-manifest.json` как `publicPath` |
+| `BACKEND_BASE_URL`     | рантайм | адрес бэкенда для BFF, по умолчанию `http://backend:8080`               |
+| `PORT`                 | рантайм | порт сервера, по умолчанию `3001`                                       |
 
 ## Docker
 

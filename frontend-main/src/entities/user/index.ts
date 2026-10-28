@@ -8,4 +8,3 @@ export {
   readClaimPath,
   type ExtractRolesOptions,
 } from './model/roles';
-export { ProfileCard } from './ui/ProfileCard';

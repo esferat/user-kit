@@ -14,8 +14,8 @@ export function ProfileShell(props: ProfileEditFormProps) {
         Правка профиля
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        Данные уходят в бэкенд через BFF этого сервиса: браузер видит только свой Origin, токенов
-        в странице нет.
+        Данные уходят в бэкенд через BFF этого сервиса: браузер видит только свой Origin, токенов в
+        странице нет.
       </Typography.Paragraph>
       <ProfileEditForm {...props} />
     </>

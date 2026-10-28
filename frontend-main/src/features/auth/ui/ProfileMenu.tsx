@@ -2,8 +2,49 @@
 
 import Link from 'next/link';
 import {Avatar, Button, Dropdown, Space, Tag, Typography} from 'antd';
+import {useEffect, useState} from 'react';
+
 import {initialsOf} from '@/shared/lib';
+import {loadProfileAvatar, type RemoteProfileAvatar} from '@/shared/lib';
 import {useAuth} from '@/features/auth';
+
+/**
+ * Аватар в шапке приходит из микрофронтенда `user-profile` (expose
+ * `./ProfileAvatar`): так меню показывает ту же версию изображения, что и
+ * страницы профиля. Пока remote грузится или если он недоступен, остаётся
+ * локальная плашка на данных сессии — меню не зависит от чужого сервиса.
+ */
+function HeaderAvatar({name, fallbackUrl}: {name: string; fallbackUrl?: string | null}) {
+  const [RemoteAvatar, setRemoteAvatar] = useState<RemoteProfileAvatar | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    loadProfileAvatar().then(
+      (component) => {
+        if (alive) {
+          setRemoteAvatar(() => component);
+        }
+      },
+      // Сбой загрузки не ломает шапку: остаётся плашка с инициалами.
+      () => {},
+    );
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (RemoteAvatar !== null) {
+    return <RemoteAvatar size={24} name={name}/>;
+  }
+
+  return (
+    <Avatar size="small" src={fallbackUrl ?? undefined}>
+      {initialsOf(name)}
+    </Avatar>
+  );
+}
 
 /** Меню профиля: кто вошёл, роли и выход. Без сессии предлагает войти. */
 export function ProfileMenu() {
@@ -60,9 +101,7 @@ export function ProfileMenu() {
     >
       <Button type="text" style={{color: '#fff', height: 'auto', padding: 4}}>
         <Space>
-          <Avatar size="small" src={user.avatarThumbnailUrl ?? undefined}>
-            {initialsOf(user.displayName)}
-          </Avatar>
+          <HeaderAvatar name={user.displayName} fallbackUrl={user.avatarThumbnailUrl}/>
           {user.displayName}
         </Space>
       </Button>

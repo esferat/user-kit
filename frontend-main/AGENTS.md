@@ -30,7 +30,7 @@ src/
 │   ├── auth/          api, model, ui                # сессия, логин, store
 │   ├── match3/        game, model, ui               # Phaser
 │   └── lines/         game, ui                      # three.js
-├── entities/user/     model (types, roles), ui
+├── entities/user/     model (types, roles)
 ├── shared/            api (http-клиент), config, lib (initials, message, remote — Module Federation)
 ├── instrumentation.ts  старт сервера и ошибки серверных запросов (Next hooks)
 └── widgets/app-shell/ model (navigation), ui
@@ -65,7 +65,10 @@ src/
   (nginx проксирует `/api` на бэкенд). Сессия в cookie, токенов в браузере нет.
 - **Микрофронтенд `user-profile`** подключён через Module Federation: `shared/lib/remote.ts`
   делает `init` (remote `user_profile`, entry — `mf-manifest.json` с `NEXT_PUBLIC_PROFILE_BASE_URL`)
-  и `loadRemote('user_profile/ProfileEdit')`. React, ReactDOM **и `react-dom/client`** регистрируются
+  и грузит expose'ы: `loadProfileEdit` (`/profile/edit`), `loadProfilePage` (`/profile`, навигация
+  к правке задаётся колбэком `onEdit` — remote не знает роутера Next) и `loadProfileAvatar`
+  (аватар в шапке меню; пока remote не подключился или недоступен, рисуется локальная плашка с
+  инициалами на данных сессии). React, ReactDOM **и `react-dom/client`** регистрируются
   в share scope как singleton с `lib` — без этого у компонента remote свой экземпляр React и хуки
   падают, а `react-dom/client` пришлось бы шарить отдельным ключом: точный ключ `react-dom` sub-path
   не покрывает, и remote собрал бы свою копию, которая спорит со вшитым в Next canary React

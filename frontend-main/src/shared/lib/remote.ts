@@ -4,12 +4,26 @@ import * as ReactDom from 'react-dom';
 
 import { appConfig } from '@/shared/config';
 
-/** Имя remote и имя expose — ровно как в `module-federation.config.ts` user-profile. */
+/** Имя remote и имена expose — ровно как в `module-federation.config.ts` user-profile. */
 const REMOTE_NAME = 'user_profile';
-const REMOTE_EXPOSE = `${REMOTE_NAME}/ProfileEdit`;
+
+const EXPOSES = {
+  /** Форма правки профиля и аватара (`/profile/edit`). */
+  profileEdit: `${REMOTE_NAME}/ProfileEdit`,
+  /** Личный кабинет: карточка профиля и переход к правке (`/profile`). */
+  profilePage: `${REMOTE_NAME}/ProfilePage`,
+  /** Миниатюра аватара для шапки приложения (меню профиля). */
+  profileAvatar: `${REMOTE_NAME}/ProfileAvatar`,
+} as const;
 
 /** Компонент, который публикует remote: форма правки профиля без обязательных пропов. */
 export type RemoteProfileEdit = ComponentType<{ onSaved?: () => void | Promise<void> }>;
+
+/** Страница личного кабинета: переход на правку задаёт хост своим роутером. */
+export type RemoteProfilePage = ComponentType<{ onEdit: () => void }>;
+
+/** Аватар шапки: имя — для плейсхолдера, пока remote не прочитал профиль. */
+export type RemoteProfileAvatar = ComponentType<{ name?: string; size?: number }>;
 
 let federationStarted = false;
 
@@ -74,17 +88,17 @@ async function startFederation(): Promise<void> {
 }
 
 /**
- * Загружает компонент из микрофронтенда `user-profile`.
+ * Загружает компонент из микрофронтенда `user-profile` по имени expose.
  *
  * Вызывается только на клиенте: manifest и чанки remote живут на другом домене,
  * сервер их не видит. Ошибка сети или отсутствующий expose превращаются в
- * обычное отклонение промиса — страница показывает запасной вариант.
+ * обычное отклонение промиса — вызывающая сторона показывает запасной вариант.
  */
-export async function loadProfileEdit(): Promise<RemoteProfileEdit> {
+async function loadExposed<Props>(expose: string): Promise<ComponentType<Props>> {
   await startFederation();
 
   const { loadRemote } = await import('@module-federation/runtime');
-  const exposed = await loadRemote<unknown>(REMOTE_EXPOSE);
+  const exposed = await loadRemote<unknown>(expose);
 
   // expose — ESM-модуль с default-экспортом, но рантайм может отдать и сам
   // компонент, поэтому проверяются оба варианта.
@@ -94,8 +108,23 @@ export async function loadProfileEdit(): Promise<RemoteProfileEdit> {
       : ((exposed as { default?: unknown } | null)?.default ?? null);
 
   if (typeof component !== 'function') {
-    throw new Error(`Микрофронтенд user-profile не отдал компонент ${REMOTE_EXPOSE}`);
+    throw new Error(`Микрофронтенд user-profile не отдал компонент ${expose}`);
   }
 
-  return component as RemoteProfileEdit;
+  return component as ComponentType<Props>;
+}
+
+/** Загружает форму правки профиля (`user_profile/ProfileEdit`). */
+export function loadProfileEdit(): Promise<RemoteProfileEdit> {
+  return loadExposed(EXPOSES.profileEdit);
+}
+
+/** Загружает страницу личного кабинета (`user_profile/ProfilePage`). */
+export function loadProfilePage(): Promise<RemoteProfilePage> {
+  return loadExposed(EXPOSES.profilePage);
+}
+
+/** Загружает аватар шапки (`user_profile/ProfileAvatar`). */
+export function loadProfileAvatar(): Promise<RemoteProfileAvatar> {
+  return loadExposed(EXPOSES.profileAvatar);
 }

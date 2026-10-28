@@ -18,7 +18,9 @@ export function ProfileCard({ profile }: { profile: MeResponse }) {
           {
             key: 'email',
             label: 'Почта',
-            children: profile.email || <Typography.Text type="secondary">не указана</Typography.Text>,
+            children: profile.email || (
+              <Typography.Text type="secondary">не указана</Typography.Text>
+            ),
           },
           {
             key: 'roles',

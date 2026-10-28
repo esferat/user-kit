@@ -4,9 +4,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { App, Avatar, Button, Card, Form, Input, Space, Typography, Upload } from 'antd';
 
-import { profileKeys, useProfileQuery } from '@entities/user';
+import { profileKeys, publishProfileUpdated, useProfileQuery } from '@entities/user';
 import { appConfig } from '@shared/config';
-import { initialsOf, messageOfError, type SafeActionResult, type SafeReadResult } from '@shared/lib';
+import {
+  initialsOf,
+  messageOfError,
+  type SafeActionResult,
+  type SafeReadResult,
+} from '@shared/lib';
 import { profileDetailsSchema, type MeResponse, type ProfileDetails } from '@shared/model';
 
 import { removeAvatar, updateProfile, uploadAvatar } from '../api/profileApi';
@@ -73,7 +78,9 @@ export function ProfileEditForm({ onSaved }: ProfileEditFormProps) {
       }
       if (result.validationErrors !== null) {
         for (const [field, messages] of Object.entries(result.validationErrors)) {
-          setError(field as keyof ProfileDetails, { message: messages?.[0] ?? 'Некорректное значение' });
+          setError(field as keyof ProfileDetails, {
+            message: messages?.[0] ?? 'Некорректное значение',
+          });
         }
         return false;
       }
@@ -106,14 +113,17 @@ export function ProfileEditForm({ onSaved }: ProfileEditFormProps) {
 
     setAvatarFile(null);
     setAvatarDropRequested(false);
+    // В своей вкладке кеш обновит синглтон QueryClient, а соседние вкладки
+    // узнают про правку через шину profileSync.
     await queryClient.invalidateQueries({ queryKey: profileKeys.current });
+    publishProfileUpdated();
     reset();
     message.success('Профиль сохранён');
     await onSaved?.();
   });
 
   const current = profile.data;
-  const avatarSrc = previewUrl ?? (avatarDropRequested ? null : current?.avatarUrl ?? null);
+  const avatarSrc = previewUrl ?? (avatarDropRequested ? null : (current?.avatarUrl ?? null));
 
   if (profile.isPending) {
     return (
