@@ -1,10 +1,11 @@
 # Ships the frontend logs of user-kit to Elasticsearch.
 #
-# Two sources, each written by its container into the shared frontend-logs
+# Three sources, each written by its container into the shared frontend-logs
 # volume and tailed here, exactly like Logstash tails the backend:
 #
 #   * frontend-main - Pino line "[level]-[date]- message"
 #   * user-profile  - the same shape written by its BFF
+#   * games         - the same shape written by the games project
 #
 # The line shape is the backend pattern (logging.pattern in
 # backend/src/main/resources/application.yml) and logstash/pipeline/logstash.conf
@@ -18,7 +19,7 @@
 data_dir = "/var/lib/vector"
 
 # ------------------------------------------------------------------------------
-# Sources: tail the log files of both frontends
+# Sources: tail the log files of the frontends
 # ------------------------------------------------------------------------------
 
 [sources.frontend_main]
@@ -41,6 +42,17 @@ include = ["/var/log/user-kit/user-profile.log"]
 read_from = "beginning"
 
 [sources.user_profile.multiline]
+mode = "halt_before"
+start_pattern = '^\['
+condition_pattern = '^\['
+timeout_ms = 1000
+
+[sources.games]
+type = "file"
+include = ["/var/log/user-kit/games.log"]
+read_from = "beginning"
+
+[sources.games.multiline]
 mode = "halt_before"
 start_pattern = '^\['
 condition_pattern = '^\['
@@ -102,6 +114,30 @@ if err == null {
 }
 '''
 
+[transforms.parse_games]
+type = "remap"
+inputs = ["games"]
+source = '''
+.service = "games"
+.tags = ["games"]
+# VRL writes a regex literal as r'...': single quotes keep the backslashes
+# of the pattern untouched, /.../ would be lexed as the division operator.
+parsed, err = parse_regex(.message, r'^\[(?P<level>[A-Z]+)\]-\[(?P<log_time>[^\]]+)\]- (?P<body>[\s\S]*)$')
+if err == null {
+    .message = parsed.body
+    .log.level = parsed.level
+    ts, ts_err = parse_timestamp(parsed.log_time, "%Y-%m-%d %H:%M:%S%.3f", "UTC")
+    if ts_err == null {
+        ."@timestamp" = ts
+        del(.timestamp)
+    } else {
+        .tags = push(.tags, "_parsefailure")
+    }
+} else {
+    .tags = push(.tags, "_parsefailure")
+}
+'''
+
 # ------------------------------------------------------------------------------
 # Sinks: one index per day per service, the naming Logstash already uses
 # ------------------------------------------------------------------------------
@@ -117,6 +153,12 @@ type = "elasticsearch"
 inputs = ["parse_user_profile"]
 endpoints = ["http://elasticsearch:9200"]
 bulk.index = "user-kit-user-profile-%Y.%m.%d"
+
+[sinks.es_games]
+type = "elasticsearch"
+inputs = ["parse_games"]
+endpoints = ["http://elasticsearch:9200"]
+bulk.index = "user-kit-games-%Y.%m.%d"
 
 # ------------------------------------------------------------------------------
 # Unit tests: `vector test /etc/vector/vector.toml`
@@ -183,4 +225,26 @@ assert_eq!(.service, "user-profile")
 assert_eq!(.log.level, "WARN")
 assert_eq!(.message, "Backend call {\"method\":\"GET\",\"path\":\"/api/v1/me\",\"status\":503,\"ms\":12}")
 assert_eq!(format_timestamp!(."@timestamp", format: "%Y-%m-%d %H:%M:%S%.3f", timezone: "UTC"), "2026-10-27 10:11:12.345")
+'''
+
+[[tests]]
+name = "games line"
+
+[tests.input]
+insert_at = "parse_games"
+type = "log"
+log_fields = { message = '[INFO]-[2026-10-31 09:00:00.001]- Next.js server started {"runtime":"nodejs"}' }
+
+[[tests.outputs]]
+extract_from = "parse_games"
+expected_event_count = 1
+
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+assert_eq!(.service, "games")
+assert_eq!(.log.level, "INFO")
+assert_eq!(.message, "Next.js server started {\"runtime\":\"nodejs\"}")
+assert_eq!(format_timestamp!(."@timestamp", format: "%Y-%m-%d %H:%M:%S%.3f", timezone: "UTC"), "2026-10-31 09:00:00.001")
+assert_eq!(.tags, ["games"])
 '''

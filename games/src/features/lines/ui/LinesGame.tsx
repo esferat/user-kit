@@ -15,6 +15,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { TopBar } from './components/TopBar';
 import styles from './LinesGame.module.css';
 import { DARK_MODAL_STYLES } from './modalTheme';
+import { MUSIC_PLAYLIST } from './musicPlaylist';
 import { SoundEngine } from './sound';
 
 /** Игра «Цветные линии»: страница собирает верхний блок, поле и таблицу попыток. */
@@ -31,6 +32,8 @@ export function LinesGame() {
   const [hint, setHint] = useState<LinesHint | null>(null);
   /** Лучшие попытки из localStorage: на старте список пустой. */
   const [attempts, setAttempts] = useState<AttemptEntry[]>([]);
+  /** Название трека из плейлиста: обновляется по колбэку звукового движка. */
+  const [trackTitle, setTrackTitle] = useState(() => MUSIC_PLAYLIST[0].title);
 
   // Ход асинхронный (анимации на доске): читаем актуальное состояние через ref.
   const gameRef = useRef(game);
@@ -64,6 +67,8 @@ export function LinesGame() {
   useEffect(() => {
     const startAudio = () => {
       const engine = getSound();
+      // Название текущего трека показывается в настройках.
+      engine.setTrackListener(setTrackTitle);
       engine.resume();
       engine.startMusic();
     };
@@ -73,6 +78,11 @@ export function LinesGame() {
       window.removeEventListener('pointerdown', startAudio);
       window.removeEventListener('keydown', startAudio);
     };
+  }, [getSound]);
+
+  /** Кнопка «Следующий трек» в настройках. */
+  const nextTrack = useCallback(() => {
+    getSound().nextTrack();
   }, [getSound]);
 
   // Освобождаем аудиоконтекст при уходе со страницы.
@@ -240,6 +250,8 @@ export function LinesGame() {
         open={settingsOpen}
         draft={draft}
         onDraftChange={setDraft}
+        trackTitle={trackTitle}
+        onNextTrack={nextTrack}
         onApply={applySettings}
         onCancel={() => setSettingsOpen(false)}
       />

@@ -55,9 +55,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               defaultOpenKeys={defaultOpenKeys}
               items={items}
               // Клик по группе только раскрывает подменю: у неё нет своего
-              // маршрута, поэтому переходим лишь по ключам-путям.
+              // маршрута, поэтому переходим лишь по ключам-путям. Абсолютная
+              // ссылка ведёт на домен игр — router.push ей не подходит.
               onClick={({ key }) => {
-                if (key.startsWith('/')) {
+                if (key.startsWith('https://')) {
+                  window.location.assign(key);
+                } else if (key.startsWith('/')) {
                   router.push(key);
                 }
               }}

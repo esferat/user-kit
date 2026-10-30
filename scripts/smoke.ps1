@@ -3,6 +3,7 @@ param(
     [string]$AltServerName = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.local' }),
     [string]$NextServerName = $(if ($env:SERVER_NAME_NEXT) { $env:SERVER_NAME_NEXT } else { 'user-kit.next.local' }),
     [string]$ProfileServerName = $(if ($env:SERVER_NAME_PROFILE) { $env:SERVER_NAME_PROFILE } else { 'user-kit.profile.local' }),
+    [string]$GamesServerName = $(if ($env:SERVER_NAME_GAMES) { $env:SERVER_NAME_GAMES } else { 'user-kit.games.local' }),
     [string]$KibanaServerName = $(if ($env:SERVER_NAME_KIBANA) { $env:SERVER_NAME_KIBANA } else { 'user-kit.kibana.local' }),
     [string]$Address = '127.0.0.1',
     [switch]$SkipCertificateCheck,
@@ -38,12 +39,14 @@ $base = "https://$ServerName"
 $altBase = "https://$AltServerName"
 $nextBase = "https://$NextServerName"
 $profileBase = "https://$ProfileServerName"
+$gamesBase = "https://$GamesServerName"
 $kibanaBase = "https://$KibanaServerName"
 $resolve = @(
     '--resolve', "${ServerName}:443:${Address}",
     '--resolve', "${AltServerName}:443:${Address}",
     '--resolve', "${NextServerName}:443:${Address}",
     '--resolve', "${ProfileServerName}:443:${Address}",
+    '--resolve', "${GamesServerName}:443:${Address}",
     '--resolve', "${KibanaServerName}:443:${Address}",
     '-s')
 if (-not $SkipCertificateCheck) {
@@ -456,6 +459,26 @@ function Test-NextDomain {
     }
 }
 
+function Test-GamesDomain {
+    param([string]$Name, [string]$BaseUrl)
+
+    # The standalone games project: no session, no backend API, only its own
+    # Next.js server. Every game route answers with a page, not a redirect.
+    Show "$Name GET /healthz" (HttpCode @() "$BaseUrl/healthz") '200'
+    Show "$Name GET / (games catalog)" (HttpCode @() "$BaseUrl/") '200'
+    Show "$Name GET /lines" (HttpCode @() "$BaseUrl/lines") '200'
+    Show "$Name GET /match3" (HttpCode @() "$BaseUrl/match3") '200'
+
+    $catalog = (Http @() "$BaseUrl/") -join "`n"
+    ShowCheck "$Name catalog references a Next.js chunk" ($catalog -like '*/_next/static/*') ''
+
+    if ($mode -eq 'oidc') {
+        $authRedirect = Get-Location "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration"
+        Show "$Name GET /auth/... redirects to the canonical domain" (HttpCode @('-o', 'NUL') "$BaseUrl/auth/realms/$Realm/.well-known/openid-configuration") '308'
+        ShowCheck "$Name /auth redirect keeps the path" ($authRedirect -eq "$base/auth/realms/$Realm/.well-known/openid-configuration") ("location=" + $authRedirect)
+    }
+}
+
 # A valid 1x1 PNG for the multipart check of the microfrontend BFF: the route
 # has to rebuild the FormData that Hono already parsed, otherwise the upload
 # dies inside the BFF with a transport error instead of reaching the backend.
@@ -524,11 +547,11 @@ function Test-KibanaDomain {
 }
 
 function Test-LogIndices {
-    # The two frontends write log files that the vector service ships into
+    # The frontends write log files that the vector service ships into
     # Elasticsearch next to the documents of Logstash. Each service keeps its
     # own daily index, so the check waits until the first event has landed.
     $esBase = "http://${Address}:$(if ($env:ELASTICSEARCH_PORT) { $env:ELASTICSEARCH_PORT } else { '9200' })"
-    foreach ($prefix in @('user-kit-frontend-main-', 'user-kit-user-profile-')) {
+    foreach ($prefix in @('user-kit-frontend-main-', 'user-kit-user-profile-', 'user-kit-games-')) {
         $found = ''
         for ($attempt = 0; $attempt -lt 15 -and -not $found; $attempt++) {
             # The answer is one index name per line: a prefix match on the line
@@ -543,12 +566,13 @@ function Test-LogIndices {
 }
 
 Write-Host ''
-Write-Host "Additional application domains: $altBase, $nextBase, $profileBase, $kibanaBase" -ForegroundColor Cyan
+Write-Host "Additional application domains: $altBase, $nextBase, $profileBase, $gamesBase, $kibanaBase" -ForegroundColor Cyan
 Write-Host ''
 
 Test-ApplicationDomain $AltServerName $altBase
 Test-NextDomain $NextServerName $nextBase
 Test-ProfileDomain $ProfileServerName $profileBase
+Test-GamesDomain $GamesServerName $gamesBase
 Test-KibanaDomain $KibanaServerName $kibanaBase
 Test-LogIndices
 

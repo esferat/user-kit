@@ -1,17 +1,14 @@
 /**
- * Звук игры: синтезированные эффекты и лёгкая фоновая музыка на Web Audio.
- * Внешних файлов нет — всё генерируется осцилляторами. Контекст создаётся лениво
+ * Звук игры: синтезированные эффекты и фоновая музыка на Web Audio.
+ * Внешних файлов нет — всё генерируется осцилляторами и шумом. Музыка —
+ * плейлист транс-этюдов (`musicPlaylist.ts`), который играет треки по очереди
+ * и после последнего начинает круг заново. Контекст создаётся лениво
  * и «просыпается» первым жестом пользователя (политика автоплея браузеров).
  */
+import { MUSIC_PLAYLIST, type MusicTrack } from './musicPlaylist';
 
-/** Длительность шага мелодии, секунды. */
-const STEP = 0.42;
 /** Насколько вперёд планируем ноты, секунды. */
 const LOOKAHEAD = 0.4;
-/** Мелодия: ноты в MIDI (C-dur пентатоника), -1 — пауза. */
-const MELODY = [76, 79, 84, 81, 79, 76, 74, 76, 79, 83, 86, 83, 81, 79, 76, 72];
-/** Басовая нота на выбранных шагах (индекс шага → MIDI). */
-const BASS: Record<number, number> = {0: 52, 8: 50};
 
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 
@@ -24,6 +21,10 @@ export class SoundEngine {
   private musicTimer: number | null = null;
   private nextNoteTime = 0;
   private step = 0;
+  /** Индекс трека плейлиста, который играет сейчас. */
+  private trackIndex = 0;
+  /** Колбэк смены трека — UI показывает текущее название. */
+  private trackListener: ((title: string) => void) | null = null;
   private musicVolume: number;
   private sfxVolume: number;
   /** Кэш буфера белого шума для «топота». */
@@ -118,7 +119,7 @@ export class SoundEngine {
     this.sfxClapBurst(t + 0.05, 0.14, 900, 0.1);
   }
 
-  /** Запускает лёгкую фоновую музыку (идемпотентно). */
+  /** Запускает фоновую музыку (идемпотентно): плейлист с текущего трека. */
   startMusic(): void {
     const ctx = this.ensure();
     if (!ctx || this.musicTimer !== null) return;
@@ -135,6 +136,21 @@ export class SoundEngine {
     }
   }
 
+  /** Название трека, который играет сейчас. */
+  currentTrackTitle(): string {
+    return MUSIC_PLAYLIST[this.trackIndex].title;
+  }
+
+  /** Переводит плейлист на следующий трек (после последнего — по кругу). */
+  nextTrack(): void {
+    this.advanceTrack();
+  }
+
+  /** Колбэк смены трека: вызывается при каждом переходе плейлиста. */
+  setTrackListener(listener: ((title: string) => void) | null): void {
+    this.trackListener = listener;
+  }
+
   dispose(): void {
     this.stopMusic();
     this.ctx?.close().catch(() => {});
@@ -143,6 +159,14 @@ export class SoundEngine {
     this.musicBus = null;
     this.sfxBus = null;
     this.noiseBuffer = null;
+    this.trackListener = null;
+  }
+
+  /** Переход к следующему треку: паттерн заново, уведомляем UI. */
+  private advanceTrack(): void {
+    this.step = 0;
+    this.trackIndex = (this.trackIndex + 1) % MUSIC_PLAYLIST.length;
+    this.trackListener?.(this.currentTrackTitle());
   }
 
   /** Планирует ноты вперёд на LOOKAHEAD; пока контекст не запущен, ждёт. */
@@ -154,14 +178,69 @@ export class SoundEngine {
       return;
     }
     while (this.nextNoteTime < ctx.currentTime + LOOKAHEAD) {
-      const index = this.step % MELODY.length;
-      const note = MELODY[index];
-      if (note >= 0) this.musicNote(this.nextNoteTime, note, STEP * 0.95, 0.16, 'sine');
-      const bass = BASS[index];
-      if (bass !== undefined) this.musicNote(this.nextNoteTime, bass, STEP * 1.8, 0.12, 'triangle');
-      this.nextNoteTime += STEP;
-      this.step = (index + 1) % MELODY.length;
+      const track = MUSIC_PLAYLIST[this.trackIndex];
+      const stepDuration = 60 / track.bpm / 4;
+      const index = this.step % track.lead.length;
+      this.scheduleMusicStep(this.nextNoteTime, track, index, stepDuration);
+      this.nextNoteTime += stepDuration;
+      this.step += 1;
+      // Трек доиграл свои повторы — начинается следующий, после последнего
+      // плейлист идёт по кругу.
+      if (this.step >= track.lead.length * track.loops) {
+        this.advanceTrack();
+      }
     }
+  }
+
+  /** Один шаг трека: доли превращаются в бочку и хэт, паттерны — в ноты. */
+  private scheduleMusicStep(time: number, track: MusicTrack, index: number, stepDuration: number): void {
+    // Бочка на каждую долю, хэт на «и» — типовая транс-сетка.
+    if (index % 4 === 0) this.musicKick(time);
+    if (index % 4 === 2) this.musicHat(time);
+
+    const lead = track.lead[index];
+    if (lead >= 0) this.musicNote(time, lead, stepDuration * track.leadLength, 0.14, track.leadWave);
+    const bass = track.bass[index % track.bass.length];
+    if (bass >= 0) this.musicNote(time, bass, stepDuration * 0.85, 0.11, 'triangle');
+    const arp = track.arp?.[index % track.arp.length];
+    if (arp !== undefined && arp >= 0) this.musicNote(time, arp, stepDuration * 0.4, 0.045, 'square');
+  }
+
+  /** Бочка: короткий синус со спадом высоты. */
+  private musicKick(time: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.musicBus) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(160, time);
+    osc.frequency.exponentialRampToValueAtTime(45, time + 0.1);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(0.22, time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.14);
+    osc.connect(gain).connect(this.musicBus);
+    osc.start(time);
+    osc.stop(time + 0.16);
+  }
+
+  /** Хэт: короткий шумовой всплеск через высокочастотный фильтр. */
+  private musicHat(time: number): void {
+    const ctx = this.ctx;
+    const bus = this.musicBus;
+    const buffer = this.noise();
+    if (!ctx || !bus || !buffer) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 6500;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(0.05, time + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+    src.connect(filter).connect(gain).connect(bus);
+    src.start(time);
+    src.stop(time + 0.06);
   }
 
   private musicNote(time: number, midi: number, duration: number, peak: number, type: OscillatorType): void {

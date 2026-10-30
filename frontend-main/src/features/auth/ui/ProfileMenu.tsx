@@ -14,21 +14,19 @@ import {useAuth} from '@/features/auth';
  * страницы профиля. Пока remote грузится или если он недоступен, остаётся
  * локальная плашка на данных сессии — меню не зависит от чужого сервиса.
  */
-function HeaderAvatar({name, fallbackUrl}: {name: string; fallbackUrl?: string | null}) {
+function HeaderAvatar({name, fallbackUrl}: { name: string; fallbackUrl?: string | null }) {
   const [RemoteAvatar, setRemoteAvatar] = useState<RemoteProfileAvatar | null>(null);
 
   useEffect(() => {
     let alive = true;
 
-    loadProfileAvatar().then(
-      (component) => {
+    loadProfileAvatar()
+      .then((component) => {
         if (alive) {
           setRemoteAvatar(() => component);
         }
-      },
-      // Сбой загрузки не ломает шапку: остаётся плашка с инициалами.
-      () => {},
-    );
+      })
+      .catch((e) => console.error(e, 'loadProfileAvatar call failed'));
 
     return () => {
       alive = false;

@@ -170,6 +170,8 @@ services:
         # Origin of the user-profile microfrontend, inlined while building so the
         # host knows where to fetch mf-manifest.json from.
         NEXT_PUBLIC_PROFILE_BASE_URL: https://${SERVER_NAME_PROFILE:-user-kit.profile.local}
+        # Origin of the standalone games project: the Игры menu links there.
+        NEXT_PUBLIC_GAMES_BASE_URL: https://${SERVER_NAME_GAMES:-user-kit.games.local}
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -210,10 +212,28 @@ services:
       - backend
     restart: unless-stopped
 
+  # Стендовые игры, вынесенные из frontend-main: свой домен, без сессии и API.
+  games:
+    build:
+      context: ./games
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      # Pino пишет "[level]-[date]- message" в этот файл, сервис vector его
+      # тилит; без переменной логи идут только в консоль.
+      LOG_FILE: /var/log/user-kit/games.log
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # Shared with Vector, which reads the file read only
+      - frontend-logs:/var/log/user-kit
+    restart: unless-stopped
+
   # Central log store. Logstash tails the log files of the backend, Keycloak and
-  # the edge, Vector tails the two frontends, and one document per event lands in
+  # the edge, Vector tails the three frontends, and one document per event lands in
   # this cluster. Kibana reads the user-kit-backend-*, user-kit-keycloak-*,
-  # user-kit-nginx-*, user-kit-frontend-main-* and user-kit-user-profile-* indices.
+  # user-kit-nginx-*, user-kit-frontend-main-*, user-kit-user-profile-* and
+  # user-kit-games-* indices.
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.15.3}
     environment:
@@ -263,9 +283,9 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # The second shipper: tails the Pino log files of frontend-main and
-  # user-profile and indexes them next to the Logstash documents. The line
-  # format is the same "[level]-[date]- message" pattern the backend writes,
+  # The second shipper: tails the Pino log files of frontend-main,
+  # user-profile and games and indexes them next to the Logstash documents. The
+  # line format is the same "[level]-[date]- message" pattern the backend writes,
   # see vector/vector.toml and logstash/pipeline/logstash.conf.
   vector:
     image: timberio/vector:0.60.0-alpine
@@ -282,6 +302,8 @@ services:
       frontend-main:
         condition: service_started
       user-profile:
+        condition: service_started
+      games:
         condition: service_started
     restart: unless-stopped
 
@@ -301,6 +323,7 @@ services:
     depends_on:
       - frontend-main
       - user-profile
+      - games
       - backend
       - keycloak
       - kibana
@@ -311,11 +334,14 @@ services:
       SERVER_NAME_NEXT: ${SERVER_NAME_NEXT:-user-kit.next.local}
       # Own domain of the profile microfrontend.
       SERVER_NAME_PROFILE: ${SERVER_NAME_PROFILE:-user-kit.profile.local}
+      # Own domain of the games project.
+      SERVER_NAME_GAMES: ${SERVER_NAME_GAMES:-user-kit.games.local}
       # Reverse proxy in front of Kibana, so the log UI is reachable over the
       # same TLS edge as the applications instead of the published 5601 port.
       SERVER_NAME_KIBANA: ${SERVER_NAME_KIBANA:-user-kit.kibana.local}
       UPSTREAM_FRONTEND_MAIN: frontend-main:3000
       UPSTREAM_USER_PROFILE: user-profile:3001
+      UPSTREAM_GAMES: games:3000
       UPSTREAM_BACKEND: backend:8080
       UPSTREAM_KEYCLOAK: keycloak:8080
       UPSTREAM_KIBANA: kibana:5601

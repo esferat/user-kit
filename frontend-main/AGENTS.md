@@ -10,11 +10,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # AGENTS.md — frontend-main
 
-Next.js 16.4 (Turbopack), React 19.3, antd 6, three.js 0.186, Phaser 4. Пакетный менеджер — **pnpm**
+Next.js 16.4 (Turbopack), React 19.3, antd 6. Пакетный менеджер — **pnpm**
 (`pnpm-workspace.yaml` в корне проекта). Домен в стенде: `https://user-kit.next.local`.
 
-Приложение уже **не** стоковый `create-next-app`: есть профиль, редактирование профиля,
-админка и игры (шахматы, шашки, match-3, «Цветные линии»).
+Приложение уже **не** стоковый `create-next-app`: есть профиль, редактирование профиля
+и админка. Игры (match-3 и «Цветные линии») вынесены в отдельный проект [`games/`](../games/),
+здесь от них остались только заготовки-заглушки (шахматы, шашки) и пункты меню со
+ссылками на домен игр.
 
 ## Структура
 
@@ -23,13 +25,11 @@ src/
 ├── app/
 │   ├── layout.tsx, providers.tsx, globals.css     # AntdRegistry, шрифты, ConfigProvider ru_RU
 │   ├── login/page.tsx
-│   ├── (protected)/                                # оболочка ProtectedAppShell
-│   │   ├── layout.tsx, profile/, profile/edit/, admin/
-│   │   └── games/{chess,checkers,match3,lines}/page.tsx
+│   └── (protected)/                                # оболочка ProtectedAppShell
+│       ├── layout.tsx, profile/, profile/edit/, admin/
+│       └── games/{chess,checkers}/page.tsx         # заглушки, ссылки на games/ — в меню
 ├── features/
-│   ├── auth/          api, model, ui                # сессия, логин, store
-│   ├── match3/        game, model, ui               # Phaser
-│   └── lines/         game, ui                      # three.js
+│   └── auth/          api, model, ui                # сессия, логин, store
 ├── entities/user/     model (types, roles)
 ├── shared/            api (http-клиент), config, lib (initials, message, remote — Module Federation)
 ├── instrumentation.ts  старт сервера и ошибки серверных запросов (Next hooks)
@@ -50,17 +50,15 @@ src/
 
 ## Правила
 
-- **Игры грузятся только на клиенте**: страница игры — `dynamic(() => import(...), { ssr: false })`,
-  потому что three.js/Phaser/Web Audio требуют браузера.
-- **Логика игр отделяй от рендера**: чистые модули в `game/` (`engine.ts`, `rules.ts`, `*Storage.ts`)
-  не импортируют three.js/React — их можно тестировать в Node. `board.ts`/`scene.ts` — только
-  отображение и анимации.
+- **Игры живут в проекте [`games/`](../games/)**: работоспособные `lines` и `match3` отсюда
+  убраны, остались только заглушки `/games/chess` и `/games/checkers`. Пункты меню «Три в ряд»
+  и «Цветные линии» — абсолютные ссылки на `appConfig.gamesBaseUrl`
+  (`NEXT_PUBLIC_GAMES_BASE_URL`, по умолчанию `https://user-kit.games.local`); `AppShell`
+  открывает такие ключи через `window.location.assign`, а не `router.push`.
 - **`react-hooks/set-state-in-effect` запрещён** (правило react-hooks): нельзя синхронно вызывать
   `setState` в теле эффекта — откладывай через `setTimeout`/`requestAnimationFrame`.
 - **Стили — CSS-модули** рядом с компонентом. Правила antd перебиваются удвоением класса
   (`.класс.класс`), а internals — через `:global(...)`.
-- **Состояние игр** (настройки, статистика) — в `localStorage`, ключи в `game/*Storage.ts`
-  (`lines:settings`, `lines:stats`); значения валидируются при чтении.
 - **API** — через `shared/api/http.ts`; `NEXT_PUBLIC_API_BASE_URL` пустой = same-origin
   (nginx проксирует `/api` на бэкенд). Сессия в cookie, токенов в браузере нет.
 - **Микрофронтенд `user-profile`** подключён через Module Federation: `shared/lib/remote.ts`
@@ -97,7 +95,3 @@ pnpm lint
 Docker-образ собирается из этого же каталога и запускает `node server.js` (standalone).
 `next.config.ts` включает `cacheComponents`, `partialPrefetching` и `reactCompiler` — не отключай
 их без чтения локальной документации Next.
-
-Тестов в репозитории у игр нет: проверяй движок временным harness'ом на esbuild (node) и
-интерфейс — puppeteer'ом против задеплоенного `https://user-kit.next.local/games/lines`
-(в headless Chrome нужен `--ignore-certificate-errors`).

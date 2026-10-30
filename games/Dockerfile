@@ -1,0 +1,27 @@
+FROM node:22-alpine AS base
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+RUN corepack enable && corepack prepare pnpm@12.10.1 --activate && pnpm install --frozen-lockfile
+
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN corepack enable && corepack prepare pnpm@12.10.1 --activate && pnpm run build
+
+FROM base AS runner
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+# Directory for LOG_FILE. The frontend-logs volume is mounted here, and an empty
+# named volume is initialised from the image, so the owner has to be set before
+# the container starts as the unprivileged user below.
+RUN mkdir -p /var/log/user-kit && chown nextjs:nodejs /var/log/user-kit
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+USER nextjs
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+CMD ["node", "server.js"]

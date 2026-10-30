@@ -1,4 +1,5 @@
 import { hasRole, type AuthenticatedUser, type Role } from '@/entities/user';
+import { appConfig } from '@/shared/config';
 
 /** Пункт меню со своей страницей. */
 export interface NavLink {
@@ -31,8 +32,10 @@ export const NAV_ENTRIES: readonly NavEntry[] = [
     children: [
       { id: 'chess', title: 'Шахматы', href: '/games/chess', roles: ['admin', 'user'] },
       { id: 'checkers', title: 'Шашки', href: '/games/checkers', roles: ['admin', 'user'] },
-      { id: 'match3', title: 'Три в ряд', href: '/games/match3', roles: ['admin', 'user'] },
-      { id: 'lines', title: 'Цветные линии', href: '/games/lines', roles: ['admin', 'user'] },
+      // Работающие игры вынесены в отдельный проект на своём домене, поэтому
+      // пункты ведут абсолютной ссылкой, а не маршрутом этого приложения.
+      { id: 'match3', title: 'Три в ряд', href: `${appConfig.gamesBaseUrl}/match3`, roles: ['admin', 'user'] },
+      { id: 'lines', title: 'Цветные линии', href: `${appConfig.gamesBaseUrl}/lines`, roles: ['admin', 'user'] },
     ],
   },
   { id: 'admin', title: 'Администрирование', href: '/admin', roles: ['admin'] },

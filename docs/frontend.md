@@ -1,7 +1,9 @@
 # Frontend
 
-This document covers `frontend-main/`, the only frontend of the monorepo: a Next.js 16 application
-(React 19, pnpm 12, Ant Design 6) served by the edge on both application domains.
+This document covers `frontend-main/`, the main frontend of the monorepo: a Next.js 16 application
+(React 19, pnpm 12, Ant Design 6) served by the edge on both application domains. The browser games
+that used to live here were extracted into the standalone `games/` project on
+`user-kit.games.local`; only the stubs `/games/chess` and `/games/checkers` remain in this app.
 
 ## Stack
 
@@ -39,13 +41,12 @@ frontend-main/src/
 │   ├── page.tsx               public landing page
 │   ├── providers.tsx          client providers
 │   ├── login/                 login screen
-│   └── (protected)/           session required: admin/, profile/, profile/edit/, games/
+│   └── (protected)/           session required: admin/, profile/, profile/edit/, games/ (stubs)
 ├── widgets/                   large blocks
 │   └── app-shell/             header, profile menu, role-filtered navigation in a left sider
 ├── features/                  user facing capability
 │   ├── auth/                  CookieAuthProvider, SessionStore, useAuth, LoginScreen, ProfileMenu
-│   ├── profile-edit/          createProfileApi (PATCH /api/v1/me, avatar POST/DELETE), form
-│   ├── lines/, match3/        games (engine in game/engine.ts, storage in game/*Storage.ts)
+│   └── profile-edit/          createProfileApi (PATCH /api/v1/me, avatar POST/DELETE), form
 ├── entities/                  business data and the operations on it
 │   └── user/                  profile type, roles.ts (claims → admin/user), ui/
 └── shared/                    infrastructure reused by everything above
@@ -103,9 +104,12 @@ check: the landing page `/` and `/login` are public, while any other request wit
 | `/`, `/login`                | landing, login                      | public          |
 | `/profile`, `/profile/edit`  | profile, avatar and data edit       | `user`, `admin` |
 | `/admin`                     | account administration, roles       | `admin`         |
-| `/games/{lines,match3,...}`  | games                               | `user`, `admin` |
+| `/games/{chess,checkers}`    | game stubs, "not implemented yet"  | `user`, `admin` |
 
-The navigation entries of `widgets/app-shell` are filtered by role, so a crafted URL never leads to
+The `Игры` menu group keeps two more entries — «Три в ряд» and «Цветные линии» — as absolute links
+to the standalone games project (`appConfig.gamesBaseUrl`, `NEXT_PUBLIC_GAMES_BASE_URL`, default
+`https://user-kit.games.local`); `AppShell` opens such keys with `window.location.assign`. The
+navigation entries of `widgets/app-shell` are filtered by role, so a crafted URL never leads to
 a menu entry the user is not entitled to; the backend rejects the data requests anyway.
 
 ## Localization
@@ -249,6 +253,6 @@ pnpm build   # tsc + production build
 
 ## Tests
 
-The games in `frontend-main/src/features/*` have no tests in the repository; they are checked with
-temporary harnesses on esbuild + puppeteer (the engine logic lives in pure modules `game/engine.ts`
-and `game/*Storage.ts`, which are tested without a browser).
+The games moved to the standalone `games/` project and have no tests in the repository; they are
+checked with temporary harnesses on esbuild + puppeteer (the engine logic lives in pure modules
+`game/engine.ts` and `game/*Storage.ts`, which are tested without a browser).

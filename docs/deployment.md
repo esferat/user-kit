@@ -14,32 +14,33 @@ docker compose ps
 | `edge`           | `nginx:1.27-alpine`                         | 80, 443                     | TLS termination, reverse proxy, headers, the host names of all domains, access/error log files |
 | `frontend-main` | built from `frontend-main/`                | internal 3000               | Next.js standalone server, canonical and second domain                    |
 | `user-profile`  | built from `user-profile/`                  | internal 3001               | Modern.js microfrontend of the profile editor, its own domain             |
+| `games`         | built from `games/`                         | internal 3000               | standalone browser games (three.js, Phaser), its own domain, no session   |
 | `backend`        | built from `backend/`                       | 8080                        | REST service                                                                 |
 | `keycloak`       | built from `keycloak/`                      | 8180, internal 8080         | identity provider, realm `user-kit`, writes its file log                     |
 | `postgres`       | `postgres:17-alpine`                        | internal 5432               | database with Flyway migrations                                              |
 | `object-storage` | `${SILO_IMAGE:-pgsty/silo}:${SILO_VERSION}` | console 9001, internal 9000 | S3 compatible file storage                                                   |
-| `elasticsearch`  | `docker.elastic.co/.../elasticsearch:${ELASTIC_VERSION}` | 9200            | log store, `user-kit-backend-*`, `user-kit-keycloak-*`, `user-kit-nginx-*`, `user-kit-frontend-main-*` and `user-kit-user-profile-*` |
+| `elasticsearch`  | `docker.elastic.co/.../elasticsearch:${ELASTIC_VERSION}` | 9200            | log store, `user-kit-backend-*`, `user-kit-keycloak-*`, `user-kit-nginx-*`, `user-kit-frontend-main-*`, `user-kit-user-profile-*` and `user-kit-games-*` |
 | `logstash`       | `docker.elastic.co/logstash/logstash:${ELASTIC_VERSION}` | internal 9600   | tails the backend, Keycloak and nginx logs and indexes them into Elasticsearch |
-| `vector`         | `timberio/vector:0.60.0-alpine`             | -                 | tails the Pino log files of the two frontends and indexes them into Elasticsearch |
+| `vector`         | `timberio/vector:0.60.0-alpine`             | -                 | tails the Pino log files of the three frontends and indexes them into Elasticsearch |
 | `kibana`         | `docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}`     | 5601            | log exploration UI                                                           |
 
 Volumes `postgres-data` and `object-storage-data` keep the state across restarts. `docker compose
 down -v` deletes them. Keycloak uses `dev-file`, so its data lives inside the container and a
 recreated container imports `keycloak/realm/user-kit-realm.json` again. The logging stack adds
 `backend-logs` (the backend writes, Logstash reads), `keycloak-logs` and `nginx-logs` (each service
-writes its log file, Logstash reads it read only), `frontend-logs` (both frontends write, Vector reads
+writes its log file, Logstash reads it read only), `frontend-logs` (all three frontends write, Vector reads
 it read only), `vector-data` (the file checkpoints of Vector, so a restart continues at the last
 offset), `elasticsearch-data` and `logstash-data` (keeps the file offsets across restarts).
 
 Health checks: PostgreSQL uses `pg_isready`, Keycloak queries `/auth/health/ready` on its management
 port, Silo queries `/minio/health/live` (Silo keeps the reserved routes of the MinIO server), and the
-backend calls `/actuator/health` and waits up to 45 seconds for the first start. The two frontends
-(`frontend-main`, `user-profile`) have no health check: the edge starts them with `service_started`.
+backend calls `/actuator/health` and waits up to 45 seconds for the first start. The frontends
+(`frontend-main`, `user-profile`, `games`) have no health check: the edge starts them with `service_started`.
 Elasticsearch has to answer on its HTTP API (a single node reports yellow as soon as an index has a
 replica, so requiring green would stall the stack), Logstash and Kibana wait for it. The
 backend therefore only starts after PostgreSQL and Keycloak are healthy, and it retries the bucket
 check and creation for 20 seconds so the storage may start in parallel. Vector waits for
-Elasticsearch to be healthy and for both frontend containers to be started.
+Elasticsearch to be healthy and for all three frontend containers to be started.
 
 ## TLS
 
@@ -51,8 +52,8 @@ HTTPS with 308.
 ### Development certificate
 
 ```bash
-pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME, SERVER_NAME_NEXT, SERVER_NAME_PROFILE and SERVER_NAME_KIBANA
-pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -NextDomain app2.local -ProfileDomain app3.local -KibanaDomain app4.local -Days 30
+pwsh ./scripts/generate-dev-cert.ps1                 # uses SERVER_NAME, SERVER_NAME_NEXT, SERVER_NAME_PROFILE, SERVER_NAME_GAMES and SERVER_NAME_KIBANA
+pwsh ./scripts/generate-dev-cert.ps1 -Domain app.local -NextDomain app2.local -ProfileDomain app3.local -GamesDomain app5.local -KibanaDomain app4.local -Days 30
 ```
 
 The script runs `alpine/openssl` in Docker, so no OpenSSL installation is needed. The certificate
@@ -85,6 +86,7 @@ included challenge location, mount the webroot of the certificate client into
 | `SERVER_NAME`                                               | `user-kit.local`                                     | canonical `server_name`, hosts the application and `/auth`                                   |
 | `SERVER_NAME_NEXT`                                          | `user-kit.next.local`                                    | `server_name` of the second application domain, `/auth` redirects to the canonical domain     |
 | `SERVER_NAME_PROFILE`                                       | `user-kit.profile.local`                                 | `server_name` of the profile microfrontend; also the origin `frontend-main` is told about as `NEXT_PUBLIC_PROFILE_BASE_URL` |
+| `SERVER_NAME_GAMES`                                        | `user-kit.games.local`                                   | `server_name` of the standalone games project; also the origin `frontend-main` is told about as `NEXT_PUBLIC_GAMES_BASE_URL` |
 | `SERVER_NAME_KIBANA`                                        | `user-kit.kibana.local`                                  | `server_name` that reverse proxies Kibana, has no application routes of its own              |
 | `HTTP_PORT` / `HTTPS_PORT`                                  | `80` / `443`                                             | published ports of the edge                                                                  |
 | `MAX_UPLOAD_SIZE`                                           | `26m`                                                    | nginx `client_max_body_size`                                                                 |
@@ -124,8 +126,8 @@ included challenge location, mount the webroot of the certificate client into
 | `KIBANA_PORT`                                               | `5601`                                                   | published Kibana UI port                                                                     |
 
 The `NEXT_PUBLIC_*` variables are build time configuration: Next.js inlines them into the bundle and
-Compose forwards them as build arguments (through `VITE_API_BASE_URL` and `SERVER_NAME_PROFILE`) to
-the `frontend-main` image.
+Compose forwards them as build arguments (through `VITE_API_BASE_URL`, `SERVER_NAME_PROFILE` and
+`SERVER_NAME_GAMES`) to the `frontend-main` image.
 A change therefore
 needs `docker compose up -d --build frontend-main`, not a restart. Identity provider
 settings are no longer part of the bundle: the backend owns the login and reports the available methods
@@ -161,20 +163,22 @@ java.nio.file.AccessDeniedException: /data/report.pdf
 
 ### Frontends (Vector)
 
-The two frontends have their own shipper, [`vector/vector.toml`](../vector/vector.toml), because
-their logs are written by Pino in the Node.js process rather than by the JVM. Both applications use
-the module `frontend-main/src/shared/lib/logger.ts` resp. `user-profile/shared/api/logger.ts`, which
+The three frontends have their own shipper, [`vector/vector.toml`](../vector/vector.toml), because
+their logs are written by Pino in the Node.js process rather than by the JVM. All applications use
+the modules `frontend-main/src/shared/lib/logger.ts`, `games/src/shared/lib/logger.ts` resp.
+`user-profile/shared/api/logger.ts`, which
 prints **the same line shape as the backend** (`[LEVEL]-[yyyy-MM-dd HH:mm:ss.SSS]- message`, UTC,
 a stack trace on the following lines) into the console and, when `LOG_FILE` is set, into that file
 inside the `frontend-logs` volume. Compose sets `LOG_FILE` to one file per service and `LOG_LEVEL`
-(default `info`) for both:
+(default `info`) for all:
 
 | Source        | File inside the container               | Index                      |
 | ------------- | --------------------------------------- | -------------------------- |
 | frontend-main | `/var/log/user-kit/frontend-main.log`   | `user-kit-frontend-main-*` |
 | user-profile  | `/var/log/user-kit/user-profile.log`    | `user-kit-user-profile-*`  |
+| games         | `/var/log/user-kit/games.log`           | `user-kit-games-*`         |
 
-Vector tails both files (offsets are kept in the `vector-data` volume), joins the stack trace onto
+Vector tails the three files (offsets are kept in the `vector-data` volume), joins the stack trace onto
 its first line the way the multiline codec does for the backend, parses the first line with a regex
 and writes one document per event with the fields Kibana already knows: `@timestamp` (taken from the
 line, so the event carries its write time), `message`, `log.level`, `service` and `tags`. The
@@ -189,15 +193,16 @@ docker run --rm -v "$PWD/vector:/etc/vector:ro" timberio/vector:0.60.0-alpine te
 ```
 
 `validate` checks the topology, `test` runs the unit tests of the config: a plain line, a stack
-trace and a BFF line, each asserted against `service`, `log.level`, `message`, `@timestamp` and
+trace, a BFF line and a games line, each asserted against `service`, `log.level`, `message`,
+`@timestamp` and
 `tags`. Note that VRL writes a regex literal as `r'...'` — a `/.../` slash form is lexed as the
 division operator and fails to parse.
 
-Every document carries a `service` field (`backend`, `keycloak`, `nginx`, `frontend-main` or
-`user-profile`) and the parsed `log.level`. Create the data views once in Kibana (**Stack
+Every document carries a `service` field (`backend`, `keycloak`, `nginx`, `frontend-main`,
+`user-profile` or `games`) and the parsed `log.level`. Create the data views once in Kibana (**Stack
 Management → Data Views**): `user-kit-*`
 for all sources at once, or one per source (`user-kit-backend-*`, `user-kit-keycloak-*`,
-`user-kit-nginx-*`, `user-kit-frontend-main-*`, `user-kit-user-profile-*`), each with `@timestamp` as
+`user-kit-nginx-*`, `user-kit-frontend-main-*`, `user-kit-user-profile-*`, `user-kit-games-*`), each with `@timestamp` as
 the time field. Open Kibana at `SERVER_NAME_KIBANA`
 (`https://user-kit.kibana.local` by default), which the edge proxies to the Kibana container, or at the
 published `KIBANA_PORT`. The `date` filter of the Logstash pipeline and the `parse_timestamp` call in
@@ -255,13 +260,14 @@ mappings so only the edge reaches the log UI.
 UI, OpenAPI, the discovery document of the identity provider, the roles of the tokens, authentication,
 authorization, upload into the object storage, the REST list query parameters (search, sort, page, size
 and the size cap), rejected input, optimistic locking, role administration, deletion and the presence
-of both frontend log indices in Elasticsearch. It prints one
+of the frontend log indices in Elasticsearch. It prints one
 line per check and exits with `1` if anything deviates from the expected status.
 
 ```bash
 pwsh ./scripts/smoke.ps1                                   # SERVER_NAME, SERVER_NAME_NEXT, SERVER_NAME_KIBANA
 pwsh ./scripts/smoke.ps1 -ServerName app.local
 pwsh ./scripts/smoke.ps1 -NextServerName app3.local         # second domain, must exist
+pwsh ./scripts/smoke.ps1 -GamesServerName app5.local        # games domain, must exist
 pwsh ./scripts/smoke.ps1 -KibanaServerName app4.local       # log UI domain, must exist
 pwsh ./scripts/smoke.ps1 -SkipCertificateCheck             # only with a trusted certificate
 pwsh ./scripts/smoke.ps1 -AuthMode oidc                    # tokens from the identity provider
@@ -281,11 +287,13 @@ provider and an unsafe call without a CSRF token has to be rejected with `403`. 
 the deployed SPA bundle to confirm that no identity provider configuration and no OIDC client library
 leaked into it.
 
-The last block runs against the second and third domain: the Material UI frontend serves its own SPA
-and the Next.js domain its own page, both expose the same API, `/auth` has to redirect to the canonical
+The last block runs against the other domains: the second application domain serves its own Next.js
+page, both expose the same API, `/auth` has to redirect to the canonical
 domain, and a login of a non canonical domain has to announce the callback of that domain, never the
-one of another one. The same is checked for the registration of that domain. The `SERVER_NAME_KIBANA`
-domain is verified with `/healthz` and the Kibana status API. Pass empty `-MuiServerName`, `-NextServerName` and `-KibanaServerName` only after removing those server
+one of another one. The same is checked for the registration of that domain. The games domain is
+verified without any session: the catalog and both game routes answer `200` and `/auth` redirects to
+the canonical domain. The `SERVER_NAME_KIBANA`
+domain is verified with `/healthz` and the Kibana status API. Pass empty `-MuiServerName`, `-NextServerName`, `-GamesServerName` and `-KibanaServerName` only after removing those server
 blocks from the edge template.
 
 ## Useful commands

@@ -1,8 +1,9 @@
 # Карта контрактов — frontend-main, v1
 
 **Статус:** действует. Базовая точка — 2026-10-23.
-**Роль проекта:** одновременно **потребитель** backend-API и **поставщик** браузерных маршрутов;
-плюс собственные контракты игр (правила движка + `localStorage`).
+**Роль проекта:** одновременно **потребитель** backend-API и **поставщик** браузерных маршрутов.
+Контракты игр (правила движка + `localStorage`) остались в документе, но сам код вынесен в проект
+[`../../games`](../../games) — см. разделы 5 и 6.
 **Провайдер API:** [`../../backend`](../../backend) — см.
 [`../../backend/docs/contract_map_v1.md`](../../backend/docs/contract_map_v1.md).
 **Домен стенда:** `https://user-kit.next.local`.
@@ -19,10 +20,13 @@
 | `/profile` | `(protected)/profile/page.tsx` | cookie сессии | карточка профиля, кнопка «Редактировать» |
 | `/profile/edit` | `(protected)/profile/edit/page.tsx` | cookie сессии | имя, почта, аватар |
 | `/admin` | `(protected)/admin/page.tsx` | cookie + `admin` в UI | заглушка; при роли без `admin` — `Result 403` |
-| `/games/match3` | `(protected)/games/match3/page.tsx` | cookie сессии | Phaser-игра «Три в ряд» |
-| `/games/lines` | `(protected)/games/lines/page.tsx` | cookie сессии | three.js-игра «Цветные линии» |
 | `/games/chess` | `(protected)/games/chess/page.tsx` | cookie сессии | заглушка |
 | `/games/checkers` | `(protected)/games/checkers/page.tsx` | cookie сессии | заглушка |
+
+Работающие игры (раньше `/games/match3` и `/games/lines`) переехали в проект
+[`../../games`](../../games): маршруты `/match3` и `/lines` на `https://user-kit.games.local`,
+без сессии и без cookie. Пункты меню «Три в ряд» и «Цветные линии» ведут туда абсолютной ссылкой
+(`appConfig.gamesBaseUrl`).
 
 Страницы в основном клиентские; серверные обёртки — корневой `layout.tsx`, `/login` (Suspense из-за
 `useSearchParams`) и `(protected)/layout.tsx`. Все маршруты пререндерятся как статические (`○`);
@@ -133,6 +137,8 @@ interface ApiErrorBody { code?: string; message?: string; target?: string; detai
 
 ## 5. Контракт игры «Цветные линии» (v1)
 
+Код переехал в проект [`../../games`](../../games): `games/src/features/lines/game/engine.ts`.
+
 ### Правила (движок, `features/lines/game/engine.ts`)
 
 | Пункт | Значение |
@@ -201,9 +207,15 @@ interface LinesHint { from: number; to: number; path: number[]; clears: number; 
 ### Звук (`ui/sound.ts`)
 
 `SoundEngine(musicVolume, sfxVolume)` — Web Audio без ассетов; методы `resume`, `setMusicVolume`,
-`setSfxVolume`, `playJump`, `playStep(strong)`, `playClear`, `startMusic`, `stopMusic`, `dispose`.
+`setSfxVolume`, `playJump`, `playStep(strong)`, `playClear`, `startMusic`, `stopMusic`,
+`currentTrackTitle`, `nextTrack`, `setTrackListener`, `dispose`.
 Музыка стартует после первого `pointerdown`/`keydown` (политика автозапуска браузера), контекст
 освобождается при уходе со страницы.
+
+Фоновая музыка — плейлист транс-этюдов (`ui/musicPlaylist.ts`): треки идут по очереди, после
+последнего круг повторяется. Название текущего трека отдаётся через `currentTrackTitle` и
+обновляется по колбэку `setTrackListener` (настройки показывают «Сейчас играет» и кнопку
+«Следующий трек»).
 
 ### Рендер (`game/board.ts`)
 
@@ -212,6 +224,8 @@ interface LinesHint { from: number; to: number; path: number[]; clears: number; 
 белая; материалы с `toneMapped: false`, чтобы цвета не выцветали.
 
 ## 6. Контракт игры «Три в ряд» (v1)
+
+Код переехал в проект [`../../games`](../../games): `games/src/features/match3`.
 
 | Пункт | Значение |
 | --- | --- |
@@ -235,14 +249,15 @@ interface LinesHint { from: number; to: number; path: number[]; clears: number; 
 | --- | --- |
 | `@/features/auth` | `AuthProvider`, `AuthConfig`, `AuthMode`, `LoginOptions`, `AuthenticationError`, `SessionStore`, `AuthStatus`, `useAuth`, `useCurrentUser`, `createAuthProvider`, `AuthSessionProvider`, `LoginScreen`, `ProfileMenu` |
 | `@/features/profile-edit` | `ProfileEditForm`, `ProfileApi`, `ProfileDetails`, `createProfileApi` |
-| `@/features/lines` | `LinesGame` (default и named) |
-| `@/features/match3` | `Match3Game` (default и named) |
+| `@/features/lines` | *переехал в `games/src/features/lines`* |
+| `@/features/match3` | *переехал в `games/src/features/match3`* |
 | `@/entities/user` | `AuthenticatedUser`, `MeResponse`, `Role`, `ROLES`, `DEFAULT_ROLE`, `hasRole`, `hasAdmin`, `collectRoles`, `extractRoles`, `normalizeRole`, `readClaimPath`, `ProfileCard` |
 | `@/widgets/app-shell` | `AppShell`, `NAV_ENTRIES`, `NavEntry`, `NavGroup`, `NavLink`, `isNavGroup`, `visibleNavEntries`, `openGroupKeys` |
 | `@/shared/api` | `request`, `requestJson`, `joinUrl`, `ApiError`, `ApiErrorBody`, `csrfHeaders`, `readCookie` |
 | `@/shared/config` | `appConfig`, `AppConfig`, `normalizeBaseUrl` |
 
-Навигация (`NAV_ENTRIES`): группа «Игры» → `/games/{chess,checkers,match3,lines}`, пункт
+Навигация (`NAV_ENTRIES`): группа «Игры» → заглушки `/games/{chess,checkers}` плюс абсолютные ссылки
+`{gamesBaseUrl}/match3` и `{gamesBaseUrl}/lines` на проект игр, пункт
 «Администрирование» → `/admin` (роль `admin`). Пункта «Документы» в Next нет.
 
 ## 8. Конфигурация и сборка
@@ -250,6 +265,7 @@ interface LinesHint { from: number; to: number; path: number[]; clears: number; 
 | Переменная | Где | Значение |
 | --- | --- | --- |
 | `NEXT_PUBLIC_API_BASE_URL` | build-time (`ARG` в `Dockerfile`, читается `shared/config/config.ts`) | пусто = same-origin; в compose берётся из `VITE_API_BASE_URL` |
+| `NEXT_PUBLIC_GAMES_BASE_URL` | build-time (`ARG` в `Dockerfile`, читается `shared/config/config.ts`) | база проекта игр; по умолчанию `https://user-kit.games.local`, в compose берётся из `SERVER_NAME_GAMES` |
 | `NODE_ENV` | runtime (compose) | `production` |
 | `PORT`, `HOSTNAME` | runtime | `3000`, `0.0.0.0` |
 | `NODE_VERSION` образа | `Dockerfile` | `node:22-alpine`, standalone, пользователь `nextjs` (uid 1001) |
@@ -268,8 +284,6 @@ interface LinesHint { from: number; to: number; path: number[]; clears: number; 
 | `MeResponse` читает подмножество | `version`, `etag`, `id`, `enabled` не используются |
 | `PATCH /api/v1/me` без `If-Match` | конкурентная правка профиля не даёт 412 (осознанно: профиль правит только владелец) |
 | WebP в `accept` аватара | бэкенд декодирует ImageIO и отвечает `400 invalid_image` |
-| Игровая статистика только локальная | `lines:stats` не синхронизируется между устройствами |
-| `board-old.ts` | мёртвый файл «Цветных линий», не импортируется |
 | Тестов нет | `pnpm lint` + `pnpm build` — единственные автоматические гейты |
 | Next 16.4.0 | `next build` печатает предупреждение об известной уязвимости и предлагает обновление |
 
@@ -277,4 +291,5 @@ interface LinesHint { from: number; to: number; path: number[]; clears: number; 
 
 | Версия | Дата | Изменения |
 | --- | --- | --- |
+| v1.1 | 2026-10-31 | Игры match-3 и «Цветные линии» вынесены в отдельный проект `games` (`user-kit.games.local`): маршруты `/games/{match3,lines}`, публичные API `@/features/{lines,match3}` и их зависимости three.js/phaser удалены из этого проекта, меню ведёт абсолютными ссылками через `appConfig.gamesBaseUrl`. Заглушки шахмат и шашек остались. |
 | v1 | 2026-10-23 | Зафиксированы маршруты, потребляемые эндпоинты, cookie/CSRF, контракты движков match-3 и «Цветных линий», схемы `lines:settings`/`lines:stats`. `pnpm lint` и `pnpm build` зелёные. |

@@ -10,6 +10,11 @@ export interface AppConfig {
    * домен: remote отдаёт свой `mf-manifest.json` и чанки оттуда.
    */
   profileBaseUrl: string;
+  /**
+   * База отдельного проекта игр. Игры живут на своём домене и не требуют
+   * сессии, меню только ведёт туда абсолютной ссылкой.
+   */
+  gamesBaseUrl: string;
 }
 
 /** Убирает хвостовой слэш, чтобы склейка путей не давала двойной слэш. */
@@ -28,4 +33,10 @@ const profileBaseUrl = normalizeBaseUrl(
   process.env.NEXT_PUBLIC_PROFILE_BASE_URL ?? 'https://user-kit.profile.local',
 );
 
-export const appConfig: AppConfig = { apiBaseUrl, profileBaseUrl };
+// То же для домена игр: значение по умолчанию совпадает с SERVER_NAME_GAMES
+// edge-nginx.
+const gamesBaseUrl = normalizeBaseUrl(
+  process.env.NEXT_PUBLIC_GAMES_BASE_URL ?? 'https://user-kit.games.local',
+);
+
+export const appConfig: AppConfig = { apiBaseUrl, profileBaseUrl, gamesBaseUrl };

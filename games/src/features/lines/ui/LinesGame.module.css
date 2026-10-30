@@ -388,6 +388,23 @@
   margin-top: 6px;
 }
 
+/* Строка плейлиста под громкостью музыки: текущий трек и кнопка перелистывания. */
+.trackRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+/* Кнопка «Следующий трек»: та же тёмная тема, что у кнопок верхней панели. */
+.trackSkip.trackSkip {
+  background: linear-gradient(180deg, #2a3345, #1c2331);
+  border: 1px solid #3b4657;
+  color: #9fb0c8;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
 .paragraph.paragraph {
   color: #d7dde8;
   margin-bottom: 0;

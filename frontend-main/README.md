@@ -21,7 +21,9 @@ JWT resource server, the browser receives only `HttpOnly` cookies and never a to
   shell (`admin`, `profile`, `profile/edit`, `games/chess`, `games/checkers`); `src/app/login/` — the
   login screen.
 - `src/widgets/app-shell/` — the header with the profile menu and the role-filtered navigation in a
-  left sider. `Игры` is a group: it only expands the submenu, its pages are placeholders.
+  left sider. `Игры` is a group: it only expands the submenu; the stubs `chess` and `checkers` have
+  local placeholder pages, while `Три в ряд` and `Цветные линии` link to the standalone `games/`
+  project on `user-kit.games.local`.
 
 Registration is a separate feature and is not implemented here.
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Modal, Segmented, Slider, Typography } from 'antd';
+import { Button, Modal, Segmented, Slider, Typography } from 'antd';
 
 import {
   DIFFICULTY_LABELS,
@@ -17,6 +17,10 @@ interface SettingsModalProps {
   /** Черновик настроек: редактируется до нажатия «Применить». */
   draft: LinesSettings;
   onDraftChange: (next: LinesSettings) => void;
+  /** Название трека плейлиста, который играет сейчас. */
+  trackTitle: string;
+  /** Перевести плейлист на следующий трек. */
+  onNextTrack: () => void;
   onApply: () => void;
   onCancel: () => void;
 }
@@ -24,7 +28,15 @@ interface SettingsModalProps {
 const percent = (value?: number) => `${Math.round((value ?? 0) * 100)}%`;
 
 /** Окно настроек игры: сложность и раздельная громкость музыки и звуков. */
-export function SettingsModal({ open, draft, onDraftChange, onApply, onCancel }: SettingsModalProps) {
+export function SettingsModal({
+  open,
+  draft,
+  onDraftChange,
+  trackTitle,
+  onNextTrack,
+  onApply,
+  onCancel,
+}: SettingsModalProps) {
   const level = LINES_LEVELS[draft.difficulty];
 
   return (
@@ -63,6 +75,14 @@ export function SettingsModal({ open, draft, onDraftChange, onApply, onCancel }:
             tooltip={{ formatter: percent }}
             onChange={(value: number) => onDraftChange({ ...draft, musicVolume: value })}
           />
+          <div className={styles.trackRow}>
+            <Typography.Text className={styles.fieldLabel}>
+              Сейчас играет: <strong className={styles.highlight}>{trackTitle}</strong>
+            </Typography.Text>
+            <Button size="small" className={styles.trackSkip} onClick={onNextTrack}>
+              Следующий трек
+            </Button>
+          </div>
         </div>
         <div>
           <Typography.Text className={styles.fieldLabel}>Громкость звуков</Typography.Text>

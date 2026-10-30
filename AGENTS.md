@@ -1,8 +1,9 @@
 # AGENTS.md — user-kit
 
-Монорепозиторий: одно Next.js-приложение, один REST-бэкенд, локальная инфраструктура (Keycloak, PostgreSQL,
-S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/Logstash). Приложение управляет
-**файлами**: загрузка, список, скачивание, аватар, администрирование пользователей.
+Монорепозиторий: два Next.js-приложения (основное и игры), один REST-бэкенд, локальная инфраструктура
+(Keycloak, PostgreSQL, S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/Logstash). Основное
+приложение управляет **файлами**: загрузка, список, скачивание, аватар, администрирование пользователей;
+`games/` — браузерные игры без бэкенда.
 
 Подробная документация — в [`docs/`](docs/): `api.md`, `architecture.md`, `auth.md`, `frontend.md`,
 `deployment.md`. README — для человека, этот файл — для агента.
@@ -12,12 +13,13 @@ S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/L
 | Путь | Стек | Назначение |
 | --- | --- | --- |
 | `backend/` | Spring Boot 4.1.1, Java 21, Maven, Flyway, PostgreSQL, гексагональная архитектура | REST API `/api/v1`, OAuth-клиент, файловое хранилище |
-| `frontend-main/` | Next.js 16.4, React 19, antd 6, three.js, Phaser | Единственное приложение: `user-kit.local` и `user-kit.next.local` (профиль, админка, игры) |
+| `frontend-main/` | Next.js 16.4, React 19, antd 6 | Основное приложение: `user-kit.local` и `user-kit.next.local` (профиль, админка, заглушки игр) |
+| `games/` | Next.js 16.4, React 19, antd 6, three.js, Phaser | Отдельный проект игр: `user-kit.games.local` (`/lines`, `/match3`; без бэкенда и сессии) |
 | `user-profile/` | Modern.js 3.10, React 19, antd 6, TanStack Query, zod, FSD | Микрофронтенд правки профиля: `user-kit.profile.local`, remote Module Federation для `frontend-main` |
 | `nginx/` | nginx 1.27 | TLS-edge: терминация, редирект, прокси |
 | `keycloak/realm/` | Keycloak 26 | Импорт realm'а локального IdP |
 | `logstash/` | Logstash | Доставка логов backend/Keycloak/nginx в Elasticsearch |
-| `vector/` | Vector 0.60 | Доставка логов фронтендов (frontend-main, user-profile) в Elasticsearch |
+| `vector/` | Vector 0.60 | Доставка логов фронтендов (frontend-main, user-profile, games) в Elasticsearch |
 | `scripts/` | PowerShell | `generate-dev-cert.ps1` (сертификаты), `smoke.ps1` (e2e-проверка стека) |
 | `docs/` | — | Единственный источник правды по API, архитектуре и фронтендам |
 
@@ -28,6 +30,7 @@ S3-совместимое хранилище, nginx-edge, Elasticsearch/Kibana/L
 | `https://user-kit.local` | frontend-main + `/api/`, `/auth/` (Keycloak), `/healthz` |
 | `https://user-kit.next.local` | frontend-main (без `/auth`, он редиректится на канонический домен) |
 | `https://user-kit.profile.local` | user-profile (микрофронтенд: страницы, `/profile-api/`, чанки Module Federation) |
+| `https://user-kit.games.local` | games (каталог игр, `/lines`, `/match3`; без `/api/` и входа) |
 | `https://user-kit.kibana.local` | Kibana |
 
 Порты: edge `80/443`, backend `8080`, Keycloak `8180`, PostgreSQL `5432`, Silo `9001`,
@@ -75,9 +78,9 @@ cp .env.example .env                  # конфигурация окружен�
 - Сертификат самоподписанный → для `curl` нужен `-k`, в браузере — «принять и перейти».
 - Имена доменов должны быть в `C:\Windows\System32\drivers\etc\hosts` (или `/etc/hosts`).
 - `NEXT_PUBLIC_*` инлайнится **на этапе сборки** — после правки переменной нужен
-  `docker compose up -d --build frontend-main`.
+  `docker compose up -d --build frontend-main` (или `games` для проекта игр).
 - Логи: Kibana, индексы `user-kit-backend-*`, `user-kit-keycloak-*`, `user-kit-nginx-*`,
-  `user-kit-frontend-main-*`, `user-kit-user-profile-*`.
+  `user-kit-frontend-main-*`, `user-kit-user-profile-*`, `user-kit-games-*`.
 
 ## Проверка перед сдачей
 
@@ -85,8 +88,10 @@ cp .env.example .env                  # конфигурация окружен�
 | --- | --- |
 | backend | `docker run --rm -v userkit-m2:/root/.m2 -v "$PWD/backend:/workspace" -w /workspace maven:3.9-eclipse-temurin-21 mvn -B -ntp clean test` (с `clean`: без него сборка может пройти по устаревшим классам) |
 | frontend-main | `pnpm lint`, `pnpm build` (tsc проверяется при сборке) |
+| games | `pnpm lint`, `pnpm build` (tsc проверяется при сборке) |
 | весь стек | `pwsh ./scripts/smoke.ps1` |
 
-Игры в `frontend-main/src/features/*` (lines, match3) **не имеют тестов в репозитории** — их
+Игры в `games/src/features/*` (lines, match3) **не имеют тестов в репозитории** — их
 проверяют временными harness'ами на esbuild + puppeteer (логика движка выносится в чистые
-модули `game/engine.ts`, `game/*Storage.ts`, которые тестируются без браузера).
+модули `game/engine.ts`, `game/*Storage.ts`, которые тестируются без браузера). Заглушки нереализованных
+игр (шахматы, шашки) остались в `frontend-main/src/app/(protected)/games/`.

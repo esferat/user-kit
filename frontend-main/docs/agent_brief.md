@@ -7,13 +7,15 @@
 
 ## Что это
 
-Next.js 16.4 (App Router, Turbopack, React Compiler), React 19.3, antd 6, three.js 0.186,
-Phaser 4. Пакетный менеджер — **pnpm** (`pnpm@12.10.1`, `packageManager` в `package.json`).
+Next.js 16.4 (App Router, Turbopack, React Compiler), React 19.3, antd 6. Пакетный менеджер —
+**pnpm** (`pnpm@12.10.1`, `packageManager` в `package.json`).
 
 Приложение уже не стоковый `create-next-app`: публичный лендинг, вход, личный кабинет, правка
-профиля с аватаром, раздел администратора и четыре игры. Это **не** BFF: Next не проксирует API и
-не хранит токенов — браузер ходит в бэкенд напрямую (same-origin через nginx), авторизация — на
-`httpOnly`-cookie бэкенда.
+профиля с аватаром и раздел администратора. Игры (match-3 и «Цветные линии») вынесены в отдельный
+проект [`../../games`](../../games) на `user-kit.games.local`, здесь от них остались только
+заглушки шахмат и шашек и пункты меню со ссылками на тот домен. Это **не** BFF: Next не проксирует
+API и не хранит токенов — браузер ходит в бэкенд напрямую (same-origin через nginx), авторизация —
+на `httpOnly`-cookie бэкенда.
 
 ## Состояние на 2026-10-23
 
@@ -22,7 +24,7 @@ Phaser 4. Пакетный менеджер — **pnpm** (`pnpm@12.10.1`, `packa
 | `pnpm lint` | чисто |
 | `pnpm build` | успешно: 10 маршрутов + Proxy (Middleware), все страницы статические |
 | Тесты | **нет** ни одного теста в пакете |
-| Реализовано | лендинг, вход (OIDC/dev), сессия, профиль, правка профиля и аватар, меню/навигация, match-3 (Phaser), «Цветные линии» (three.js) |
+| Реализовано | лендинг, вход (OIDC/dev), сессия, профиль, правка профиля и аватар, меню/навигация, ссылки на игры |
 | Заготовки | `/admin` — экран-заглушка без операций, `/games/chess`, `/games/checkers` — `Result` «игра ещё не реализована» |
 
 `pnpm build` печатает предупреждение Next.js: установленная `16.4.0` затронута известной
@@ -36,8 +38,6 @@ Phaser 4. Пакетный менеджер — **pnpm** (`pnpm@12.10.1`, `packa
 | `next` | 16.4.0 | App Router, Turbopack, `proxy.ts` |
 | `react`, `react-dom` | 19.3.0 | UI |
 | `antd`, `@ant-design/nextjs-registry` | 6.6.x, 1.3.x | компоненты и SSR-стили antd |
-| `three` | 0.186.1 | «Цветные линии» |
-| `phaser` | 4.2.x | match-3 |
 | `babel-plugin-react-compiler` | 1.0.0 | React Compiler |
 | `eslint` + `eslint-config-next` | 9.x, 16.4.0 | линт |
 
@@ -59,17 +59,15 @@ src/
 │       ├── profile/page.tsx     карточка профиля
 │       ├── profile/edit/        форма правки + аватар
 │       ├── admin/page.tsx       заглушка admin-раздела
-│       └── games/{chess,checkers,match3,lines}/page.tsx
+│       └── games/{chess,checkers}/page.tsx  заглушки, games/{lines,match3} — в проекте games
 ├── widgets/app-shell/           AppShell (шапка + боковое меню), navigation.ts
 ├── features/
 │   ├── auth/                    cookie-провайдер, SessionStore, LoginScreen, ProfileMenu
-│   ├── profile-edit/            ProfileEditForm, profileApi
-│   ├── match3/                  Phaser-игра
-│   └── lines/                   three.js-игра
+│   └── profile-edit/            ProfileEditForm, profileApi
 ├── entities/user/               AuthenticatedUser, MeResponse, роли, ProfileCard
 └── shared/
     ├── api/http.ts              request/requestJson, ApiError, CSRF, joinUrl
-    ├── config/config.ts         NEXT_PUBLIC_API_BASE_URL → appConfig
+    ├── config/config.ts         NEXT_PUBLIC_* → appConfig (apiBaseUrl, profileBaseUrl, gamesBaseUrl)
     └── lib/                     format, message, initials
 ```
 
@@ -102,28 +100,12 @@ features → entities → shared`), но, в отличие от Vite-прило
 
 ## Игры
 
-| Игра | Технология | Состояние |
-| --- | --- | --- |
-| «Три в ряд» (`/games/match3`) | Phaser 4 | работает: поле 10×10, 4/5/6 цветов, радужный/молния/бомба, каскады, счёт в памяти; таблица лидеров — мок |
-| «Цветные линии» (`/games/lines`) | three.js | работает полностью: 4 сложности, предсказание, бонусный ход, подсказка, звук, настройки и лучшие попытки в `localStorage` |
-| Шахматы, шашки | — | страницы-заглушки |
-
-Обе игры грузятся через `dynamic(..., { ssr: false })`: Phaser и three.js требуют DOM и не должны
-попадать в серверный рендер.
-
-«Цветные линии» разделены на слои:
-
-```
-features/lines/
-├── game/engine.ts        чистые правила (без three.js): createGame, findPath, findHint, applyMove
-├── game/board.ts         сцена three.js + анимации (requestAnimationFrame)
-├── game/{tiles,balls,plants}.ts  геометрия и материалы
-├── game/settingsStorage.ts, statsStorage.ts  localStorage-контракты
-├── ui/LinesGame.tsx      состояние партии, звук, диалоги
-├── ui/components/*.tsx   TopBar, GameBoard, NextBalls, AttemptsPanel, SettingsModal, RulesModal
-├── ui/sound.ts           Web Audio: музыка и эффекты без ассетов
-└── ui/modalTheme.ts      DARK_MODAL_STYLES для всех диалогов
-```
+Работающие игры (match-3 и «Цветные линии») живут в отдельном проекте
+[`../../games`](../../games) на `https://user-kit.games.local` (`/match3` и `/lines`). Здесь от них
+остались только пункты меню «Три в ряд» и «Цветные линии»: `navigation.ts` собирает абсолютную
+ссылку из `appConfig.gamesBaseUrl` (`NEXT_PUBLIC_GAMES_BASE_URL`), а `AppShell` открывает такие
+ключи через `window.location.assign`. Заглушки шахмат и шашек (`/games/chess`, `/games/checkers`)
+остались локальными страницами.
 
 Правила движка не зависят от рендера — поэтому их можно проверять без браузера. Тестов в
 репозитории нет; исторически движок проверяли временными harness'ами на esbuild + puppeteer.
@@ -158,27 +140,20 @@ same-origin.
 3. **`reactCompiler: true`** — не пиши ручных `useMemo`/`useCallback` «для оптимизации» без нужды и
    не мутируй пропсы; компилятор опирается на чистоту рендера.
 4. **Правило линта `react-hooks/set-state-in-effect`**: `setState` в `useEffect` выносится в
-   `setTimeout(..., 0)` (см. чтение `localStorage` в `LinesGame`), иначе линт падает.
+   `setTimeout(..., 0)`, иначе линт падает.
 5. **Никаких токенов.** Только `credentials: 'include'` и `X-XSRF-TOKEN` из читаемой cookie
    `XSRF-TOKEN`; `Authorization` не ставится никогда.
 6. **`NEXT_PUBLIC_*` инлайнится на сборке** — после правки переменной нужен
    `docker compose up -d --build frontend-main`.
 7. **Страницы — клиентские** (`'use client'`), серверных данных нет; серверные обёртки — только
    `layout.tsx` и `/login`. Не добавляй `fetch` в серверные компоненты без явной задачи.
-8. **Диалоги и модалки игр — на тёмном фоне** (`DARK_MODAL_STYLES`), это осознанное требование.
-9. **Стили игр — CSS-модули** (`LinesGame.module.css`), инлайновые стили в match-3 — исключение,
-   не образец.
-10. **Комментарии — на русском.**
+8. **Комментарии — на русском.**
 
 ## Ограничения и долги
 
 - `/admin` не управляет пользователями: это заглушка. Реальные операции — бэкенд-эндпоинты
   `/api/v1/users` (в бывшем `frontend-antd`/`frontend-mui` они были, здесь их нет).
-- `features/lines/game/board-old.ts` — мёртвый файл, никто его не импортирует. Удаление — только
-  после подтверждения пользователя.
-- Игр нет в тестах; любая правка движка проверяется вручную в браузере.
-- Статистика «Цветных линий» живёт только в `localStorage` (`lines:stats`), на сервер не уходит.
+- Шахматы и шашки — заглушки; работающие игры живут в проекте `games`.
 - `ProfileEditForm` предлагает WebP (`accept`), но бэкенд декодирует ImageIO и отвергает WebP.
-- Шахматы и шашки — заглушки, хотя пункты меню уже есть.
 - `build` предупреждает об уязвимости в Next 16.4.0; обновление — отдельная задача с согласия
   пользователя.

@@ -3,6 +3,7 @@ param(
     [string]$AltDomain = $(if ($env:SERVER_NAME_ALT) { $env:SERVER_NAME_ALT } else { 'user-kit.local' }),
     [string]$NextDomain = $(if ($env:SERVER_NAME_NEXT) { $env:SERVER_NAME_NEXT } else { 'user-kit.next.local' }),
     [string]$ProfileDomain = $(if ($env:SERVER_NAME_PROFILE) { $env:SERVER_NAME_PROFILE } else { 'user-kit.profile.local' }),
+    [string]$GamesDomain = $(if ($env:SERVER_NAME_GAMES) { $env:SERVER_NAME_GAMES } else { 'user-kit.games.local' }),
     [string]$KibanaDomain = $(if ($env:SERVER_NAME_KIBANA) { $env:SERVER_NAME_KIBANA } else { 'user-kit.kibana.local' }),
     [int]$Days = 825
 )
@@ -16,13 +17,13 @@ $subject = "/CN=$Domain"
 # All application domains share the certificate, the additional ones are only
 # added when they differ, otherwise OpenSSL rejects a duplicate name.
 $names = @("DNS:$Domain", "DNS:localhost", "IP:127.0.0.1")
-$additional = @($AltDomain, $NextDomain, $ProfileDomain, $KibanaDomain) | Where-Object { $_ -and $_ -ne $Domain } | Select-Object -Unique
+$additional = @($AltDomain, $NextDomain, $ProfileDomain, $GamesDomain, $KibanaDomain) | Where-Object { $_ -and $_ -ne $Domain } | Select-Object -Unique
 foreach ($extra in $additional) {
     $names += "DNS:$extra"
 }
 $altNames = "subjectAltName=$($names -join ',')"
 
-Write-Host "Generating a self signed certificate for $Domain, $AltDomain, $NextDomain, $ProfileDomain and $KibanaDomain in $certs" -ForegroundColor Cyan
+Write-Host "Generating a self signed certificate for $Domain, $AltDomain, $NextDomain, $ProfileDomain, $GamesDomain and $KibanaDomain in $certs" -ForegroundColor Cyan
 Write-Host 'This certificate is trusted by no browser. Use it for local development only.' -ForegroundColor Yellow
 
 docker run --rm -v "${certs}:/certs" alpine/openssl:latest req -x509 -nodes -newkey rsa:2048 -sha256 -days $Days -keyout /certs/server.key -out /certs/server.crt -subj $subject -addext $altNames
@@ -31,4 +32,4 @@ Write-Host "Created:" -ForegroundColor Green
 Get-ChildItem -Path $certs | Select-Object Name, Length
 Write-Host ''
 Write-Host 'Add an entry to your hosts file:' -ForegroundColor Green
-Write-Host "  127.0.0.1  $Domain $AltDomain $NextDomain $ProfileDomain $KibanaDomain"
+Write-Host "  127.0.0.1  $Domain $AltDomain $NextDomain $ProfileDomain $GamesDomain $KibanaDomain"
